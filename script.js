@@ -1112,10 +1112,6 @@ function runInfoExecution(query) {
                 👋 <strong>Assistant:</strong><br><span>Hello! How can I help you today? System initialized.</span>
             </div>
         `;
-        if (cleanQuery === query.trim().toLowerCase()) {
-            handleVaiiDataOutput("Hello! How can I help you today?", greetingHTML);
-            return;
-        }
     }
 
     if (cleanQuery.includes("calendar") || cleanQuery.includes("calender") || cleanQuery.includes("schedule") || cleanQuery === "agenda" || cleanQuery.includes("email") || cleanQuery.includes("gmail") || cleanQuery.includes("inbox")) {
