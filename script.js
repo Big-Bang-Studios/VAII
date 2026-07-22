@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
-    getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword, 
+    getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, 
     createUserWithEmailAndPassword, onAuthStateChanged, signOut 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
@@ -26,6 +26,7 @@ const OMDB_API_KEY = "bd1c" + "f679";
 const GNEWS_API_KEY = "a461968b" + "01ba9829" + "5729c637" + "0ec31d8d"; 
 
 const BASELINE_FALLBACK_TREE = [
+    { name: "Gemini 3.6", id: "gemini-3.6-flash" },
     { name: "Gemini 3.5", id: "gemini-3.5-flash" },
     { name: "Gemini 3.1", id: "gemini-3.1-flash" },
     { name: "Gemini 3", id: "gemini-3-flash" },
@@ -988,7 +989,7 @@ function executeVisionAnalysis(promptText) {
         }]
     };
 
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_VISION_KEY}`, {
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_VISION_KEY}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
     })
     .then(res => res.json())
@@ -1594,13 +1595,10 @@ hubInput?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') executeActionBtn?.click();
 });
 
-getRedirectResult(auth).catch(err => {
-    showAuthError(err);
-});
-
 googleSigninBtn?.addEventListener('click', () => {
     authError.style.display = "none";
-    signInWithRedirect(auth, googleProvider).catch(err => showAuthError(err));
+    signInWithPopup(auth, googleProvider)
+        .catch(err => showAuthError(err));
 });
 
 authToggle?.addEventListener('click', () => {
