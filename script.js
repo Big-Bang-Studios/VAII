@@ -574,10 +574,14 @@ function renderNotesManager() {
 
 function fetchNewsAPI(topic) {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching live news...</div>`;
-    let url = topic ? `https://gnews.io/api/v4/search?q=${encodeURIComponent(topic)}&lang=en&apikey=${GNEWS_API_KEY}` 
-                    : `https://gnews.io/api/v4/top-headlines?category=general&lang=en&apikey=${GNEWS_API_KEY}`;
+    
+    const targetUrl = topic 
+        ? `https://gnews.io/api/v4/search?q=${encodeURIComponent(topic)}&lang=en&apikey=${GNEWS_API_KEY}` 
+        : `https://gnews.io/api/v4/top-headlines?category=general&lang=en&apikey=${GNEWS_API_KEY}`;
+        
+    const proxiedUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
                     
-    fetch(url).then(res => res.json()).then(data => {
+    fetch(proxiedUrl).then(res => res.json()).then(data => {
         if (data.errors) {
             let errorMsg = Array.isArray(data.errors) ? data.errors[0] : (typeof data.errors === 'string' ? data.errors : "Unknown GNews error");
             return handleVaiiDataOutput("G News API Error: " + errorMsg, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;"><strong style="color:#ff4d4d;">GNews API Error:</strong> ${errorMsg}</div>`);
@@ -1552,7 +1556,8 @@ hubInput?.addEventListener('input', () => {
         if (cleanInput.startsWith("news about ")) {
             let nTerm = trimmedQuery.substring(11).trim();
             if (nTerm.length >= 2) {
-                gnewsSuggestionsFetch = fetch(`https://gnews.io/api/v4/search?q=${encodeURIComponent(nTerm)}&lang=en&apikey=${GNEWS_API_KEY}`, { signal })
+                const liveNewsUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(nTerm)}&lang=en&apikey=${GNEWS_API_KEY}`;
+                gnewsSuggestionsFetch = fetch(`https://corsproxy.io/?${encodeURIComponent(liveNewsUrl)}`, { signal })
                     .then(res => res.json())
                     .then(data => data.articles ? data.articles.slice(0, 3).map(a => `news about ${a.title.substring(0, 32)}...`) : [])
                     .catch(() => []);
