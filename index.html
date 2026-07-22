@@ -389,28 +389,44 @@
                     </div>
 
                     <div id="help-guide" class="help-drawer">
-                        <strong>💡 All Supported Services inside VAII Native:</strong>
-                        <span style="font-size: 0.8rem; color: #aaa; display: block; margin-bottom: 8px;">These core operations process natively via external live integrations:</span>
-                        <ul>
-                            <li><strong>🎤 Voice Recognition:</strong> Tap the microphone icon to dictate commands directly.</li>
-                            <li><strong>🔊 Text-to-Speech:</strong> Tap the speaker icon to read out the current screen response.</li>
-                            <li><strong>📰 News Aggregator:</strong> Type <code>news about [topic]</code> or <code>top news</code> for live global headlines.</li>
-                            <li><strong>🎬 Media Search:</strong> Type <code>movie [title]</code> to pull posters, plots, and IMDB scores.</li>
-                            <li><strong>📝 To-Do Notes:</strong> Type <code>note: [text]</code> to save entries, and <code>show notes</code> to manage them.</li>
-                            <li><strong>🧠 Knowledge Base:</strong> Input a single term to fetch definitions via Wiktionary.</li>
-                            <li><strong>🔴 YouTube Metrics:</strong> Search for famous creators to fetch live stats.</li>
-                            <li><strong>👁️ Gemini Vision:</strong> Tap the camera to upload an image and prompt a visual analysis.</li>
-                            <li><strong>🗺️ Maps & Weather:</strong> Type <code>map of [city]</code> or <code>weather in [city]</code> for live spatial cards.</li>
-                            <li><strong>🌐 Web Link Routing:</strong> Input domains like <code>wikipedia.org</code> or <code>open youtube</code> to launch them.</li>
-                            <li><strong>🍔 Local Food Ordering:</strong> Type <code>order [food/brand]</code> (e.g., <code>order McDonald's</code>) for DoorDash routing.</li>
-                            <li><strong>🔢 Calculations & Conversions:</strong> Type math or conversions like <code>193 lbs to kg</code>.</li>
-                            <li><strong>🔄 Translations:</strong> Enter <code>Hello to Spanish</code> to convert text.</li>
-                            <li><strong>📈 Market Trackers:</strong> Input stock symbols or crypto tickers for live pricing.</li>
-                            <li><strong>🎨 AI Art Generator:</strong> Type <code>draw [prompt]</code> to compile custom artwork.</li>
+                        <h3 style="margin-top: 0; color: #ffc107;">❓ VAII System Operation Guide</h3>
+                        <p style="color: #aaa; font-size: 0.88rem;">VAII features two operational modes: <strong>VAII Native</strong> for real-time web utilities and integrations, and <strong>Gemini Ecosystem</strong> for deep conversational threads.</p>
+                        
+                        <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 15px 0;">
+
+                        <h4 style="color: #4da3ff; margin-bottom: 8px;">🌐 VAII Native Commands & Syntax</h4>
+                        <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
+                            <li><strong>General Knowledge:</strong> Type any entity or question (e.g., <code>MrBeast</code>, <code>Quantum Computing</code>) to query Wiktionary, Wikipedia, and YouTube metrics simultaneously.</li>
+                            <li><strong>App & Site Launcher:</strong> Type <code>open [site]</code> (e.g., <code>open YouTube</code>, <code>open Minecraft</code>, <code>open github.com</code>) to route directly.</li>
+                            <li><strong>Location, Weather & Time:</strong> Type <code>weather [location]</code>, <code>time in [city]</code>, or <code>map of [place]</code> for interactive weather cards, clocks, and embedded maps.</li>
+                            <li><strong>Math & Unit Conversions:</strong> Enter math equations directly like <code>(12 * 4) / 2</code> or conversions like <code>193 lbs to kg</code>, <code>100 miles to km</code>, or <code>72 f to c</code>.</li>
+                            <li><strong>Language Translation:</strong> Type <code>[phrase] to [language]</code> (e.g., <code>hello to spanish</code>).</li>
+                            <li><strong>Crypto & Stock Tickers:</strong> Type <code>BTC</code>, <code>ETH</code>, <code>SOL</code>, or <code>price of AAPL</code> for live market quotes.</li>
+                            <li><strong>Movies & Media (OMDb):</strong> Type <code>movie [title]</code> (e.g., <code>movie Inception</code>) to fetch IMDb ratings, plot summaries, and posters.</li>
+                            <li><strong>Live News (GNews):</strong> Type <code>top news</code> or <code>news about [topic]</code> (e.g., <code>news about technology</code>).</li>
+                            <li><strong>Local Food Search:</strong> Type <code>order burger</code>, <code>find pizza in Orlando</code>, or <code>order from Wendy's</code> for GPS-tailored DoorDash and Google ordering cards.</li>
+                            <li><strong>Image Generation:</strong> Type <code>draw [prompt]</code> (e.g., <code>draw a neon cyberpunk switch console artwork</code>) to render AI art.</li>
+                            <li><strong>Notes Engine:</strong> Type <code>note: [your text]</code> to save local notes, and <code>show notes</code> to manage them.</li>
                         </ul>
-                        <div style="margin-top: 10px; color: #ff4d4d; font-size: 0.8rem; font-weight: bold; padding-top: 8px; border-top: 1px solid #3d3d3d;">
-                            ⚠️ CRITICAL RULE: The Gemini Ecosystem mode is an isolated text environment and cannot execute any of the above web widgets.
-                        </div>
+
+                        <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 15px 0;">
+
+                        <h4 style="color: #6f42c1; margin-bottom: 8px;">✨ Gemini Ecosystem Mode</h4>
+                        <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
+                            <li>Select <strong>Gemini Ecosystem</strong> on the mode switcher to engage persistent, multi-turn AI chat threads.</li>
+                            <li><strong>Custom Instructions:</strong> Click the gear icon (⚙️) next to Gemini to set long-term system instructions or personality guidelines.</li>
+                            <li><strong>Thread Management:</strong> Access historical chat sessions via the scroll icon (📜) or start a new thread using the edit icon (📝).</li>
+                            <li><strong>Model Fallback Matrix:</strong> Cascades from <strong>Gemini 3.6 Flash</strong> down to Gemma models automatically if quota limits are reached.</li>
+                        </ul>
+
+                        <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 15px 0;">
+
+                        <h4 style="color: #28a745; margin-bottom: 8px;">🎙️ Multimodal & Audio Tools</h4>
+                        <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
+                            <li><strong>Microphone (🎙️):</strong> Activates speech-to-text input and enables automatic text-to-speech voice playback for responses.</li>
+                            <li><strong>Camera / Vision (📷):</strong> Upload any image file and type a prompt to analyze visual input using the Gemini Vision matrix.</li>
+                            <li><strong>Text-to-Speech (🔊):</strong> Click the TTS button on active response outputs to read back text cleanly without markdown tags or emojis.</li>
+                        </ul>
                     </div>
 
                     <div id="history-drawer" class="help-drawer">
