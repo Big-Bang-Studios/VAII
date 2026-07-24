@@ -25,6 +25,11 @@ const GEMINI_VISION_KEY = "AQ.Ab8RN" + "6JH2s8Lpq" + "PfRqjRgs" + "OgOMy2f76" + 
 const OMDB_API_KEY = "bd1c" + "f679"; 
 const GNEWS_API_KEY = "a461968b" + "01ba9829" + "5729c637" + "0ec31d8d"; 
 
+function getActiveGeminiKey() {
+    const customKey = localStorage.getItem('vaii_custom_api_key');
+    return (customKey && customKey.trim() !== '') ? customKey.trim() : GEMINI_VISION_KEY;
+}
+
 const BASELINE_FALLBACK_TREE = [
     { name: "Gemini 3.6", id: "gemini-3.6-flash" },
     { name: "Gemini 3.5", id: "gemini-3.5-flash" },
@@ -256,6 +261,8 @@ const prefsToggleBtn = document.getElementById('prefs-toggle-btn');
 const prefsDrawer = document.getElementById('prefs-drawer');
 const prefsCloseBtn = document.getElementById('prefs-close-btn');
 const prefsInstructionsInput = document.getElementById('prefs-instructions-input');
+const prefsApiKeyInput = document.getElementById('prefs-api-key-input');
+const apiKeyNote = document.getElementById('api-key-note');
 const prefsSaveBtn = document.getElementById('prefs-save-btn');
 
 const micBtn = document.getElementById('mic-trigger-btn');
@@ -654,9 +661,11 @@ async function executeGeminiDirectChat(userInput) {
     let successfulModelLabel = "";
     let structuralErrorDetected = null;
 
+    const currentApiKey = getActiveGeminiKey();
+
     for (let i = 0; i < BASELINE_FALLBACK_TREE.length; i++) {
         const modelObj = BASELINE_FALLBACK_TREE[i];
-        const visionUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelObj.id}:generateContent?key=${GEMINI_VISION_KEY}`;
+        const visionUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelObj.id}:generateContent?key=${currentApiKey}`;
         
         try {
             const response = await fetch(visionUrl, {
@@ -743,7 +752,7 @@ async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningM
     const titlePrompt = `Generate a short, highly descriptive 3 to 5 word summary title for this chat based on these two statements. Respond with ONLY the clean summary text directly, no intro text, no markdown styling markers, and no outer quotation characters.\n\nUser text: "${userMsg}"\nModel text: "${modelResponse}"`;
     const payloadContents = [{ role: "user", parts: [{ text: titlePrompt }] }];
     const activeModel = BASELINE_FALLBACK_TREE.find(m => m.name === runningModelId) || BASELINE_FALLBACK_TREE[0];
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel.id}:generateContent?key=${GEMINI_VISION_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel.id}:generateContent?key=${getActiveGeminiKey()}`;
 
     try {
         const response = await fetch(url, {
@@ -993,7 +1002,7 @@ function executeVisionAnalysis(promptText) {
         }]
     };
 
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_VISION_KEY}`, {
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${getActiveGeminiKey()}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
     })
     .then(res => res.json())
@@ -1368,18 +1377,36 @@ function compileFinalSourceIndexBox(query, wikiData) {
 // ==========================================
 document.querySelectorAll('input[name="vaii-mode"]').forEach(r => r.addEventListener('change', updateWelcomeMessageText));
 
+function updateApiKeyNoteVisibility() {
+    if (!prefsApiKeyInput || !apiKeyNote) return;
+    if (prefsApiKeyInput.value.trim() === "") {
+        apiKeyNote.style.display = "block";
+    } else {
+        apiKeyNote.style.display = "none";
+    }
+}
+
 prefsToggleBtn?.addEventListener('click', (e) => {
     e.stopPropagation();
     const isVisible = prefsDrawer.style.display === "block";
     closeAllDrawers();
     if (!isVisible) {
         prefsDrawer.style.display = "block";
-        prefsInstructionsInput.value = localStorage.getItem('vaii_gemini_instructions') || '';
+        if (prefsInstructionsInput) prefsInstructionsInput.value = localStorage.getItem('vaii_gemini_instructions') || '';
+        if (prefsApiKeyInput) prefsApiKeyInput.value = localStorage.getItem('vaii_custom_api_key') || '';
+        updateApiKeyNoteVisibility();
     }
 });
 
+prefsApiKeyInput?.addEventListener('input', updateApiKeyNoteVisibility);
+
+prefsCloseBtn?.addEventListener('click', () => {
+    if (prefsDrawer) prefsDrawer.style.display = "none";
+});
+
 prefsSaveBtn?.addEventListener('click', () => {
-    localStorage.setItem('vaii_gemini_instructions', prefsInstructionsInput.value.trim());
+    if (prefsInstructionsInput) localStorage.setItem('vaii_gemini_instructions', prefsInstructionsInput.value.trim());
+    if (prefsApiKeyInput) localStorage.setItem('vaii_custom_api_key', prefsApiKeyInput.value.trim());
     prefsDrawer.style.display = "none";
     initializeFreshChatSession();
 });
@@ -1631,6 +1658,7 @@ onAuthStateChanged(auth, (user) => {
         clearActiveImage();
         renderHistoryListItems();
         if (prefsInstructionsInput) prefsInstructionsInput.value = localStorage.getItem('vaii_gemini_instructions') || '';
+        if (prefsApiKeyInput) prefsApiKeyInput.value = localStorage.getItem('vaii_custom_api_key') || '';
         updateDatalist([], [], [], []);
     } else {
         authContainer.style.display = "block";
