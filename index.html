@@ -110,11 +110,16 @@
             flex-direction: column;
             gap: 12px;
         }
-        .input-row {
+        .tool-row {
             display: flex;
             gap: 8px;
             width: 100%;
             margin-top: 5px;
+        }
+        .input-row {
+            display: flex;
+            gap: 8px;
+            width: 100%;
         }
         
         input {
@@ -481,14 +486,18 @@
                             </div>
                         </div>
 
-                        <div class="input-row">
+                        <div class="tool-row">
                             <button id="mic-trigger-btn" class="camera-btn" title="Voice Input">🎤</button>
                             <button id="tts-trigger-btn" class="camera-btn" title="Read Aloud" style="display: none;">🔊</button>
                             <button id="camera-trigger-btn" class="camera-btn" title="Image Upload">📷</button>
                             <input type="file" id="image-file-input" accept="image/*" style="display: none;">
+                        </div>
+
+                        <div class="input-row">
                             <input type="text" id="hub-input" placeholder="Type a command..." list="hub-suggestions" autocomplete="off">
                             <button id="execute-action-btn" class="enter-btn">➔</button>
                         </div>
+
                         <div id="image-preview-container" class="preview-box">
                             <img id="image-preview-thumbnail" src="" alt="upload">
                             <span id="image-preview-filename">image.jpg</span>
