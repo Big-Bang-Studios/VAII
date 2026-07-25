@@ -8,30 +8,29 @@
         * {
             box-sizing: border-box;
         }
-        html, body {
-            height: 100vh;
-            height: 100dvh;
-            width: 100%;
-            overflow: hidden; /* Lock outer page scroll completely */
+
+        html, 
+        body {
+            min-height: 100vh;
             margin: 0;
             padding: 0;
             background-color: #121212 !important;
             color: #ffffff !important;
             font-family: system-ui, -apple-system, sans-serif;
         }
+
         body {
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 16px 12px;
+            padding: 20px 12px;
         }
+
         .app-container {
             width: 100%;
             max-width: 420px;
-            height: 100%;
             display: flex;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
             text-align: center;
         }
@@ -40,6 +39,7 @@
             margin-bottom: 20px;
             flex-shrink: 0;
         }
+
         header h1 {
             margin: 0 0 4px 0;
             font-size: 2.8rem;
@@ -47,6 +47,7 @@
             letter-spacing: 1px;
             color: #ffffff;
         }
+
         header p {
             color: #888;
             margin: 0;
@@ -55,10 +56,6 @@
         
         main {
             width: 100%;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            max-height: calc(100vh - 120px);
         }
         
         .global-warning-msg {
@@ -70,31 +67,26 @@
             margin-bottom: 10px;
             padding: 0 6px;
             display: none;
-            flex-shrink: 0;
         }
         
-        /* SCROLLABLE CARD */
+        /* MAIN CARD STRUCTURE */
         .widget {
             background-color: #1e1e1e;
             padding: 18px;
             border-radius: 16px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
             text-align: left;
             display: flex;
             flex-direction: column;
             width: 100%;
-            max-height: 100%;
-            overflow-y: auto;
-            overscroll-behavior: contain;
         }
         
-        /* EXPANDED TOP BUTTON BAR */
+        /* TOP NAVIGATION BUTTON BAR */
         .widget-header {
             display: flex;
             gap: 8px;
             width: 100%;
             margin-bottom: 14px;
-            flex-shrink: 0;
         }
 
         .nav-hub-btn {
@@ -108,7 +100,7 @@
             font-weight: bold;
             font-size: 0.75rem;
             cursor: pointer;
-            transition: transform 0.15s ease, background-color 0.2s ease;
+            transition: transform 0.15s ease;
             text-align: center;
             border: 1px solid transparent;
         }
@@ -135,39 +127,42 @@
             border-color: #4da3ff;
         }
         
+        /* SLIDING DRAWERS */
         .help-drawer {
             display: none;
             background: #252525;
             border: 1px solid #3d3d3d;
             border-radius: 8px;
-            padding: 12px;
+            padding: 14px;
             margin-bottom: 14px;
             font-size: 0.82rem;
             color: #ccc;
             line-height: 1.45;
             max-width: 100%;
-            flex-shrink: 0;
         }
+
         .help-drawer ul {
             margin: 6px 0 0 0;
             padding-left: 18px;
         }
+
         .help-drawer li {
             margin-bottom: 6px;
         }
         
+        /* CONTROLS AND INPUT SECTION */
         .search-container {
             display: flex;
             flex-direction: column;
             gap: 10px;
-            flex-shrink: 0;
-            margin-top: 14px;
         }
+
         .tool-row {
             display: flex;
             gap: 8px;
             width: 100%;
         }
+
         .input-row {
             display: flex;
             gap: 8px;
@@ -206,9 +201,11 @@
             flex-shrink: 0;
             transition: background 0.2s ease, transform 0.1s ease;
         }
+
         .enter-btn:hover {
             background: #e0e0e0;
         }
+
         .enter-btn:active {
             transform: scale(0.95);
         }
@@ -228,11 +225,13 @@
             justify-content: center;
             transition: all 0.2s ease;
         }
+
         .camera-btn.active {
             border-color: #007bff;
             color: #007bff;
             background: #112233;
         }
+
         .camera-btn.listening {
             border-color: #ff4d4d;
             color: #ff4d4d;
@@ -240,9 +239,15 @@
         }
 
         @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(255, 77, 77, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); }
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 77, 77, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 77, 77, 0);
+            }
         }
         
         .preview-box {
@@ -254,8 +259,8 @@
             border-radius: 6px;
             margin-top: -2px;
             border: 1px dashed #444;
-            position: relative;
         }
+
         .preview-box img {
             width: 36px;
             height: 36px;
@@ -263,6 +268,7 @@
             border-radius: 4px;
             border: 1px solid #333;
         }
+
         .preview-box span {
             font-size: 0.8rem;
             color: #aaa;
@@ -271,6 +277,7 @@
             text-overflow: ellipsis;
             max-width: 200px;
         }
+
         .clear-preview {
             background: none;
             border: none;
@@ -293,18 +300,22 @@
             text-align: center;
             transition: transform 0.1s ease;
         }
+
         .auth-btn:active {
             transform: scale(0.98);
         }
         
+        /* OUTPUT RESPONSE CONTAINER */
         .output-box {
+            margin-top: 14px;
             padding: 14px;
             background: #252525;
             border-radius: 8px;
             font-size: 0.9rem;
             color: #eee;
             line-height: 1.5;
-            min-height: 100px;
+            max-height: 320px;
+            overflow-y: auto;
         }
 
         .generation-status {
@@ -319,9 +330,6 @@
             height: 18px !important;
             min-width: 18px !important;
             min-height: 18px !important;
-            max-width: 18px !important;
-            max-height: 18px !important;
-            flex-shrink: 0 !important;
             border: 3px solid rgba(255, 255, 255, 0.15) !important;
             border-radius: 50% !important;
             border-top-color: #007bff !important;
@@ -330,19 +338,23 @@
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         #auth-container {
             display: block;
         }
+
         .main-app-box {
             display: none;
             width: 100%;
-            height: 100%;
-            overflow: hidden;
         }
+
         .auth-toggle-text {
             color: #4da3ff;
             cursor: pointer;
@@ -351,6 +363,7 @@
             display: inline-block;
             text-decoration: underline;
         }
+
         .google-btn {
             background: #ffffff !important;
             color: #000000 !important;
@@ -367,6 +380,7 @@
             font-size: 1rem;
             cursor: pointer;
         }
+
         .logout-btn {
             background: #dc3545;
             padding: 6px 12px;
@@ -389,6 +403,7 @@
             font-size: 1rem;
         }
 
+        /* CARD FOOTER NAVIGATION */
         .card-footer-nav {
             display: flex;
             justify-content: space-between;
@@ -396,7 +411,6 @@
             margin-top: 14px;
             padding-top: 12px;
             border-top: 1px solid #2a2a2a;
-            flex-shrink: 0;
         }
     </style>
 </head>
@@ -408,10 +422,12 @@
         </header>
 
         <main>
+            <!-- AUTHENTICATION FORM -->
             <section id="auth-container" class="widget">
                 <h3 id="auth-title">🔒 Account Sign In</h3>
                 <div class="search-container" style="margin-top: 15px;">
                     <div id="auth-error" style="color: #ff4d4d; font-size: 0.85rem; display: none; margin-bottom: 5px;"></div>
+                    
                     <input type="email" id="auth-email" class="auth-field" placeholder="Email Address">
                     <input type="password" id="auth-password" class="auth-field" placeholder="Password">
                     
@@ -435,12 +451,14 @@
                 </div>
             </section>
 
+            <!-- MAIN APPLICATION WIDGET -->
             <div id="main-app" class="main-app-box">
                 <div id="routing-warning" class="global-warning-msg">
                     ⚠️ Website routing is not 100% accurate because the AI cannot scrape live websites.
                 </div>
 
                 <section class="widget" id="search-widget">
+                    <!-- NAVIGATION BUTTON BAR -->
                     <div class="widget-header">
                         <button id="changelog-toggle" class="nav-hub-btn changelog-style" title="Version History">
                             <span>🕒</span> Updates
@@ -453,18 +471,38 @@
                         </button>
                     </div>
 
+                    <!-- CHANGELOG DRAWER -->
                     <div id="changelog-drawer" class="help-drawer">
                         <strong style="color: #ffc107; font-size: 1rem;">🚀 VAII Version History</strong>
                         <div style="margin-top: 10px; border-left: 2px solid #444; padding-left: 10px; display: flex; flex-direction: column; gap: 12px;">
-                            <div><strong style="color:#fff;">v4.0 (Current)</strong><br><span style="color:#aaa;">Integrated Web Speech API for voice commands, GNews Aggregator, OMDB Media Search, persistent To-Do Notes, and the UI History tracker.</span></div>
-                            <div><strong style="color:#fff;">v3.5</strong><br><span style="color:#aaa;">Introduced Local Food Concierge, 150+ brand database, and spatial mapping for DoorDash deep links.</span></div>
-                            <div><strong style="color:#fff;">v3.0</strong><br><span style="color:#aaa;">Added the Gemini Ecosystem fallback tree, Gemini Vision API, Google Maps, CoinGecko Crypto, MyMemory Translations, and Pollinations AI Art.</span></div>
-                            <div><strong style="color:#fff;">v2.0</strong><br><span style="color:#aaa;">Overhauled the original news lookup into a unified "Info" module using Wikipedia summaries, and added Wiktionary to prevent single-word query confusion.</span></div>
-                            <div><strong style="color:#fff;">v1.5</strong><br><span style="color:#aaa;">Added basic Google News search routing.</span></div>
-                            <div><strong style="color:#fff;">v1.0</strong><br><span style="color:#aaa;">Initial release. Base HTML/CSS, Auth, and Open-Meteo weather integration only.</span></div>
+                            <div>
+                                <strong style="color:#fff;">v4.0 (Current)</strong><br>
+                                <span style="color:#aaa;">Integrated Web Speech API for voice commands, GNews Aggregator, OMDB Media Search, persistent To-Do Notes, and the UI History tracker.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v3.5</strong><br>
+                                <span style="color:#aaa;">Introduced Local Food Concierge, 150+ brand database, and spatial mapping for DoorDash deep links.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v3.0</strong><br>
+                                <span style="color:#aaa;">Added the Gemini Ecosystem fallback tree, Gemini Vision API, Google Maps, CoinGecko Crypto, MyMemory Translations, and Pollinations AI Art.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v2.0</strong><br>
+                                <span style="color:#aaa;">Overhauled the original news lookup into a unified "Info" module using Wikipedia summaries, and added Wiktionary to prevent single-word query confusion.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v1.5</strong><br>
+                                <span style="color:#aaa;">Added basic Google News search routing.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v1.0</strong><br>
+                                <span style="color:#aaa;">Initial release. Base HTML/CSS, Auth, and Open-Meteo weather integration only.</span>
+                            </div>
                         </div>
                     </div>
 
+                    <!-- FULL HELP GUIDE DRAWER -->
                     <div id="help-guide" class="help-drawer">
                         <h3 style="margin-top: 0; color: #ffc107;">❓ VAII System Operation Guide</h3>
                         <p style="color: #aaa; font-size: 0.88rem;">VAII features two operational modes: <strong>VAII Native</strong> for real-time web utilities and integrations, and <strong>Gemini Ecosystem</strong> for deep conversational threads.</p>
@@ -506,6 +544,7 @@
                         </ul>
                     </div>
 
+                    <!-- HISTORY DRAWER -->
                     <div id="history-drawer" class="help-drawer">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <strong>📜 Saved Gemini Chats:</strong>
@@ -514,6 +553,7 @@
                         <div id="history-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; margin-top: 5px; padding-right: 2px;"></div>
                     </div>
 
+                    <!-- SYSTEM PREFERENCES DRAWER -->
                     <div id="prefs-drawer" class="help-drawer">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                             <strong>⚙️ System Preferences:</strong>
@@ -536,12 +576,7 @@
                         </div>
                     </div>
 
-                    <datalist id="hub-suggestions"></datalist>
-                    
-                    <!-- RESPONSE OUTPUT BOX MOVED ABOVE TYPING AREA -->
-                    <div id="weather-output" class="output-box"></div>
-
-                    <!-- TYPING BOX AND TOOLS MOVED TO BOTTOM -->
+                    <!-- MODE SELECTOR AND INPUT CONTROLS -->
                     <div class="search-container">
                         <div style="text-align: center; font-size: 0.75rem; color: #888; margin-bottom: 4px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Assistant Engine Mode</div>
                         
@@ -564,6 +599,7 @@
                             </div>
                         </div>
 
+                        <!-- TOOL BUTTONS -->
                         <div class="tool-row">
                             <button id="mic-trigger-btn" class="camera-btn" title="Voice Input">🎤</button>
                             <button id="tts-trigger-btn" class="camera-btn" title="Read Aloud" style="display: none;">🔊</button>
@@ -571,11 +607,13 @@
                             <input type="file" id="image-file-input" accept="image/*" style="display: none;">
                         </div>
 
+                        <!-- TYPING FIELD AND EXECUTE BUTTON -->
                         <div class="input-row">
                             <input type="text" id="hub-input" placeholder="Type a command..." list="hub-suggestions" autocomplete="off">
                             <button id="execute-action-btn" class="enter-btn">➔</button>
                         </div>
 
+                        <!-- IMAGE UPLOAD PREVIEW -->
                         <div id="image-preview-container" class="preview-box">
                             <img id="image-preview-thumbnail" src="" alt="upload">
                             <span id="image-preview-filename">image.jpg</span>
@@ -583,6 +621,12 @@
                         </div>
                     </div>
                     
+                    <datalist id="hub-suggestions"></datalist>
+                    
+                    <!-- RESPONSE OUTPUT CONTAINER -->
+                    <div id="weather-output" class="output-box"></div>
+                    
+                    <!-- BOTTOM FOOTER -->
                     <div class="card-footer-nav">
                         <a href="privacy.html" style="text-decoration: none; color: #4da3ff; font-weight: bold; font-size: 0.85rem;">
                             ▶ Privacy Policy
@@ -594,6 +638,7 @@
         </main>
     </div>
 
+    <!-- MAPS & ENGINE SCRIPTS -->
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAJKTkU0nd6ZB_zjIcNQCAQQsffHEp4WH8&callback=initVaiiMap&libraries=places" async defer></script>
     <script type="module" src="script.js"></script>
 </body>
