@@ -2,17 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VAII - Virtual Assistant</title>
     <style>
         * {
             box-sizing: border-box;
         }
         html, body {
-            height: 100%;
-            height: 100dvh;
-            width: 100%;
-            overflow: hidden; /* Lock outer page scroll */
+            min-height: 100vh;
             margin: 0;
             padding: 0;
             background-color: #121212 !important;
@@ -23,26 +20,24 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            padding: 24px 12px;
         }
         .app-container {
             width: 100%;
             max-width: 420px;
-            height: 100dvh;
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 12px 10px;
             text-align: center;
-            overflow: hidden;
         }
+        
+        /* HEADER SPACING & SIZING */
         header {
+            margin-bottom: 24px; /* Clean gap above the card */
             flex-shrink: 0;
-            margin-bottom: 8px;
         }
         header h1 {
-            margin: 0 0 2px 0;
-            font-size: 3rem; /* Prominent, bold VAII header */
+            margin: 0 0 6px 0;
+            font-size: 2.8rem; /* Big, prominent title */
             font-weight: 800;
             letter-spacing: 1px;
             color: #ffffff;
@@ -50,48 +45,41 @@
         header p {
             color: #888;
             margin: 0;
-            font-size: 0.85rem;
+            font-size: 0.88rem;
         }
+        
         main {
             width: 100%;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
         }
+        
         .global-warning-msg {
             color: #ffa500;
             font-size: 0.8rem;
             font-style: italic;
             line-height: 1.4;
             text-align: left;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             padding: 0 6px;
             display: none;
-            flex-shrink: 0;
         }
         
-        /* CARD SCROLLING ONLY */
+        /* MAIN HUB CARD */
         .widget {
             background-color: #1e1e1e;
-            padding: 16px;
-            border-radius: 15px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            padding: 18px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
             text-align: left;
-            position: relative;
             display: flex;
             flex-direction: column;
             width: 100%;
-            max-height: calc(100dvh - 130px);
-            overflow-y: auto;
-            overscroll-behavior: contain;
         }
         
         .widget-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
-            flex-shrink: 0;
+            margin-bottom: 14px;
         }
         .widget h3 {
             color: #ffffff;
@@ -131,12 +119,11 @@
             border: 1px solid #3d3d3d;
             border-radius: 8px;
             padding: 12px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             font-size: 0.82rem;
             color: #ccc;
             line-height: 1.45;
             max-width: 100%;
-            flex-shrink: 0;
         }
         .help-drawer ul {
             margin: 6px 0 0 0;
@@ -145,11 +132,11 @@
         .help-drawer li {
             margin-bottom: 6px;
         }
+        
         .search-container {
             display: flex;
             flex-direction: column;
             gap: 10px;
-            flex-shrink: 0;
         }
         .tool-row {
             display: flex;
@@ -164,7 +151,7 @@
         
         input {
             width: 100%;
-            padding: 10px 12px;
+            padding: 12px;
             border-radius: 8px;
             border: 2px solid #28a745;
             background: #2a2a2a;
@@ -181,8 +168,8 @@
         .enter-btn {
             background: #ffffff;
             color: #121212;
-            width: 44px;
-            height: 44px;
+            width: 46px;
+            height: 46px;
             border-radius: 8px;
             border: none;
             font-size: 1.2rem;
@@ -285,18 +272,20 @@
             transform: scale(0.98);
         }
         
+        /* ISOLATED SCROLLING FOR OUTPUT CONTENT */
         .output-box {
-            margin-top: 12px;
+            margin-top: 14px;
+            margin-bottom: 14px;
             padding: 14px;
             background: #252525;
             border-radius: 8px;
             font-size: 0.9rem;
             color: #eee;
             line-height: 1.5;
-            min-height: 100px;
+            max-height: 300px; /* Output box scrolls cleanly when content is long */
+            overflow-y: auto;
         }
 
-        /* FIXED SPINNER BUG & ANIMATION */
         .generation-status {
             display: flex;
             align-items: center;
@@ -377,14 +366,13 @@
             font-size: 1rem;
         }
 
+        /* CARD FOOTER PINNED AT BOTTOM */
         .card-footer {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 12px;
-            padding-top: 10px;
+            padding-top: 12px;
             border-top: 1px solid #2a2a2a;
-            flex-shrink: 0;
         }
     </style>
 </head>
