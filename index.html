@@ -11,10 +11,7 @@
 
         html, 
         body {
-            height: 100vh;
-            height: 100dvh;
-            width: 100%;
-            overflow: hidden !important; /* Locks entire page scrolling */
+            min-height: 100vh;
             margin: 0;
             padding: 0;
             background-color: #121212 !important;
@@ -25,32 +22,27 @@
         body {
             display: flex;
             justify-content: center;
-            align-items: center;
-            padding: 16px 12px;
+            align-items: flex-start;
+            padding: 20px 12px;
         }
 
         .app-container {
             width: 100%;
             max-width: 420px;
-            height: 100%;
-            max-height: 100vh;
-            max-height: 100dvh;
             display: flex;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
             text-align: center;
-            overflow: hidden;
         }
         
         header {
-            margin-bottom: 14px;
+            margin-bottom: 20px;
             flex-shrink: 0;
         }
 
         header h1 {
             margin: 0 0 4px 0;
-            font-size: 2.5rem;
+            font-size: 2.8rem;
             font-weight: 800;
             letter-spacing: 1px;
             color: #ffffff;
@@ -59,16 +51,11 @@
         header p {
             color: #888;
             margin: 0;
-            font-size: 0.85rem;
+            font-size: 0.88rem;
         }
         
         main {
             width: 100%;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            max-height: calc(100vh - 100px);
-            max-height: calc(100dvh - 100px);
         }
         
         .global-warning-msg {
@@ -80,10 +67,9 @@
             margin-bottom: 10px;
             padding: 0 6px;
             display: none;
-            flex-shrink: 0;
         }
         
-        /* CARD SCROLLING ISOLATION */
+        /* MAIN CARD CONTAINER */
         .widget {
             background-color: #1e1e1e;
             padding: 18px;
@@ -93,9 +79,8 @@
             display: flex;
             flex-direction: column;
             width: 100%;
-            max-height: 100%;
-            overflow-y: auto !important; /* Only card scrolls */
-            overscroll-behavior: contain;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
         }
         
         /* TOP NAVIGATION BUTTON BAR */
@@ -169,7 +154,7 @@
             margin-bottom: 6px;
         }
         
-        /* CONTROLS SECTION AT TOP */
+        /* CONTROLS AT TOP OF CARD */
         .search-container {
             display: flex;
             flex-direction: column;
@@ -183,11 +168,12 @@
             width: 100%;
         }
 
+        /* INPUT ROW AT BOTTOM OF CARD */
         .input-row {
             display: flex;
             gap: 8px;
             width: 100%;
-            margin-top: 12px;
+            margin-top: 10px;
             flex-shrink: 0;
         }
         
@@ -328,16 +314,17 @@
             transform: scale(0.98);
         }
         
-        /* OUTPUT CONTAINER IN THE MIDDLE */
+        /* OUTPUT RESPONSE CONTAINER IN MIDDLE */
         .output-box {
-            margin-top: 14px;
+            margin-top: 12px;
+            margin-bottom: 12px;
             padding: 14px;
             background: #252525;
             border-radius: 8px;
             font-size: 0.9rem;
             color: #eee;
             line-height: 1.5;
-            min-height: 100px;
+            width: 100%;
         }
 
         .generation-status {
@@ -352,6 +339,9 @@
             height: 18px !important;
             min-width: 18px !important;
             min-height: 18px !important;
+            max-width: 18px !important;
+            max-height: 18px !important;
+            flex-shrink: 0 !important;
             border: 3px solid rgba(255, 255, 255, 0.15) !important;
             border-radius: 50% !important;
             border-top-color: #007bff !important;
@@ -375,9 +365,6 @@
         .main-app-box {
             display: none;
             width: 100%;
-            max-height: 100%;
-            overflow: hidden;
-            flex-direction: column;
         }
 
         .auth-toggle-text {
