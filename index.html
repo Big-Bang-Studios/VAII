@@ -11,10 +11,7 @@
 
         html, 
         body {
-            height: 100vh;
-            height: 100dvh;
-            width: 100%;
-            overflow: hidden !important; /* Strictly lock outer page scrolling */
+            min-height: 100vh;
             margin: 0;
             padding: 0;
             background-color: #121212 !important;
@@ -25,7 +22,7 @@
         body {
             display: flex;
             justify-content: center;
-            align-items: center; /* Centered vertically and horizontally */
+            align-items: center;
             padding: 16px 12px;
         }
 
@@ -94,8 +91,15 @@
             flex-direction: column;
             width: 100%;
             max-height: 100%;
-            overflow-y: auto !important; /* Only the card box scrolls */
+            overflow-y: auto !important;
             overscroll-behavior: contain;
+        }
+
+        #auth-title {
+            color: #ffffff;
+            font-size: 1.2rem;
+            margin: 10px 0 10px 0; /* Centered between top padding and email box */
+            padding: 0;
         }
         
         /* TOP NAVIGATION BUTTON BAR */
@@ -456,7 +460,7 @@
             <!-- AUTHENTICATION FORM -->
             <section id="auth-container" class="widget">
                 <h3 id="auth-title">🔒 Account Sign In</h3>
-                <div class="search-container" style="margin-top: 15px;">
+                <div class="search-container">
                     <div id="auth-error" style="color: #ff4d4d; font-size: 0.85rem; display: none; margin-bottom: 5px;"></div>
                     
                     <input type="email" id="auth-email" class="auth-field" placeholder="Email Address">
@@ -671,4 +675,4 @@
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAJKTkU0nd6ZB_zjIcNQCAQQsffHEp4WH8&callback=initVaiiMap&libraries=places" async defer></script>
     <script type="module" src="script.js"></script>
 </body>
-</html>
+    </html>
