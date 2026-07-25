@@ -2,77 +2,103 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>VAII - Virtual Assistant</title>
     <style>
-        body {
+        * {
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100vh;
+            height: 100dvh;
+            width: 100%;
+            overflow: hidden; /* Lock outer page scroll completely */
+            margin: 0;
+            padding: 0;
             background-color: #121212 !important;
             color: #ffffff !important;
             font-family: system-ui, -apple-system, sans-serif;
+        }
+        body {
             display: flex;
             justify-content: center;
-            padding: 20px;
-            margin: 0;
-            overflow: hidden; /* Stops whole page from scrolling */
-            height: 100vh;
-            box-sizing: border-box;
+            align-items: center;
+            padding: 16px 12px;
         }
         .app-container {
             width: 100%;
-            max-width: 400px;
-            text-align: center;
+            max-width: 420px;
+            height: 100%;
             display: flex;
             flex-direction: column;
-            max-height: 100%;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        
+        header {
+            margin-bottom: 20px;
+            flex-shrink: 0;
         }
         header h1 {
-            margin-bottom: 5px;
-            font-size: 2.5rem;
+            margin: 0 0 4px 0;
+            font-size: 2.8rem;
+            font-weight: 800;
+            letter-spacing: 1px;
             color: #ffffff;
         }
         header p {
             color: #888;
-            margin-top: 0;
+            margin: 0;
+            font-size: 0.88rem;
         }
+        
         main {
+            width: 100%;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            flex: 1;
+            max-height: calc(100vh - 120px);
         }
+        
         .global-warning-msg {
             color: #ffa500;
             font-size: 0.8rem;
             font-style: italic;
             line-height: 1.4;
             text-align: left;
-            margin-top: 20px;
-            margin-bottom: -10px;
-            padding: 0 10px;
+            margin-bottom: 10px;
+            padding: 0 6px;
             display: none;
+            flex-shrink: 0;
         }
+        
+        /* SCROLLABLE CARD */
         .widget {
             background-color: #1e1e1e;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            padding: 18px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
             text-align: left;
-            margin-top: 20px;
-            position: relative;
-            overflow-y: auto; /* Makes only the card scrollable */
-            max-height: calc(100vh - 120px);
             display: flex;
             flex-direction: column;
+            width: 100%;
+            max-height: 100%;
+            overflow-y: auto; /* Card scrolls internally */
+            overscroll-behavior: contain;
         }
+        
         .widget-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 14px;
+            flex-shrink: 0;
         }
         .widget h3 {
             color: #ffffff;
             margin: 0;
+            font-size: 1.15rem;
         }
         
         .help-btn {
@@ -106,31 +132,32 @@
             background: #252525;
             border: 1px solid #3d3d3d;
             border-radius: 8px;
-            padding: 14px;
-            margin-bottom: 15px;
-            font-size: 0.85rem;
+            padding: 12px;
+            margin-bottom: 14px;
+            font-size: 0.82rem;
             color: #ccc;
             line-height: 1.45;
             max-width: 100%;
-            box-sizing: border-box;
+            flex-shrink: 0;
         }
         .help-drawer ul {
             margin: 6px 0 0 0;
             padding-left: 18px;
         }
         .help-drawer li {
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
+        
         .search-container {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
+            flex-shrink: 0;
         }
         .tool-row {
             display: flex;
             gap: 8px;
             width: 100%;
-            margin-top: 5px;
         }
         .input-row {
             display: flex;
@@ -145,8 +172,7 @@
             border: 2px solid #28a745;
             background: #2a2a2a;
             color: white;
-            font-size: 1rem;
-            box-sizing: border-box;
+            font-size: 0.95rem;
             transition: border-color 0.2s ease;
         }
 
@@ -182,8 +208,8 @@
             background: #2a2a2a;
             color: #888;
             border: 2px solid #444;
-            width: 46px;
-            height: 46px;
+            width: 44px;
+            height: 44px;
             flex-shrink: 0;
             border-radius: 8px;
             font-size: 1.1rem;
@@ -217,13 +243,13 @@
             background: #1a1a1a;
             padding: 8px 12px;
             border-radius: 6px;
-            margin-top: -4px;
+            margin-top: -2px;
             border: 1px dashed #444;
             position: relative;
         }
         .preview-box img {
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             object-fit: cover;
             border-radius: 4px;
             border: 1px solid #333;
@@ -234,7 +260,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 240px;
+            max-width: 200px;
         }
         .clear-preview {
             background: none;
@@ -263,13 +289,41 @@
         }
         
         .output-box {
-            margin-top: 15px;
+            margin-top: 14px;
+            margin-bottom: 14px;
             padding: 14px;
             background: #252525;
             border-radius: 8px;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             color: #eee;
             line-height: 1.5;
+        }
+
+        .generation-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .loader-spinner {
+            display: inline-block !important;
+            width: 18px !important;
+            height: 18px !important;
+            min-width: 18px !important;
+            min-height: 18px !important;
+            max-width: 18px !important;
+            max-height: 18px !important;
+            flex-shrink: 0 !important;
+            border: 3px solid rgba(255, 255, 255, 0.15) !important;
+            border-radius: 50% !important;
+            border-top-color: #007bff !important;
+            animation: spin 0.8s linear infinite !important;
+            box-sizing: border-box !important;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         #auth-container {
@@ -277,7 +331,8 @@
         }
         .main-app-box {
             display: none;
-            flex-direction: column;
+            width: 100%;
+            height: 100%;
             overflow: hidden;
         }
         .auth-toggle-text {
@@ -316,18 +371,6 @@
             color: white;
         }
 
-        .loader-spinner {
-            display: inline-block;
-            width: 18px;
-            height: 18px;
-            border: 3px solid rgba(255, 255, 255, 0.15);
-            border-radius: 50%;
-            border-top-color: #007bff;
-            animation: spin 0.8s linear infinite;
-            margin-right: 12px;
-            vertical-align: middle;
-        }
-        
         .auth-field {
             width: 100%;
             padding: 12px;
@@ -336,16 +379,15 @@
             background: #2a2a2a;
             color: white;
             font-size: 1rem;
-            box-sizing: border-box;
         }
 
         .card-footer-nav {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 15px;
-            padding-top: 10px;
+            padding-top: 12px;
             border-top: 1px solid #2a2a2a;
+            flex-shrink: 0;
         }
     </style>
 </head>
