@@ -161,6 +161,7 @@
             flex-direction: column;
             gap: 10px;
             flex-shrink: 0;
+            margin-top: 14px;
         }
         .tool-row {
             display: flex;
@@ -297,14 +298,13 @@
         }
         
         .output-box {
-            margin-top: 14px;
-            margin-bottom: 14px;
             padding: 14px;
             background: #252525;
             border-radius: 8px;
             font-size: 0.9rem;
             color: #eee;
             line-height: 1.5;
+            min-height: 100px;
         }
 
         .generation-status {
@@ -393,6 +393,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-top: 14px;
             padding-top: 12px;
             border-top: 1px solid #2a2a2a;
             flex-shrink: 0;
@@ -535,6 +536,12 @@
                         </div>
                     </div>
 
+                    <datalist id="hub-suggestions"></datalist>
+                    
+                    <!-- RESPONSE OUTPUT BOX MOVED ABOVE TYPING AREA -->
+                    <div id="weather-output" class="output-box"></div>
+
+                    <!-- TYPING BOX AND TOOLS MOVED TO BOTTOM -->
                     <div class="search-container">
                         <div style="text-align: center; font-size: 0.75rem; color: #888; margin-bottom: 4px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Assistant Engine Mode</div>
                         
@@ -575,9 +582,6 @@
                             <button id="image-clear-btn" class="clear-preview">✕</button>
                         </div>
                     </div>
-                    
-                    <datalist id="hub-suggestions"></datalist>
-                    <div id="weather-output" class="output-box"></div>
                     
                     <div class="card-footer-nav">
                         <a href="privacy.html" style="text-decoration: none; color: #4da3ff; font-weight: bold; font-size: 0.85rem;">
