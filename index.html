@@ -13,11 +13,17 @@
             justify-content: center;
             padding: 20px;
             margin: 0;
+            overflow: hidden; /* Stops whole page from scrolling */
+            height: 100vh;
+            box-sizing: border-box;
         }
         .app-container {
             width: 100%;
             max-width: 400px;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            max-height: 100%;
         }
         header h1 {
             margin-bottom: 5px;
@@ -27,6 +33,12 @@
         header p {
             color: #888;
             margin-top: 0;
+        }
+        main {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex: 1;
         }
         .global-warning-msg {
             color: #ffa500;
@@ -47,6 +59,10 @@
             text-align: left;
             margin-top: 20px;
             position: relative;
+            overflow-y: auto; /* Makes only the card scrollable */
+            max-height: calc(100vh - 120px);
+            display: flex;
+            flex-direction: column;
         }
         .widget-header {
             display: flex;
@@ -253,8 +269,6 @@
             border-radius: 8px;
             font-size: 0.95rem;
             color: #eee;
-            max-height: 450px;
-            overflow-y: auto;
             line-height: 1.5;
         }
 
@@ -263,6 +277,8 @@
         }
         .main-app-box {
             display: none;
+            flex-direction: column;
+            overflow: hidden;
         }
         .auth-toggle-text {
             color: #4da3ff;
@@ -293,7 +309,6 @@
             padding: 6px 12px;
             font-size: 0.8rem;
             border-radius: 6px;
-            margin-top: 10px;
             width: auto;
             cursor: pointer;
             font-weight: bold;
@@ -323,11 +338,14 @@
             font-size: 1rem;
             box-sizing: border-box;
         }
-        
-        .policy-footer {
-            margin-top: 40px;
-            padding: 10px;
-            font-size: 0.8rem;
+
+        .card-footer-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #2a2a2a;
         }
     </style>
 </head>
@@ -508,18 +526,15 @@
                     <datalist id="hub-suggestions"></datalist>
                     <div id="weather-output" class="output-box"></div>
                     
-                    <div style="text-align: right;">
+                    <div class="card-footer-nav">
+                        <a href="privacy.html" style="text-decoration: none; color: #4da3ff; font-weight: bold; font-size: 0.85rem;">
+                            ▶ Privacy Policy
+                        </a>
                         <button id="logout-action-btn" class="logout-btn">Log Out</button>
                     </div>
                 </section>
             </div>
         </main>
-
-        <footer class="policy-footer" style="text-align: center;">
-            <a href="privacy.html" class="policy-summary" style="text-decoration: none; color: #4da3ff; font-weight: bold; font-size: 0.85rem;">
-                ▶ Privacy Policy
-            </a>
-        </footer>
     </div>
 
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAJKTkU0nd6ZB_zjIcNQCAQQsffHEp4WH8&callback=initVaiiMap&libraries=places" async defer></script>
