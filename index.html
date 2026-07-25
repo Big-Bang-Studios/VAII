@@ -9,7 +9,10 @@
             box-sizing: border-box;
         }
         html, body {
-            min-height: 100vh;
+            height: 100%;
+            height: 100dvh;
+            width: 100%;
+            overflow: hidden; /* Stops outer page scrolling */
             margin: 0;
             padding: 0;
             background-color: #121212 !important;
@@ -20,33 +23,38 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 16px 10px;
         }
         .app-container {
             width: 100%;
             max-width: 400px;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 12px 10px;
             text-align: center;
+            overflow: hidden;
         }
         header {
             flex-shrink: 0;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         header h1 {
-            margin: 0 0 4px 0;
-            font-size: 2.2rem;
+            margin: 0 0 2px 0;
+            font-size: 2.5rem; /* Restored header size */
             color: #ffffff;
         }
         header p {
             color: #888;
             margin: 0;
-            font-size: 0.85rem;
+            font-size: 0.9rem; /* Restored subtitle size */
         }
         main {
+            width: 100%;
             display: flex;
             flex-direction: column;
-            width: 100%;
+            overflow: hidden;
         }
         .global-warning-msg {
             color: #ffa500;
@@ -57,7 +65,10 @@
             margin-bottom: 8px;
             padding: 0 6px;
             display: none;
+            flex-shrink: 0;
         }
+        
+        /* ONLY THE CARD SCROLLS */
         .widget {
             background-color: #1e1e1e;
             padding: 16px;
@@ -67,9 +78,12 @@
             position: relative;
             display: flex;
             flex-direction: column;
-            max-height: 75vh; /* Locks card height so internal elements scroll cleanly */
-            overflow-y: auto;  /* Smooth internal scrolling for long responses */
+            width: 100%;
+            max-height: calc(100dvh - 120px); /* Fits card cleanly inside screen */
+            overflow-y: auto;  /* Internal card scroll */
+            overscroll-behavior: contain;
         }
+        
         .widget-header {
             display: flex;
             justify-content: space-between;
