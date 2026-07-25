@@ -84,47 +84,55 @@
             flex-direction: column;
             width: 100%;
             max-height: 100%;
-            overflow-y: auto; /* Card scrolls internally */
+            overflow-y: auto;
             overscroll-behavior: contain;
         }
         
+        /* EXPANDED TOP BUTTON BAR */
         .widget-header {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            gap: 8px;
+            width: 100%;
             margin-bottom: 14px;
             flex-shrink: 0;
         }
-        .widget h3 {
-            color: #ffffff;
-            margin: 0;
-            font-size: 1.15rem;
-        }
-        
-        .help-btn {
-            all: unset;
-            box-sizing: border-box;
-            background: #1a2634;
-            color: #4da3ff;
-            border: 2px solid #4da3ff;
-            width: 28px;
-            height: 28px;
-            min-width: 28px;
-            border-radius: 50%;
-            font-weight: bold;
-            font-size: 0.9rem;
-            cursor: pointer;
+
+        .nav-hub-btn {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 5px;
+            padding: 9px 4px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: transform 0.15s ease, background-color 0.2s ease;
             text-align: center;
-            box-shadow: 0 0 8px rgba(77, 163, 255, 0.2);
-            transition: all 0.2s ease;
+            border: 1px solid transparent;
         }
-        .help-btn:hover {
-            background: #4da3ff;
-            color: #121212;
-            box-shadow: 0 0 12px rgba(77, 163, 255, 0.5);
+
+        .nav-hub-btn:active {
+            transform: scale(0.96);
+        }
+
+        .changelog-style {
+            background: #2a2400;
+            color: #ffc107;
+            border-color: #ffc107;
+        }
+
+        .history-style {
+            background: #1f142e;
+            color: #b185ff;
+            border-color: #6f42c1;
+        }
+
+        .help-style {
+            background: #1a2634;
+            color: #4da3ff;
+            border-color: #4da3ff;
         }
         
         .help-drawer {
@@ -433,12 +441,15 @@
 
                 <section class="widget" id="search-widget">
                     <div class="widget-header">
-                        <h3>🔍 Smart Assistant Hub</h3>
-                        <div style="display: flex; gap: 8px;">
-                            <button id="changelog-toggle" class="help-btn" style="border-color: #ffc107; color: #ffc107; background: #332b00;" title="Version History">🕒</button>
-                            <button id="history-toggle" class="help-btn" style="border-color: #6f42c1; color: #6f42c1; background: #1f142e;" title="Gemini Chat History">📜</button>
-                            <button id="help-toggle" class="help-btn">?</button>
-                        </div>
+                        <button id="changelog-toggle" class="nav-hub-btn changelog-style" title="Version History">
+                            <span>🕒</span> Updates
+                        </button>
+                        <button id="history-toggle" class="nav-hub-btn history-style" title="Gemini Chat History">
+                            <span>📜</span> History
+                        </button>
+                        <button id="help-toggle" class="nav-hub-btn help-style" title="System Operation Guide">
+                            <span>❓</span> Guide
+                        </button>
                     </div>
 
                     <div id="changelog-drawer" class="help-drawer">
