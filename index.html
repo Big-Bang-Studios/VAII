@@ -5,9 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>VAII - Virtual Assistant</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         html, body {
             height: 100%;
-            overflow: hidden; /* Prevents the body/page from scrolling */
+            height: 100dvh;
+            overflow: hidden;
             margin: 0;
             padding: 0;
             background-color: #121212 !important;
@@ -17,32 +21,33 @@
         body {
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
         }
         .app-container {
             width: 100%;
             max-width: 400px;
-            height: 100vh;
+            height: 100%;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             padding: 12px;
-            box-sizing: border-box;
             text-align: center;
             overflow: hidden;
         }
         header {
             flex-shrink: 0;
-            margin-bottom: 5px;
+            padding-top: 4px;
+            margin-bottom: 8px;
         }
         header h1 {
             margin: 0 0 2px 0;
-            font-size: 2.2rem;
+            font-size: 2rem;
             color: #ffffff;
         }
         header p {
             color: #888;
             margin: 0;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
         }
         main {
             flex: 1;
@@ -57,35 +62,35 @@
             font-style: italic;
             line-height: 1.4;
             text-align: left;
-            margin-top: 5px;
-            margin-bottom: 5px;
-            padding: 0 10px;
+            margin-bottom: 6px;
+            padding: 0 6px;
             display: none;
             flex-shrink: 0;
         }
         .widget {
             background-color: #1e1e1e;
-            padding: 16px;
+            padding: 14px;
             border-radius: 15px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
             text-align: left;
             position: relative;
             display: flex;
             flex-direction: column;
-            max-height: 100%;
-            overflow-y: auto; /* Card itself handles scrolling */
-            box-sizing: border-box;
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
         }
         .widget-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             flex-shrink: 0;
         }
         .widget h3 {
             color: #ffffff;
             margin: 0;
+            font-size: 1.1rem;
         }
         
         .help-btn {
@@ -119,13 +124,12 @@
             background: #252525;
             border: 1px solid #3d3d3d;
             border-radius: 8px;
-            padding: 14px;
-            margin-bottom: 15px;
-            font-size: 0.85rem;
+            padding: 12px;
+            margin-bottom: 12px;
+            font-size: 0.82rem;
             color: #ccc;
             line-height: 1.45;
             max-width: 100%;
-            box-sizing: border-box;
             flex-shrink: 0;
         }
         .help-drawer ul {
@@ -133,12 +137,12 @@
             padding-left: 18px;
         }
         .help-drawer li {
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
         .search-container {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             flex-shrink: 0;
         }
         .tool-row {
@@ -154,13 +158,12 @@
         
         input {
             width: 100%;
-            padding: 12px;
+            padding: 10px 12px;
             border-radius: 8px;
             border: 2px solid #28a745;
             background: #2a2a2a;
             color: white;
-            font-size: 1rem;
-            box-sizing: border-box;
+            font-size: 0.95rem;
             transition: border-color 0.2s ease;
         }
 
@@ -172,8 +175,8 @@
         .enter-btn {
             background: #ffffff;
             color: #121212;
-            width: 46px;
-            height: 46px;
+            width: 44px;
+            height: 44px;
             border-radius: 8px;
             border: none;
             font-size: 1.2rem;
@@ -196,8 +199,8 @@
             background: #2a2a2a;
             color: #888;
             border: 2px solid #444;
-            width: 46px;
-            height: 46px;
+            width: 44px;
+            height: 44px;
             flex-shrink: 0;
             border-radius: 8px;
             font-size: 1.1rem;
@@ -231,13 +234,13 @@
             background: #1a1a1a;
             padding: 8px 12px;
             border-radius: 6px;
-            margin-top: -4px;
+            margin-top: -2px;
             border: 1px dashed #444;
             position: relative;
         }
         .preview-box img {
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             object-fit: cover;
             border-radius: 4px;
             border: 1px solid #333;
@@ -248,7 +251,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 240px;
+            max-width: 200px;
         }
         .clear-preview {
             background: none;
@@ -277,15 +280,16 @@
         }
         
         .output-box {
-            margin-top: 12px;
-            padding: 14px;
+            margin-top: 10px;
+            padding: 12px;
             background: #252525;
             border-radius: 8px;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             color: #eee;
             line-height: 1.5;
             flex: 1;
-            min-height: 120px;
+            min-height: 100px;
+            overflow-y: auto;
         }
 
         #auth-container {
@@ -354,15 +358,14 @@
             background: #2a2a2a;
             color: white;
             font-size: 1rem;
-            box-sizing: border-box;
         }
 
         .card-footer {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 12px;
-            padding-top: 10px;
+            margin-top: 10px;
+            padding-top: 8px;
             border-top: 1px solid #2a2a2a;
             flex-shrink: 0;
         }
@@ -476,7 +479,7 @@
                             <strong>📜 Saved Gemini Chats:</strong>
                             <button id="new-chat-btn" style="background: #28a745; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: bold;">➕ New Chat</button>
                         </div>
-                        <div id="history-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; margin-top: 5px; padding-right: 2px;"></div>
+                        <div id="history-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto; margin-top: 5px; padding-right: 2px;"></div>
                     </div>
 
                     <div id="prefs-drawer" class="help-drawer">
@@ -486,13 +489,13 @@
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
                             <label style="font-size: 0.75rem; color: #aaa; font-weight: bold;">Custom System Instructions:</label>
-                            <textarea id="prefs-instructions-input" style="width: 100%; height: 65px; background: #1a1a1a; color: #fff; border: 1px solid #3d3d3d; border-radius: 6px; padding: 8px; font-family: inherit; font-size: 0.82rem; resize: vertical; box-sizing: border-box;" placeholder="Type persona parameters for the Gemini mode..."></textarea>
+                            <textarea id="prefs-instructions-input" style="width: 100%; height: 65px; background: #1a1a1a; color: #fff; border: 1px solid #3d3d3d; border-radius: 6px; padding: 8px; font-family: inherit; font-size: 0.82rem; resize: vertical;" placeholder="Type persona parameters for the Gemini mode..."></textarea>
 
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
                                 <label style="font-size: 0.75rem; color: #aaa; font-weight: bold;">Custom Gemini API Key:</label>
                                 <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #4da3ff; font-size: 0.72rem; text-decoration: underline; font-weight: bold;">Get key here ↗</a>
                             </div>
-                            <input type="password" id="prefs-api-key-input" style="width: 100%; background: #1a1a1a; color: #fff; border: 1px solid #3d3d3d; border-radius: 6px; padding: 8px; font-size: 0.82rem; box-sizing: border-box;" placeholder="AIzaSy..." autocomplete="off">
+                            <input type="password" id="prefs-api-key-input" style="width: 100%; background: #1a1a1a; color: #fff; border: 1px solid #3d3d3d; border-radius: 6px; padding: 8px; font-size: 0.82rem;" placeholder="AIzaSy..." autocomplete="off">
                             <div id="api-key-note" style="font-size: 0.72rem; color: #4da3ff; font-style: italic; line-height: 1.3; background: #112233; border: 1px solid #1d4ed8; padding: 6px 8px; border-radius: 4px; display: none;">
                                 💡 VAII is providing you an API key automatically, but you can set your own API key if you want to.
                             </div>
@@ -504,22 +507,22 @@
                     <div class="search-container">
                         <div style="text-align: center; font-size: 0.75rem; color: #888; margin-bottom: 2px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Assistant Engine Mode</div>
                         
-                        <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 2px;">
-                            <div style="flex: 1; max-width: 170px; background: #252525; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: left;">
-                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 0.88rem; color: #ccc; font-weight: bold;">
+                        <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 2px;">
+                            <div style="flex: 1; max-width: 170px; background: #252525; padding: 8px; border-radius: 8px; border: 1px solid #333; text-align: left;">
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 0.85rem; color: #ccc; font-weight: bold;">
                                     <input type="radio" name="vaii-mode" value="native" checked style="width: auto !important; height: auto !important; margin: 0; padding: 0;"> VAII Native
                                 </label>
-                                <div style="font-size: 0.7rem; color: #777; margin-top: 4px; line-height: 1.25;">Runs all internet integrations: maps, weather, arithmetic, translations, tickers, and art creation models.</div>
+                                <div style="font-size: 0.68rem; color: #777; margin-top: 3px; line-height: 1.25;">Runs all internet integrations: maps, weather, arithmetic, translations, tickers, and art creation models.</div>
                             </div>
                             
-                            <div style="flex: 1; max-width: 170px; background: #252525; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: left; position: relative;">
+                            <div style="flex: 1; max-width: 170px; background: #252525; padding: 8px; border-radius: 8px; border: 1px solid #333; text-align: left; position: relative;">
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 0.88rem; color: #ccc; font-weight: bold;">
+                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 0.85rem; color: #ccc; font-weight: bold;">
                                         <input type="radio" name="vaii-mode" value="gemini" style="width: auto !important; height: auto !important; margin: 0; padding: 0;"> Gemini Ecosystem
                                     </label>
                                     <span id="prefs-toggle-btn" style="cursor: pointer; font-size: 0.85rem; padding: 2px; color: #888; transition: color 0.2s;" title="System Preferences">⚙️</span>
                                 </div>
-                                <div style="font-size: 0.7rem; color: #ff6b6b; margin-top: 4px; line-height: 1.25; font-style: italic;">No integrations supported. Text-based historical conversational thread only.</div>
+                                <div style="font-size: 0.68rem; color: #ff6b6b; margin-top: 3px; line-height: 1.25; font-style: italic;">No integrations supported. Text-based historical conversational thread only.</div>
                             </div>
                         </div>
 
@@ -559,4 +562,4 @@
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAJKTkU0nd6ZB_zjIcNQCAQQsffHEp4WH8&callback=initVaiiMap&libraries=places" async defer></script>
     <script type="module" src="script.js"></script>
 </body>
-                    </html>
+</html>
