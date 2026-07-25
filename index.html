@@ -150,7 +150,7 @@
             margin-bottom: 6px;
         }
         
-        /* CONTROLS AND INPUT SECTION */
+        /* CONTROLS SECTION */
         .search-container {
             display: flex;
             flex-direction: column;
@@ -167,6 +167,7 @@
             display: flex;
             gap: 8px;
             width: 100%;
+            margin-top: 12px;
         }
         
         input {
@@ -257,7 +258,7 @@
             background: #1a1a1a;
             padding: 8px 12px;
             border-radius: 6px;
-            margin-top: -2px;
+            margin-top: 6px;
             border: 1px dashed #444;
         }
 
@@ -576,7 +577,7 @@
                         </div>
                     </div>
 
-                    <!-- MODE SELECTOR AND INPUT CONTROLS -->
+                    <!-- MODE SELECTOR AND TOOL BUTTONS AT TOP -->
                     <div class="search-container">
                         <div style="text-align: center; font-size: 0.75rem; color: #888; margin-bottom: 4px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Assistant Engine Mode</div>
                         
@@ -599,33 +600,31 @@
                             </div>
                         </div>
 
-                        <!-- TOOL BUTTONS -->
                         <div class="tool-row">
                             <button id="mic-trigger-btn" class="camera-btn" title="Voice Input">🎤</button>
                             <button id="tts-trigger-btn" class="camera-btn" title="Read Aloud" style="display: none;">🔊</button>
                             <button id="camera-trigger-btn" class="camera-btn" title="Image Upload">📷</button>
                             <input type="file" id="image-file-input" accept="image/*" style="display: none;">
                         </div>
-
-                        <!-- TYPING FIELD AND EXECUTE BUTTON -->
-                        <div class="input-row">
-                            <input type="text" id="hub-input" placeholder="Type a command..." list="hub-suggestions" autocomplete="off">
-                            <button id="execute-action-btn" class="enter-btn">➔</button>
-                        </div>
-
-                        <!-- IMAGE UPLOAD PREVIEW -->
-                        <div id="image-preview-container" class="preview-box">
-                            <img id="image-preview-thumbnail" src="" alt="upload">
-                            <span id="image-preview-filename">image.jpg</span>
-                            <button id="image-clear-btn" class="clear-preview">✕</button>
-                        </div>
                     </div>
                     
                     <datalist id="hub-suggestions"></datalist>
                     
-                    <!-- RESPONSE OUTPUT CONTAINER -->
+                    <!-- RESPONSE OUTPUT DISPLAY IN THE MIDDLE -->
                     <div id="weather-output" class="output-box"></div>
                     
+                    <!-- TYPING FIELD AND EXECUTE BUTTON AT THE BOTTOM -->
+                    <div class="input-row">
+                        <input type="text" id="hub-input" placeholder="Type a command..." list="hub-suggestions" autocomplete="off">
+                        <button id="execute-action-btn" class="enter-btn">➔</button>
+                    </div>
+
+                    <div id="image-preview-container" class="preview-box">
+                        <img id="image-preview-thumbnail" src="" alt="upload">
+                        <span id="image-preview-filename">image.jpg</span>
+                        <button id="image-clear-btn" class="clear-preview">✕</button>
+                    </div>
+
                     <!-- BOTTOM FOOTER -->
                     <div class="card-footer-nav">
                         <a href="privacy.html" style="text-decoration: none; color: #4da3ff; font-weight: bold; font-size: 0.85rem;">
@@ -642,4 +641,4 @@
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAJKTkU0nd6ZB_zjIcNQCAQQsffHEp4WH8&callback=initVaiiMap&libraries=places" async defer></script>
     <script type="module" src="script.js"></script>
 </body>
-</html>
+                                        </html>
