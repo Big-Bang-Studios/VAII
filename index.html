@@ -2,31 +2,54 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>VAII - Virtual Assistant</title>
     <style>
-        body {
+        html, body {
+            height: 100%;
+            overflow: hidden; /* Prevents the body/page from scrolling */
+            margin: 0;
+            padding: 0;
             background-color: #121212 !important;
             color: #ffffff !important;
             font-family: system-ui, -apple-system, sans-serif;
+        }
+        body {
             display: flex;
             justify-content: center;
-            padding: 20px;
-            margin: 0;
+            align-items: center;
         }
         .app-container {
             width: 100%;
             max-width: 400px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            box-sizing: border-box;
             text-align: center;
+            overflow: hidden;
+        }
+        header {
+            flex-shrink: 0;
+            margin-bottom: 5px;
         }
         header h1 {
-            margin-bottom: 5px;
-            font-size: 2.5rem;
+            margin: 0 0 2px 0;
+            font-size: 2.2rem;
             color: #ffffff;
         }
         header p {
             color: #888;
-            margin-top: 0;
+            margin: 0;
+            font-size: 0.85rem;
+        }
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
         }
         .global-warning-msg {
             color: #ffa500;
@@ -34,25 +57,31 @@
             font-style: italic;
             line-height: 1.4;
             text-align: left;
-            margin-top: 20px;
-            margin-bottom: -10px;
+            margin-top: 5px;
+            margin-bottom: 5px;
             padding: 0 10px;
             display: none;
+            flex-shrink: 0;
         }
         .widget {
             background-color: #1e1e1e;
-            padding: 20px;
+            padding: 16px;
             border-radius: 15px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
             text-align: left;
-            margin-top: 20px;
             position: relative;
+            display: flex;
+            flex-direction: column;
+            max-height: 100%;
+            overflow-y: auto; /* Card itself handles scrolling */
+            box-sizing: border-box;
         }
         .widget-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
+            flex-shrink: 0;
         }
         .widget h3 {
             color: #ffffff;
@@ -97,6 +126,7 @@
             line-height: 1.45;
             max-width: 100%;
             box-sizing: border-box;
+            flex-shrink: 0;
         }
         .help-drawer ul {
             margin: 6px 0 0 0;
@@ -108,13 +138,13 @@
         .search-container {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
+            flex-shrink: 0;
         }
         .tool-row {
             display: flex;
             gap: 8px;
             width: 100%;
-            margin-top: 5px;
         }
         .input-row {
             display: flex;
@@ -247,15 +277,15 @@
         }
         
         .output-box {
-            margin-top: 15px;
+            margin-top: 12px;
             padding: 14px;
             background: #252525;
             border-radius: 8px;
             font-size: 0.95rem;
             color: #eee;
-            max-height: 450px;
-            overflow-y: auto;
             line-height: 1.5;
+            flex: 1;
+            min-height: 120px;
         }
 
         #auth-container {
@@ -263,6 +293,10 @@
         }
         .main-app-box {
             display: none;
+            flex: 1;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
         }
         .auth-toggle-text {
             color: #4da3ff;
@@ -293,7 +327,6 @@
             padding: 6px 12px;
             font-size: 0.8rem;
             border-radius: 6px;
-            margin-top: 10px;
             width: auto;
             cursor: pointer;
             font-weight: bold;
@@ -323,11 +356,15 @@
             font-size: 1rem;
             box-sizing: border-box;
         }
-        
-        .policy-footer {
-            margin-top: 40px;
-            padding: 10px;
-            font-size: 0.8rem;
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #2a2a2a;
+            flex-shrink: 0;
         }
     </style>
 </head>
@@ -465,9 +502,9 @@
                     </div>
 
                     <div class="search-container">
-                        <div style="text-align: center; font-size: 0.75rem; color: #888; margin-bottom: 4px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Assistant Engine Mode</div>
+                        <div style="text-align: center; font-size: 0.75rem; color: #888; margin-bottom: 2px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Assistant Engine Mode</div>
                         
-                        <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 6px;">
+                        <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 2px;">
                             <div style="flex: 1; max-width: 170px; background: #252525; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: left;">
                                 <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 0.88rem; color: #ccc; font-weight: bold;">
                                     <input type="radio" name="vaii-mode" value="native" checked style="width: auto !important; height: auto !important; margin: 0; padding: 0;"> VAII Native
@@ -508,21 +545,18 @@
                     <datalist id="hub-suggestions"></datalist>
                     <div id="weather-output" class="output-box"></div>
                     
-                    <div style="text-align: right;">
+                    <div class="card-footer">
+                        <a href="privacy.html" style="text-decoration: none; color: #4da3ff; font-weight: bold; font-size: 0.85rem;">
+                            ▶ Privacy Policy
+                        </a>
                         <button id="logout-action-btn" class="logout-btn">Log Out</button>
                     </div>
                 </section>
             </div>
         </main>
-
-        <footer class="policy-footer" style="text-align: center;">
-            <a href="privacy.html" class="policy-summary" style="text-decoration: none; color: #4da3ff; font-weight: bold; font-size: 0.85rem;">
-                ▶ Privacy Policy
-            </a>
-        </footer>
     </div>
 
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAJKTkU0nd6ZB_zjIcNQCAQQsffHEp4WH8&callback=initVaiiMap&libraries=places" async defer></script>
     <script type="module" src="script.js"></script>
 </body>
-</html>
+                    </html>
