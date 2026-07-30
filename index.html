@@ -11,10 +11,7 @@
 
         html, 
         body {
-            height: 100vh;
-            height: 100dvh;
-            width: 100%;
-            overflow: hidden !important; /* Strictly lock outer page scrolling */
+            min-height: 100vh;
             margin: 0;
             padding: 0;
             background-color: #121212 !important;
@@ -32,8 +29,9 @@
         .app-container {
             width: 100%;
             max-width: 420px;
-            height: 100vh;
-            height: 100dvh;
+            height: 100%;
+            max-height: 100vh;
+            max-height: 100dvh;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -63,11 +61,11 @@
         
         main {
             width: 100%;
+            flex: 1;
+            min-height: 0;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            flex-shrink: 1;
-            min-height: 0;
         }
         
         .global-warning-msg {
@@ -94,7 +92,7 @@
             width: 100%;
             max-height: calc(100vh - 110px);
             max-height: calc(100dvh - 110px);
-            overflow-y: auto !important; /* Forces internal card scrolling */
+            overflow-y: auto !important;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
         }
@@ -196,6 +194,8 @@
             display: flex;
             gap: 8px;
             width: 100%;
+            margin-top: 6px;
+            flex-shrink: 0;
         }
 
         /* INPUT ROW AT BOTTOM OF CARD */
@@ -203,7 +203,7 @@
             display: flex;
             gap: 8px;
             width: 100%;
-            margin-top: 10px;
+            margin-top: 8px;
             flex-shrink: 0;
         }
         
@@ -621,7 +621,7 @@
                         </div>
                     </div>
 
-                    <!-- MODE SELECTOR AND TOOL BUTTONS AT TOP -->
+                    <!-- MODE SELECTOR AT TOP -->
                     <div class="search-container">
                         <div style="text-align: center; font-size: 0.75rem; color: #888; margin-bottom: 4px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Assistant Engine Mode</div>
                         
@@ -643,13 +643,6 @@
                                 <div style="font-size: 0.7rem; color: #ff6b6b; margin-top: 4px; line-height: 1.25; font-style: italic;">No integrations supported. Text-based historical conversational thread only.</div>
                             </div>
                         </div>
-
-                        <div class="tool-row">
-                            <button id="mic-trigger-btn" class="camera-btn" title="Voice Input">🎤</button>
-                            <button id="tts-trigger-btn" class="camera-btn" title="Read Aloud" style="display: none;">🔊</button>
-                            <button id="camera-trigger-btn" class="camera-btn" title="Image Upload">📷</button>
-                            <input type="file" id="image-file-input" accept="image/*" style="display: none;">
-                        </div>
                     </div>
                     
                     <datalist id="hub-suggestions"></datalist>
@@ -657,6 +650,14 @@
                     <!-- RESPONSE OUTPUT DISPLAY IN THE MIDDLE -->
                     <div id="weather-output" class="output-box"></div>
                     
+                    <!-- TOOL BUTTONS MOVED DIRECTLY ABOVE INPUT PROMPT -->
+                    <div class="tool-row">
+                        <button id="mic-trigger-btn" class="camera-btn" title="Voice Input">🎤</button>
+                        <button id="tts-trigger-btn" class="camera-btn" title="Read Aloud" style="display: none;">🔊</button>
+                        <button id="camera-trigger-btn" class="camera-btn" title="Image Upload">📷</button>
+                        <input type="file" id="image-file-input" accept="image/*" style="display: none;">
+                    </div>
+
                     <!-- TYPING FIELD AND EXECUTE BUTTON AT THE BOTTOM -->
                     <div class="input-row">
                         <input type="text" id="hub-input" placeholder="Type a command..." list="hub-suggestions" autocomplete="off">
