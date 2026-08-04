@@ -292,7 +292,7 @@ const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent
 const defaultAssistantSuggestions = [
     "Open Gemini", "193 lbs to kg", "Open YouTube", "BTC", "Time in Tokyo", 
     "Hello to Spanish", "Open Minecraft", "(12 * 4) / 2", "Map of Orlando", 
-    "Draw a neon cyberpunk switch console artwork"
+    "Davenport, Florida", "Florida, United States", "Draw a neon cyberpunk switch console artwork"
 ];
 
 window.initVaiiMap = function() {
@@ -1167,9 +1167,16 @@ function runInfoExecution(query) {
         return;
     }
 
-    const isLocationIntent = cleanQuery.startsWith("map of ") || cleanQuery.startsWith("show map ") || cleanQuery.startsWith("time in ") || cleanQuery.startsWith("weather in ") || cleanQuery.startsWith("weather ") || cleanQuery.startsWith("clock ");
+    const options = Array.from(datalist.options);
+    const matchedOption = options.find(opt => opt.value.toLowerCase() === cleanQuery);
+    if (matchedOption && matchedOption.getAttribute('data-lat')) {
+        renderUnifiedLocationCard(matchedOption.getAttribute('data-lat'), matchedOption.getAttribute('data-lon'), matchedOption.getAttribute('data-tz'), matchedOption.value, greetingHTML);
+        return;
+    }
 
-    if (isLocationIntent) {
+    const isExplicitLocationIntent = cleanQuery.startsWith("map of ") || cleanQuery.startsWith("show map ") || cleanQuery.startsWith("time in ") || cleanQuery.startsWith("weather in ") || cleanQuery.startsWith("weather ") || cleanQuery.startsWith("clock ");
+
+    if (isExplicitLocationIntent) {
         let parsedLocation = query.replace(/map of /i, "").replace(/show map /i, "").replace(/time in /i, "").replace(/weather in /i, "").replace(/weather /i, "").replace(/clock /i, "").trim();
         
         output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Locating coordinates for "${parsedLocation}"...</div>`;
@@ -1184,13 +1191,6 @@ function runInfoExecution(query) {
                     handleVaiiDataOutput("Could not extract metrics for " + parsedLocation, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not extract metrics for "${parsedLocation}".</div>`);
                 }
             }).catch(() => { handleVaiiDataOutput("Location processing engine connection failure.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Location processing engine connection failure.</div>`); });
-        return;
-    }
-
-    const options = Array.from(datalist.options);
-    const matchedOption = options.find(opt => opt.value.toLowerCase() === cleanQuery);
-    if (matchedOption && matchedOption.getAttribute('data-lat')) {
-        renderUnifiedLocationCard(matchedOption.getAttribute('data-lat'), matchedOption.getAttribute('data-lon'), matchedOption.getAttribute('data-tz'), matchedOption.value, greetingHTML);
         return;
     }
 
@@ -1274,20 +1274,41 @@ function runInfoExecution(query) {
     routingWarning.style.display = "none";
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching knowledge base for "${query}"...</div>`;
 
-    if (!query.includes(" ")) {
-        fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(query.toLowerCase())}`)
-            .then(res => res.json())
-            .then(dictData => {
-                const key = Object.keys(dictData)[0];
-                const rawDefinition = dictData[key][0].definitions[0].definition.replace(/<[^>]*>/g, '').trim();
-                let wikiData = { wiktionary: { title: query, text: rawDefinition, pos: dictData[key][0].partOfSpeech || "noun" } };
-                if (greetingHTML) wikiData.greeting = greetingHTML;
-                runUnifiedWikiPipeline(query, wikiData);
-            }).catch(() => {
-                runUnifiedWikiPipeline(query, { greeting: greetingHTML });
-            });
-    } else {
-        runUnifiedWikiPipeline(query, { greeting: greetingHTML });
+    // Attempt implicit location lookup before defaulting to Wikipedia (e.g., "Florida, United States" or "Davenport, Florida")
+    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=1&language=en&format=json`)
+        .then(res => res.json())
+        .then(geoData => {
+            if (geoData.results && geoData.results.length > 0) {
+                const loc = geoData.results[0];
+                let formattedName = `${loc.name}`;
+                if (loc.admin1 && loc.admin1 !== loc.name) formattedName += `, ${loc.admin1}`;
+                if (loc.country) formattedName += ` (${loc.country})`;
+
+                renderUnifiedLocationCard(loc.latitude, loc.longitude, loc.timezone, formattedName, greetingHTML);
+            } else {
+                proceedWithWikiPipeline();
+            }
+        })
+        .catch(() => {
+            proceedWithWikiPipeline();
+        });
+
+    function proceedWithWikiPipeline() {
+        if (!query.includes(" ")) {
+            fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(query.toLowerCase())}`)
+                .then(res => res.json())
+                .then(dictData => {
+                    const key = Object.keys(dictData)[0];
+                    const rawDefinition = dictData[key][0].definitions[0].definition.replace(/<[^>]*>/g, '').trim();
+                    let wikiData = { wiktionary: { title: query, text: rawDefinition, pos: dictData[key][0].partOfSpeech || "noun" } };
+                    if (greetingHTML) wikiData.greeting = greetingHTML;
+                    runUnifiedWikiPipeline(query, wikiData);
+                }).catch(() => {
+                    runUnifiedWikiPipeline(query, { greeting: greetingHTML });
+                });
+        } else {
+            runUnifiedWikiPipeline(query, { greeting: greetingHTML });
+        }
     }
 }
 
@@ -1543,7 +1564,7 @@ hubInput?.addEventListener('input', () => {
     }
 
     if (searchAbortController) searchAbortController.abort();
-    if (trimmedQuery.length < 3 || trimmedQuery.toLowerCase().startsWith('open ') || /\.[a-z]{2,6}/i.test(trimmedQuery)) {
+    if (trimmedQuery.length < 2 || trimmedQuery.toLowerCase().startsWith('open ') || /\.[a-z]{2,6}/i.test(trimmedQuery)) {
         updateDatalist([], [], [], customSuggestions); 
         clearTimeout(debounceTimer); 
         return; 
@@ -1557,7 +1578,7 @@ hubInput?.addEventListener('input', () => {
         searchAbortController = new AbortController();
         const signal = searchAbortController.signal;
 
-        const geoFetch = fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchUrlQuery)}&count=3&language=en&format=json`, { signal })
+        const geoFetch = fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchUrlQuery)}&count=5&language=en&format=json`, { signal })
             .then(res => res.json()).then(data => data.results || []).catch(() => []);
         const wikiFetch = fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchUrlQuery)}&utf8=&format=json&origin=*`, { signal })
             .then(res => res.json()).then(data => data.query?.search?.map(item => item.title) || []).catch(() => []);
