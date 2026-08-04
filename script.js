@@ -279,7 +279,6 @@ let searchAbortController = null;
 let activeImageBase64 = null; 
 let activeImageMimeType = null;
 let autoSpeak = false;
-const wikitubiaCache = new Set();
 
 let chatHistory = [];
 let currentSessionId = null;
@@ -1274,24 +1273,28 @@ function runInfoExecution(query) {
     routingWarning.style.display = "none";
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching knowledge base for "${query}"...</div>`;
 
-    // Attempt implicit location lookup before defaulting to Wikipedia (e.g., "Florida, United States" or "Davenport, Florida")
-    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=1&language=en&format=json`)
-        .then(res => res.json())
-        .then(geoData => {
-            if (geoData.results && geoData.results.length > 0) {
-                const loc = geoData.results[0];
-                let formattedName = `${loc.name}`;
-                if (loc.admin1 && loc.admin1 !== loc.name) formattedName += `, ${loc.admin1}`;
-                if (loc.country) formattedName += ` (${loc.country})`;
+    // Only attempt location lookup if query strictly contains a comma (e.g. "Davenport, Florida")
+    if (query.includes(",")) {
+        fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=1&language=en&format=json`)
+            .then(res => res.json())
+            .then(geoData => {
+                if (geoData.results && geoData.results.length > 0) {
+                    const loc = geoData.results[0];
+                    let formattedName = `${loc.name}`;
+                    if (loc.admin1 && loc.admin1 !== loc.name) formattedName += `, ${loc.admin1}`;
+                    if (loc.country) formattedName += ` (${loc.country})`;
 
-                renderUnifiedLocationCard(loc.latitude, loc.longitude, loc.timezone, formattedName, greetingHTML);
-            } else {
+                    renderUnifiedLocationCard(loc.latitude, loc.longitude, loc.timezone, formattedName, greetingHTML);
+                } else {
+                    proceedWithWikiPipeline();
+                }
+            })
+            .catch(() => {
                 proceedWithWikiPipeline();
-            }
-        })
-        .catch(() => {
-            proceedWithWikiPipeline();
-        });
+            });
+    } else {
+        proceedWithWikiPipeline();
+    }
 
     function proceedWithWikiPipeline() {
         if (!query.includes(" ")) {
