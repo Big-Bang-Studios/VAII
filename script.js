@@ -581,28 +581,44 @@ function renderNotesManager() {
 function fetchNewsAPI(topic) {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching live news...</div>`;
     
-    const targetUrl = topic 
-        ? `https://gnews.io/api/v4/search?q=${encodeURIComponent(topic)}&lang=en&apikey=${GNEWS_API_KEY}` 
-        : `https://gnews.io/api/v4/top-headlines?category=general&lang=en&apikey=${GNEWS_API_KEY}`;
+    let cleanTopic = topic ? topic.trim() : "";
+    let targetUrl = "";
+
+    if (cleanTopic) {
+        targetUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(cleanTopic)}&lang=en&max=5&apikey=${GNEWS_API_KEY}`;
+    } else {
+        targetUrl = `https://gnews.io/api/v4/top-headlines?category=general&lang=en&max=5&apikey=${GNEWS_API_KEY}`;
+    }
         
-    const proxiedUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+    const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
                     
-    fetch(proxiedUrl).then(res => res.json()).then(data => {
-        if (data.errors) {
-            let errorMsg = Array.isArray(data.errors) ? data.errors[0] : (typeof data.errors === 'string' ? data.errors : "Unknown GNews error");
-            return handleVaiiDataOutput("G News API Error: " + errorMsg, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;"><strong style="color:#ff4d4d;">GNews API Error:</strong> ${errorMsg}</div>`);
-        }
-        if (!data.articles || data.articles.length === 0) return handleVaiiDataOutput("No articles found for this search.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No articles found for this search.</div>`);
-        
-        let html = `<div style="text-align: left; margin-bottom: 10px; font-weight: bold; color: #aaa; text-transform: uppercase;">📰 Live News ${topic ? 'on ' + topic : 'Headlines'}</div>`;
-        data.articles.slice(0, 3).forEach(art => {
-            html += `<a href="${art.url}" target="_blank" style="display: block; background: #1a1a1a; padding: 12px; border-left: 3px solid #17a2b8; text-decoration: none; color: #fff; margin-bottom: 10px; border-radius: 8px;">
-                <div style="font-weight: bold; margin-bottom: 5px;">${art.title}</div>
-                <div style="font-size: 0.8rem; color: #888;">${art.source.name}</div>
-            </a>`;
+    fetch(proxiedUrl)
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
+            if (data.errors) {
+                let errorMsg = Array.isArray(data.errors) ? data.errors[0] : (typeof data.errors === 'string' ? data.errors : "Unknown GNews error");
+                return handleVaiiDataOutput("G News API Error: " + errorMsg, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;"><strong style="color:#ff4d4d;">GNews API Error:</strong> ${errorMsg}</div>`);
+            }
+            if (!data.articles || data.articles.length === 0) {
+                return handleVaiiDataOutput("No articles found for this search.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No articles found for "${cleanTopic || 'general top news'}". Try a broader keyword like <code>technology</code> or <code>gaming</code>.</div>`);
+            }
+            
+            let html = `<div style="text-align: left; margin-bottom: 10px; font-weight: bold; color: #aaa; text-transform: uppercase;">📰 Live News ${cleanTopic ? 'on ' + cleanTopic : 'Headlines'}</div>`;
+            data.articles.slice(0, 3).forEach(art => {
+                html += `<a href="${art.url}" target="_blank" style="display: block; background: #1a1a1a; padding: 12px; border-left: 3px solid #17a2b8; text-decoration: none; color: #fff; margin-bottom: 10px; border-radius: 8px;">
+                    <div style="font-weight: bold; margin-bottom: 5px;">${art.title}</div>
+                    <div style="font-size: 0.8rem; color: #888;">${art.source ? art.source.name : 'GNews'}</div>
+                </a>`;
+            });
+            handleVaiiDataOutput("Here are the latest news headlines.", html);
+        })
+        .catch(err => {
+            console.error("News fetch error:", err);
+            handleVaiiDataOutput("News routing failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">News routing failed. Network error or API key limit reached.</div>`);
         });
-        handleVaiiDataOutput("Here are the latest news headlines.", html);
-    }).catch(err => handleVaiiDataOutput("News routing failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">News routing failed. Network error.</div>`));
 }
 
 function fetchOMDBMedia(title) {
@@ -1273,7 +1289,6 @@ function runInfoExecution(query) {
     routingWarning.style.display = "none";
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching knowledge base for "${query}"...</div>`;
 
-    // Only attempt location lookup if query strictly contains a comma (e.g. "Davenport, Florida")
     if (query.includes(",")) {
         fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=1&language=en&format=json`)
             .then(res => res.json())
@@ -1604,7 +1619,7 @@ hubInput?.addEventListener('input', () => {
             let nTerm = trimmedQuery.substring(11).trim();
             if (nTerm.length >= 2) {
                 const liveNewsUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(nTerm)}&lang=en&apikey=${GNEWS_API_KEY}`;
-                gnewsSuggestionsFetch = fetch(`https://corsproxy.io/?${encodeURIComponent(liveNewsUrl)}`, { signal })
+                gnewsSuggestionsFetch = fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(liveNewsUrl)}`, { signal })
                     .then(res => res.json())
                     .then(data => data.articles ? data.articles.slice(0, 3).map(a => `news about ${a.title.substring(0, 32)}...`) : [])
                     .catch(() => []);
