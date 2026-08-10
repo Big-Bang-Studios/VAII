@@ -1331,10 +1331,7 @@ function runInfoExecution(query) {
 }
 
 function runUnifiedWikiPipeline(query, wikiData) {
-    const famousYoutubersList = ["jacksucksatlife", "mrbeast", "pewdiepie", "markiplier", "caseoh", "jynxzi"];
-    const isInfluencer = famousYoutubersList.some(name => query.toLowerCase().includes(name));
-
-    const youtubeFetch = (isInfluencer && GOOGLE_API_KEY)
+    const youtubeFetch = GOOGLE_API_KEY
         ? fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`)
             .then(res => res.json())
             .then(searchData => {
@@ -1344,7 +1341,13 @@ function runUnifiedWikiPipeline(query, wikiData) {
                         .then(channelData => {
                             if (channelData.items?.length > 0) {
                                 const item = channelData.items[0];
-                                wikiData.youtube = { title: item.snippet.title, text: item.snippet.description, subs: parseInt(item.statistics.subscriberCount).toLocaleString(), views: parseInt(item.statistics.viewCount).toLocaleString(), customUrl: item.snippet.customUrl || "" };
+                                wikiData.youtube = { 
+                                    title: item.snippet.title, 
+                                    text: item.snippet.description, 
+                                    subs: parseInt(item.statistics.subscriberCount).toLocaleString(), 
+                                    views: parseInt(item.statistics.viewCount).toLocaleString(), 
+                                    customUrl: item.snippet.customUrl || "" 
+                                };
                             }
                         });
                 }
@@ -1357,11 +1360,18 @@ function runUnifiedWikiPipeline(query, wikiData) {
             if (wikiSearch.query?.search?.length > 0) {
                 return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiSearch.query.search[0].title.replace(/ /g, '_'))}`)
                     .then(res => res.json())
-                    .then(summaryData => { wikiData.wikipedia = { title: wikiSearch.query.search[0].title, text: summaryData.extract }; });
+                    .then(summaryData => { 
+                        wikiData.wikipedia = { 
+                            title: wikiSearch.query.search[0].title, 
+                            text: summaryData.extract 
+                        }; 
+                    });
             }
         }).catch(() => null);
 
-    Promise.all([youtubeFetch, wikipediaFetch]).then(() => { compileFinalSourceIndexBox(query, wikiData); });
+    Promise.all([youtubeFetch, wikipediaFetch]).then(() => { 
+        compileFinalSourceIndexBox(query, wikiData); 
+    });
 }
 
 function compileFinalSourceIndexBox(query, wikiData) {
