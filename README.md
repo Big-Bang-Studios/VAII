@@ -17,7 +17,7 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **🎬 Media Search:** Renders movie posters, plots, and IMDB metrics via the **OMDB API**.
 * **📝 To-Do Notes:** A localized manager that utilizes browser `localStorage` to securely save and track personal notes.
 * **🧠 Knowledge Base:** Fetches live lexical definitions via the **Wiktionary API** and summary extracts via the **Wikipedia API**.
-* **👁️ Vision Engine:** Processes user-uploaded Base64 image data using the **Gemini 3.6 Flash** model to provide detailed visual analysis.
+* **👁️ Vision Engine:** Processes user-uploaded Base64 image data using the **Gemini 3.7 Flash** model to provide detailed visual analysis.
 * **🗺️ Interactive Maps:** Renders live, interactive embedded maps using the **Google Maps JavaScript API** based on location queries.
 * **☀️ Weather & Time Telemetry:** Pulls real-time climate readings, wind speeds, and localized timezones using the **Open-Meteo Geocoding and Forecast APIs**.
 * **🔴 Creator Metrics:** Fetches live subscriber and view counts for specific influencers utilizing the **YouTube Data API v3**.
