@@ -31,6 +31,7 @@ function getActiveGeminiKey() {
 }
 
 const BASELINE_FALLBACK_TREE = [
+    { name: "Gemini 3.7", id: "gemini-3.7-flash" },
     { name: "Gemini 3.6", id: "gemini-3.6-flash" },
     { name: "Gemini 3.5", id: "gemini-3.5-flash" },
     { name: "Gemini 3.1", id: "gemini-3.1-flash" },
@@ -1017,7 +1018,7 @@ function executeVisionAnalysis(promptText) {
         }]
     };
 
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${getActiveGeminiKey()}`, {
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${getActiveGeminiKey()}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
     })
     .then(res => res.json())
