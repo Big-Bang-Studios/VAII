@@ -512,7 +512,7 @@ function updateDatalist(cities = [], wikiTitles = [], wikitubiaTitles = [], comb
         option.value = parts.join(', ');
         option.setAttribute('data-lat', location.latitude);
         option.setAttribute('data-lon', location.longitude);
-        option.setAttribute('data-tz', location.timezone);
+        option.setAttribute('data-tz', location.timezone || 'UTC');
         datalist.appendChild(option);
     });
 }
@@ -689,7 +689,6 @@ function fetchSongTrack(songQuery) {
         .catch(() => handleVaiiDataOutput("Music lookup failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Music search failed. Network error.</div>`));
 }
 
-// ANILIST GRAPHQL ADAPTER (High rate limit, fast querying)
 function fetchAniListMedia(title, mediaType = "ANIME") {
     const isAnime = (mediaType === "ANIME");
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying AniList ${isAnime ? 'anime' : 'manga'} data...</div>`;
@@ -845,147 +844,229 @@ function fetchOpenLibraryBook(bookTitle) {
 }
 
 // ==========================================
-// 4. CHAT ENGINE (GEMINI FALLBACK LOOP)
+// 5. GEOLOCATION & WEATHER
 // ==========================================
-async function executeGeminiDirectChat(userInput) {
-    if (chatHistory.length === 0) {
-        const localInstructions = localStorage.getItem('vaii_gemini_instructions') || '';
-        let systemPrompt = "You are Gemini, an advanced conversational core running inside the VAII architecture frame. STRICT STRUCTURAL RULE: You do NOT possess built-in web services, maps, currency handlers, weather telemetry, or drawing capabilities. All of those proprietary features belong exclusively to a completely separate system engine option on this dashboard named 'VAII Native'. Your singular purpose here is providing deep, persistent multi-turn conversational reasoning and textual chat history records. Keep statements direct and clear.";
-        
-        if (localInstructions.trim()) {
-            systemPrompt += `\n\n[USER SYSTEM INSTRUCTIONS / REQUIRED PERSONALITY PARAMETERS]:\n${localInstructions.trim()}`;
-        }
+function resolveAndRenderLocation(searchLocationQuery, greetingHTML = "") {
+    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Locating coordinates for "${searchLocationQuery}"...</div>`;
 
-        chatHistory.push({ role: "user", parts: [{ text: systemPrompt }] });
-        chatHistory.push({ role: "model", parts: [{ text: "System connection established. Isolated chat parameters synced. I am fully aware of my persona guidelines and that I do not contain VAII Native utilities." }] });
-    }
+    // Strip country/state tokens if comma separated for the raw geo query
+    let baseQuery = searchLocationQuery.split(',')[0].trim();
 
-    chatHistory.push({ role: "user", parts: [{ text: userInput }] });
-    renderFullChatLogBubble();
-
-    const spinnerBubble = document.createElement('div');
-    spinnerBubble.id = "gemini-active-typing-indicator";
-    spinnerBubble.style = "text-align: left; padding: 10px; color: #aaa; font-style: italic; display: flex; align-items: center;";
-    spinnerBubble.innerHTML = `<div class="loader-spinner"></div> Syncing conversational context vectors...`;
-    output.appendChild(spinnerBubble);
-    output.scrollTop = output.scrollHeight;
-
-    const sanitizedContents = chatHistory.map(msg => ({
-        role: msg.role || "user",
-        parts: (msg.parts || []).map(p => ({ text: p.text || "" }))
-    }));
-
-    let successfulResponseText = null;
-    let successfulModelLabel = "";
-    let structuralErrorDetected = null;
-
-    const currentApiKey = getActiveGeminiKey();
-
-    for (let i = 0; i < BASELINE_FALLBACK_TREE.length; i++) {
-        const modelObj = BASELINE_FALLBACK_TREE[i];
-        const visionUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelObj.id}:generateContent?key=${currentApiKey}`;
-        
-        try {
-            const response = await fetch(visionUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ contents: sanitizedContents })
-            });
-            const data = await response.json();
-
-            if (data.error) {
-                if (response.status === 400 || data.error.status === "INVALID_ARGUMENT") {
-                    structuralErrorDetected = data.error.message;
-                    break; 
+    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(baseQuery)}&count=5&language=en&format=json`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.results && data.results.length > 0) {
+                // If there's a comma (e.g. Davenport, Florida), match admin1 or country if possible
+                let bestLoc = data.results[0];
+                if (searchLocationQuery.includes(",")) {
+                    const secondary = searchLocationQuery.split(',')[1].toLowerCase().trim();
+                    const matched = data.results.find(l => 
+                        (l.admin1 && l.admin1.toLowerCase().includes(secondary)) || 
+                        (l.country && l.country.toLowerCase().includes(secondary))
+                    );
+                    if (matched) bestLoc = matched;
                 }
-                console.warn(`Model generation tier [${modelObj.name}] quota full. Cascading downstream...`);
-                continue; 
+
+                let displayName = `${bestLoc.name}`;
+                if (bestLoc.admin1 && bestLoc.admin1 !== bestLoc.name) displayName += `, ${bestLoc.admin1}`;
+                if (bestLoc.country) displayName += ` (${bestLoc.country})`;
+
+                renderUnifiedLocationCard(bestLoc.latitude, bestLoc.longitude, bestLoc.timezone || 'auto', displayName, greetingHTML);
+            } else {
+                handleVaiiDataOutput("Could not extract metrics for " + searchLocationQuery, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not extract location metrics for "${searchLocationQuery}".</div>`);
             }
-
-            if (!data.candidates || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0].text) {
-                continue;
-            }
-
-            successfulResponseText = data.candidates[0].content.parts[0].text;
-            successfulModelLabel = modelObj.name;
-            break; 
-        } catch (err) {
-            console.error(`Network exception on model asset [${modelObj.name}]:`, err);
-            continue;
-        }
-    }
-
-    const indicatorNode = document.getElementById("gemini-active-typing-indicator");
-    if (indicatorNode) indicatorNode.remove();
-
-    if (structuralErrorDetected) {
-        const errorDiv = document.createElement('div');
-        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
-        errorDiv.innerHTML = `
-            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ History Thread Structure Fault</div>
-            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">
-                ${structuralErrorDetected}<br><br>
-                <span style="color: #aaa; font-size: 0.85rem;">VAII automatically dropped your last submission entry to keep this specific session from breaking permanently.</span>
-            </div>
-        `;
-        output.appendChild(errorDiv);
-        chatHistory.pop(); 
-        return;
-    }
-
-    if (successfulResponseText !== null) {
-        chatHistory.push({ 
-            role: "model", 
-            parts: [{ text: successfulResponseText }],
-            activeModelName: successfulModelLabel 
+        })
+        .catch(err => {
+            console.error("Open-Meteo Geocoding Error:", err);
+            handleVaiiDataOutput("Location processing engine connection failure.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Location processing engine connection failure.</div>`);
         });
+}
 
-        renderFullChatLogBubble();
-        saveCurrentSessionState();
+function renderUnifiedLocationCard(lat, lon, zone, displayName, greetingHTML = "") {
+    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Loading weather for "${displayName}"...</div>`;
+    
+    const tzParam = (zone && zone !== 'auto') ? `&timezone=${encodeURIComponent(zone)}` : '&timezone=auto';
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true${tzParam}`)
+        .then(res => res.json())
+        .then(weatherData => {
+            if (!weatherData.current_weather) {
+                throw new Error("Missing weather metrics");
+            }
+            const tempCelsius = weatherData.current_weather.temperature;
+            const tempFahrenheit = Math.round((tempCelsius * 9/5) + 32);
+            const windSpeed = weatherData.current_weather.windspeed;
+            
+            const effectiveTz = weatherData.timezone || zone || "UTC";
+            let timeString = "N/A";
+            let dateString = "N/A";
+            try {
+                timeString = new Date().toLocaleTimeString("en-US", { timeZone: effectiveTz, hour: '2-digit', minute: '2-digit' });
+                dateString = new Date().toLocaleDateString("en-US", { timeZone: effectiveTz, weekday: 'long', month: 'short', day: 'numeric' });
+            } catch(e) {
+                timeString = new Date().toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
+                dateString = new Date().toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric' });
+            }
+            
+            const htmlOutput = greetingHTML + `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #4da3ff; text-align: left; margin-bottom: 15px;">
+                    <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 12px;">📍 ${displayName}</div>
+                    <div style="display: flex; gap: 20px; margin-bottom: 15px; border-bottom: 1px solid #2a2a2a; padding-bottom: 12px;">
+                        <div style="flex: 1;">
+                            <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Current Climate</span><br>
+                            <span style="font-size: 1.1rem; font-weight: bold; color: #28a745;">🌡️ ${tempFahrenheit}°F</span> <span style="color:#666; font-size:0.9rem;">(${tempCelsius}°C)</span><br>
+                            <span style="color: #ccc; font-size: 0.85rem;">💨 Wind: ${windSpeed} km/h</span>
+                        </div>
+                        <div style="flex: 1; border-left: 1px solid #2a2a2a; padding-left: 15px;">
+                            <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Localized Clock</span><br>
+                            <span style="font-size: 1.1rem; font-weight: bold; color: #ffc107;">🕒 ${timeString}</span><br>
+                            <span style="color: #ccc; font-size: 0.85rem;">📅 ${dateString}</span>
+                        </div>
+                    </div>
+                    <span style="color: #888; font-size: 0.8rem; text-transform: uppercase; display: block; margin-bottom: 6px;">Interactive Mapping</span>
+                    <div id="vaii-merged-map-canvas" style="width:100%; height:250px; border-radius:8px; background:#252525; border: 1px solid #333;"></div>
+                </div>
+            `;
+            
+            handleVaiiDataOutput(`Here is the location data for ${displayName}. It is currently ${tempFahrenheit} degrees Fahrenheit.`, htmlOutput, () => {
+                if (typeof google !== 'undefined' && google.maps) {
+                    const mapCoordinates = { lat: parseFloat(lat), lng: parseFloat(lon) };
+                    const loadedMapInstance = new google.maps.Map(document.getElementById('vaii-merged-map-canvas'), {
+                        center: mapCoordinates, zoom: 12, disableDefaultUI: false,
+                        styles: [
+                            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+                            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+                            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] }
+                        ]
+                    });
+                    new google.maps.Marker({ position: mapCoordinates, map: loadedMapInstance, title: displayName });
+                }
+            });
+        })
+        .catch(err => {
+            console.error("Open-Meteo Weather Error:", err);
+            handleVaiiDataOutput("Error pulling metrics for spatial location.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Error pulling metrics for spatial location.</div>`);
+        });
+}
 
-        if (autoSpeak) {
-            let cleanResponse = successfulResponseText.replace(/[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
-            speakText(cleanResponse);
-            autoSpeak = false;
+function executeVisionAnalysis(promptText) {
+    output.innerHTML = `
+        <div class="generation-status">
+            <div class="loader-spinner"></div>
+            <span style="color: #eee; font-size: 0.9rem;">VAII vision engine is processing image parameters...</span>
+        </div>
+    `;
+
+    const payload = {
+        contents: [{
+            parts: [
+                { text: promptText },
+                { inlineData: { mimeType: activeImageMimeType || "image/jpeg", data: activeImageBase64 } }
+            ]
+        }]
+    };
+
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${getActiveGeminiKey()}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.error) {
+            output.innerHTML = `
+                <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">
+                    <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ Google API Error</div>
+                    <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">${data.error.message}</div>
+                </div>
+            `;
+            return;
         }
-
-        if (chatHistory.length === 4) {
-            triggerBackgroundTitleGeneration(chatHistory[2].parts[0].text, successfulResponseText, successfulModelLabel);
-        }
-    } else {
-        const errorDiv = document.createElement('div');
-        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
-        errorDiv.innerHTML = `
-            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">🚨 Critical Server Outage Alert</div>
-            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5; font-weight: 500;">
-                Every single fallback layer inside the model matrix has completely exhausted its rate-limit quotas. Please wait for token limits to clear.
+        const descriptionResult = data.candidates[0].content.parts[0].text;
+        const finalHtml = `
+            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left;">
+                <div style="font-size: 0.75rem; color: #888; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; letter-spacing: 0.5px;">👁️ Image Analysis Output</div>
+                <div style="color: #eee; font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">${descriptionResult}</div>
             </div>
         `;
-        output.appendChild(errorDiv);
-        chatHistory.pop(); 
+        handleVaiiDataOutput(descriptionResult, finalHtml);
+        clearActiveImage();
+    }).catch(err => {
+        handleVaiiDataOutput("Network intercept error connecting to Google vision matrices.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Network intercept error connecting to Google vision matrices.</div>`);
+        console.error(err);
+    });
+}
+
+function runMarketExecution(ticker) {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching price updates for "${ticker.toUpperCase()}"...</div>`;
+    const cleanTicker = ticker.trim().toLowerCase();
+    const cryptoMap = { btc: "bitcoin", eth: "ethereum", solana: "solana" };
+
+    if (cryptoMap[cleanTicker]) {
+        fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoMap[cleanTicker]}&vs_currencies=usd&include_24hr_change=true`)
+            .then(res => res.json())
+            .then(data => {
+                const coinData = data[cryptoMap[cleanTicker]];
+                const price = coinData.usd;
+                const change = coinData.usd_24h_change.toFixed(2);
+                const htmlOutput = `
+                    <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #6f42c1; text-align: left;">
+                        <strong>🪙 ${cryptoMap[cleanTicker].toUpperCase()} (${ticker.toUpperCase()})</strong><br>
+                        💰 Price: $${price.toLocaleString()} USD<br>
+                        ${change >= 0 ? "📈" : "📉"} 24h Change: ${change}%
+                    </div>
+                `;
+                handleVaiiDataOutput(`The price of ${cryptoMap[cleanTicker]} is ${price.toLocaleString()} dollars.`, htmlOutput);
+            }).catch(() => { handleVaiiDataOutput("Error pulling crypto ticker data.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Error pulling crypto ticker data.</div>`); });
+    } else {
+        const htmlOutput = `
+            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #6f42c1; text-align: left;">
+                <strong>📈 Stock Ticker: ${ticker.toUpperCase()}</strong><br>
+                <span style="color: #aaa; font-size: 0.9rem;">To view deep market assets, open the link directly:</span>
+                <a href="https://finance.yahoo.com/quote/${ticker.toUpperCase()}" target="_blank">Open Yahoo Finance ↗</a>
+            </div>
+        `;
+        handleVaiiDataOutput(`I found the stock ticker ${ticker.toUpperCase()}.`, htmlOutput);
     }
 }
 
-async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningModelId) {
-    const titlePrompt = `Generate a short, highly descriptive 3 to 5 word summary title for this chat based on these two statements. Respond with ONLY the clean summary text directly, no intro text, no markdown styling markers, and no outer quotation characters.\n\nUser text: "${userMsg}"\nModel text: "${modelResponse}"`;
-    const payloadContents = [{ role: "user", parts: [{ text: titlePrompt }] }];
-    const activeModel = BASELINE_FALLBACK_TREE.find(m => m.name === runningModelId) || BASELINE_FALLBACK_TREE[0];
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel.id}:generateContent?key=${getActiveGeminiKey()}`;
+function executeImageGeneration(imagePrompt) {
+    if (ttsBtn) ttsBtn.style.display = 'flex';
+    routingWarning.style.display = "none"; 
+    output.innerHTML = `
+        <div style="color: #888; font-style: italic; margin-bottom: 12px; font-size: 0.9rem; line-height: 1.4;">🎨 Generating artwork for "${imagePrompt}"...</div>
+        <div class="generation-status" id="image-loader">
+            <div class="loader-spinner"></div>
+            <span style="color: #eee; font-size: 0.9rem;">Assembling pixels...</span>
+        </div>
+    `;
+    const seed = Math.floor(Math.random() * 1000000);
+    const imageUrl = `https://image.pollinations.ai/p/${encodeURIComponent(imagePrompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
+    const img = new Image();
+    img.src = imageUrl;
+    img.style.width = "100%";
+    img.style.borderRadius = "8px";
+    img.style.marginTop = "10px";
+    img.style.display = "none";
+    img.style.boxShadow = "0 4px 15px rgba(0,0,0,0.5)";
+    img.onload = function() {
+        document.getElementById("image-loader")?.remove();
+        img.style.display = "block";
+    };
+    output.appendChild(img);
+}
 
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: payloadContents })
-        });
-        const data = await response.json();
-        let cleanedTitle = data.candidates[0].content.parts[0].text.trim().replace(/['"]+/g, ''); 
-        if (cleanedTitle && cleanedTitle.length > 2) {
-            saveCurrentSessionState(cleanedTitle);
-        }
-    } catch (e) {
-        console.error("Dynamic title loop exception:", e);
-    }
+function launchTargetUrl(url) {
+    routingWarning.style.display = "block"; 
+    const htmlOutput = `
+        <div class="news-header-msg" style="color: #888; font-style: italic; margin-bottom: 4px; font-size: 0.9rem; line-height: 1.4;">Navigating to external web link...</div>
+        <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left; margin-bottom: 15px;">
+            🔗 <strong>Address:</strong> <span style="color: #4da3ff; word-break: break-all;">${url}</span>
+        </div>
+        <a href="${url}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #007bff; border-radius: 6px; padding: 10px 14px; color: white; text-decoration: none; font-weight: bold; font-size: 0.95rem;">
+            <span>Launch Link</span>
+            <span>Open Site ↗</span>
+        </a>
+    `;
+    handleVaiiDataOutput("Opening link.", htmlOutput);
+    window.open(url, '_blank');
 }
 
 // ==========================================
@@ -1080,19 +1161,7 @@ function runInfoExecution(query) {
 
     if (isExplicitLocationIntent) {
         let parsedLocation = query.replace(/map of /i, "").replace(/show map /i, "").replace(/time in /i, "").replace(/weather in /i, "").replace(/weather /i, "").replace(/clock /i, "").trim();
-        
-        output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Locating coordinates for "${parsedLocation}"...</div>`;
-
-        fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(parsedLocation)}&count=1&language=en&format=json`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.results && data.results.length > 0) {
-                    const loc = data.results[0];
-                    renderUnifiedLocationCard(loc.latitude, loc.longitude, loc.timezone, `${loc.name}, ${loc.admin1 || ''} (${loc.country})`, greetingHTML);
-                } else {
-                    handleVaiiDataOutput("Could not extract metrics for " + parsedLocation, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not extract metrics for "${parsedLocation}".</div>`);
-                }
-            }).catch(() => { handleVaiiDataOutput("Location processing engine connection failure.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Location processing engine connection failure.</div>`); });
+        resolveAndRenderLocation(parsedLocation, greetingHTML);
         return;
     }
 
@@ -1190,16 +1259,22 @@ function runInfoExecution(query) {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching knowledge base for "${query}"...</div>`;
 
     if (query.includes(",")) {
-        fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=1&language=en&format=json`)
+        let basePart = query.split(',')[0].trim();
+        fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(basePart)}&count=5&language=en&format=json`)
             .then(res => res.json())
             .then(geoData => {
                 if (geoData.results && geoData.results.length > 0) {
-                    const loc = geoData.results[0];
-                    let formattedName = `${loc.name}`;
-                    if (loc.admin1 && loc.admin1 !== loc.name) formattedName += `, ${loc.admin1}`;
-                    if (loc.country) formattedName += ` (${loc.country})`;
+                    const secondary = query.split(',')[1].toLowerCase().trim();
+                    const matched = geoData.results.find(l => 
+                        (l.admin1 && l.admin1.toLowerCase().includes(secondary)) || 
+                        (l.country && l.country.toLowerCase().includes(secondary))
+                    ) || geoData.results[0];
 
-                    renderUnifiedLocationCard(loc.latitude, loc.longitude, loc.timezone, formattedName, greetingHTML);
+                    let formattedName = `${matched.name}`;
+                    if (matched.admin1 && matched.admin1 !== matched.name) formattedName += `, ${matched.admin1}`;
+                    if (matched.country) formattedName += ` (${matched.country})`;
+
+                    renderUnifiedLocationCard(matched.latitude, matched.longitude, matched.timezone || 'auto', formattedName, greetingHTML);
                 } else {
                     proceedWithWikiPipeline();
                 }
@@ -1549,13 +1624,14 @@ hubInput?.addEventListener('input', () => {
 
     let searchUrlQuery = trimmedQuery.replace(/map of |show map |weather in |time in /i, "").trim();
     searchUrlQuery = searchUrlQuery.replace(/order me a |order a |order some |order | near me|find /i, "").trim();
+    let baseGeoSearch = searchUrlQuery.split(',')[0].trim();
 
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
         searchAbortController = new AbortController();
         const signal = searchAbortController.signal;
 
-        const geoFetch = fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchUrlQuery)}&count=5&language=en&format=json`, { signal })
+        const geoFetch = fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(baseGeoSearch)}&count=5&language=en&format=json`, { signal })
             .then(res => res.json()).then(data => data.results || []).catch(() => []);
         const wikiFetch = fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchUrlQuery)}&utf8=&format=json&origin=*`, { signal })
             .then(res => res.json()).then(data => data.query?.search?.map(item => item.title) || []).catch(() => []);
