@@ -291,6 +291,7 @@ const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent
 
 const defaultAssistantSuggestions = [
     "Open Gemini", "193 lbs to kg", "Open YouTube", "BTC", "Time in Tokyo", 
+    "Dog", "Cat", "Country Japan", "Drink Margarita", "My IP",
     "Trivia", "Free Games", "Joke",
     "Song Bohemian Rhapsody", "Pokemon Charizard", "Anime Attack on Titan", "Manga Berserk", "Book The Hobbit",
     "Davenport, Florida", "Florida, United States", "Draw a neon cyberpunk switch console artwork"
@@ -662,6 +663,130 @@ function fetchOMDBMedia(title) {
 // ==========================================
 // MEDIA & UTILITY MODULES
 // ==========================================
+function fetchCuteAnimal(type = "dog") {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching cute ${type}...</div>`;
+    if (type === "dog") {
+        fetch('https://dog.ceo/api/breeds/image/random')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status !== "success") throw new Error("Dog API Error");
+                const html = `
+                    <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff9800; text-align: left;">
+                        <div style="font-size: 0.85rem; font-weight: bold; color: #ff9800; margin-bottom: 8px;">🐶 Random Dog Picture</div>
+                        <img src="${data.message}" style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #333;">
+                    </div>
+                `;
+                handleVaiiDataOutput("Here is a cute dog picture!", html);
+            })
+            .catch(() => handleVaiiDataOutput("Could not load dog picture.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not load dog picture.</div>`));
+    } else {
+        const catUrl = `https://cataas.com/cat?t=${Date.now()}`;
+        const html = `
+            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #9c27b0; text-align: left;">
+                <div style="font-size: 0.85rem; font-weight: bold; color: #9c27b0; margin-bottom: 8px;">🐱 Random Cat Picture</div>
+                <img src="${catUrl}" style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #333;">
+            </div>
+        `;
+        handleVaiiDataOutput("Here is a cute cat picture!", html);
+    }
+}
+
+function fetchCountryInfo(countryName) {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Looking up country data for "${countryName}"...</div>`;
+    fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}`)
+        .then(res => {
+            if (!res.ok) throw new Error("Country not found");
+            return res.json();
+        })
+        .then(data => {
+            const country = data[0];
+            const capital = country.capital ? country.capital.join(', ') : 'N/A';
+            const population = country.population ? country.population.toLocaleString() : 'N/A';
+            const region = `${country.region} (${country.subregion || ''})`;
+            const currencies = country.currencies ? Object.values(country.currencies).map(c => `${c.name} (${c.symbol || ''})`).join(', ') : 'N/A';
+            const flag = country.flags?.svg || country.flags?.png;
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00bcd4; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <div>
+                            <div style="font-size: 1.25rem; font-weight: bold; color: #fff;">${country.name.common} ${country.flag || ''}</div>
+                            <div style="font-size: 0.82rem; color: #888;">${country.name.official}</div>
+                        </div>
+                        ${flag ? `<img src="${flag}" style="width: 70px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #333;">` : ''}
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.85rem; color: #ccc; border-top: 1px solid #2a2a2a; padding-top: 10px;">
+                        <div><strong>🏛️ Capital:</strong> ${capital}</div>
+                        <div><strong>👥 Population:</strong> ${population}</div>
+                        <div><strong>🌍 Region:</strong> ${region}</div>
+                        <div><strong>💰 Currency:</strong> ${currencies}</div>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`${country.name.common}. Capital is ${capital}. Population is ${population}.`, html);
+        })
+        .catch(() => handleVaiiDataOutput(`Could not find information for "${countryName}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Country "${countryName}" not found.</div>`));
+}
+
+function fetchDrinkRecipe(drinkName) {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Finding cocktail recipe...</div>`;
+    const url = (!drinkName || drinkName === "random") 
+        ? 'https://www.thecocktaildb.com/api/json/v1/1/random.php'
+        : `https://www.thecocktaildb.com/api/json/v1/1/search.php?s=${encodeURIComponent(drinkName)}`;
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.drinks || data.drinks.length === 0) {
+                return handleVaiiDataOutput(`No cocktail found for "${drinkName}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No cocktail recipes found for "${drinkName}".</div>`);
+            }
+            const drink = data.drinks[0];
+            let ingredients = [];
+            for (let i = 1; i <= 15; i++) {
+                const ing = drink[`strIngredient${i}`];
+                const meas = drink[`strMeasure${i}`];
+                if (ing) ingredients.push(`${meas ? meas.trim() + ' ' : ''}${ing.trim()}`);
+            }
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #e91e63; text-align: left; display: flex; gap: 15px;">
+                    ${drink.strDrinkThumb ? `<img src="${drink.strDrinkThumb}" style="width: 90px; height: 90px; border-radius: 8px; object-fit: cover; border: 1px solid #333;">` : ''}
+                    <div style="flex: 1;">
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff;">🍸 ${drink.strDrink}</div>
+                        <div style="color: #e91e63; font-size: 0.8rem; font-weight: bold; margin-bottom: 6px;">${drink.strAlcoholic} • ${drink.strGlass}</div>
+                        <div style="font-size: 0.82rem; color: #aaa; margin-bottom: 6px;"><strong>Ingredients:</strong> ${ingredients.join(', ')}</div>
+                        <div style="font-size: 0.82rem; color: #ddd; line-height: 1.4;">${drink.strInstructions}</div>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`${drink.strDrink}. ${drink.strInstructions}`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Cocktail recipe search failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Cocktail database network error.</div>`));
+}
+
+function fetchClientIPLookup() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying network parameters...</div>`;
+    fetch('https://ipapi.co/json/')
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) throw new Error("IP API failed");
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #673ab7; text-align: left;">
+                    <div style="font-size: 0.75rem; color: #673ab7; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🌐 Public IP Telemetry</div>
+                    <div style="font-size: 1.3rem; font-weight: bold; color: #fff; margin-bottom: 8px;">${data.ip}</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.85rem; color: #ccc; border-top: 1px solid #2a2a2a; padding-top: 10px;">
+                        <div><strong>🏢 ISP:</strong> ${data.org || data.asn || 'N/A'}</div>
+                        <div><strong>📍 Location:</strong> ${data.city}, ${data.region}</div>
+                        <div><strong>🏳️ Country:</strong> ${data.country_name} (${data.country_code})</div>
+                        <div><strong>📮 Postal:</strong> ${data.postal || 'N/A'}</div>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`Your public IP address is ${data.ip}, located in ${data.city}, ${data.region}.`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Could not retrieve IP parameters.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not retrieve IP parameters.</div>`));
+}
+
 function fetchSongTrack(songQuery) {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching music library for "${songQuery}"...</div>`;
     fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(songQuery)}&entity=song&limit=1`)
@@ -1248,6 +1373,26 @@ function runInfoExecution(query) {
     }
     if (cleanQuery === "show notes" || cleanQuery === "my notes") return renderNotesManager();
 
+    if (cleanQuery === "dog" || cleanQuery === "random dog" || cleanQuery === "dogs") {
+        return fetchCuteAnimal("dog");
+    }
+
+    if (cleanQuery === "cat" || cleanQuery === "random cat" || cleanQuery === "cats") {
+        return fetchCuteAnimal("cat");
+    }
+
+    if (cleanQuery.startsWith("country ")) {
+        return fetchCountryInfo(cleanQuery.replace(/^country\s+/i, '').trim());
+    }
+
+    if (cleanQuery.startsWith("drink ") || cleanQuery === "random drink" || cleanQuery === "cocktail") {
+        return fetchDrinkRecipe(cleanQuery.replace(/^drink\s+/i, '').trim());
+    }
+
+    if (cleanQuery === "my ip" || cleanQuery === "ip" || cleanQuery === "ip lookup" || cleanQuery === "what is my ip") {
+        return fetchClientIPLookup();
+    }
+
     if (cleanQuery === "trivia" || cleanQuery === "quiz" || cleanQuery.startsWith("trivia ") || cleanQuery.startsWith("quiz ")) {
         return fetchTriviaQuestion();
     }
@@ -1721,6 +1866,22 @@ hubInput?.addEventListener('input', () => {
         } else {
             customSuggestions = ALL_FOOD_SUGGESTIONS.slice(0, 8);
         }
+    }
+
+    if ("dog".startsWith(cleanInput) || "cat".startsWith(cleanInput)) {
+        customSuggestions.push("dog", "cat");
+    }
+
+    if ("country".startsWith(cleanInput)) {
+        customSuggestions.push("country Japan", "country Brazil", "country Canada", "country Germany");
+    }
+
+    if ("drink".startsWith(cleanInput)) {
+        customSuggestions.push("drink Margarita", "drink Mojito", "random drink");
+    }
+
+    if ("my ip".startsWith(cleanInput) || "ip".startsWith(cleanInput)) {
+        customSuggestions.push("my ip", "ip lookup");
     }
 
     if ("trivia".startsWith(cleanInput) || "quiz".startsWith(cleanInput)) {
