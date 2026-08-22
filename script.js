@@ -292,6 +292,7 @@ const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent
 const defaultAssistantSuggestions = [
     "Open Gemini", "193 lbs to kg", "Open YouTube", "BTC", "Time in Tokyo", 
     "Hello to Spanish", "Open Minecraft", "(12 * 4) / 2", "Map of Orlando", 
+    "Song Bohemian Rhapsody", "Pokemon Charizard", "Anime Attack on Titan", "Book The Hobbit",
     "Davenport, Florida", "Florida, United States", "Draw a neon cyberpunk switch console artwork"
 ];
 
@@ -326,10 +327,8 @@ function cleanWiktionaryDefinition(rawHtml) {
     if (!rawHtml) return "";
     let tmp = document.createElement("DIV");
     tmp.innerHTML = rawHtml;
-    // Strip styles, links, and parser classes
     tmp.querySelectorAll('style, script, .mw-parser-output, .defdate').forEach(el => el.remove());
     let clean = tmp.textContent || tmp.innerText || "";
-    // Regex cleanup of any lingering CSS blocks
     clean = clean.replace(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/g, '').trim();
     return clean;
 }
@@ -655,6 +654,132 @@ function fetchOMDBMedia(title) {
 }
 
 // ==========================================
+// NEW MODULES: ITUNES, JIKAN, POKEAPI, OPEN LIBRARY
+// ==========================================
+function fetchSongTrack(songQuery) {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching music library for "${songQuery}"...</div>`;
+    fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(songQuery)}&entity=song&limit=1`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.results || data.results.length === 0) {
+                return handleVaiiDataOutput("No song track found for " + songQuery, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No songs found for "${songQuery}".</div>`);
+            }
+            const track = data.results[0];
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #1db954; text-align: left;">
+                    <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 12px;">
+                        <img src="${track.artworkUrl100}" style="width: 75px; height: 75px; border-radius: 8px; object-fit: cover; border: 1px solid #333;">
+                        <div>
+                            <div style="font-size: 1.15rem; font-weight: bold; color: #fff;">🎵 ${track.trackName}</div>
+                            <div style="color: #1db954; font-size: 0.9rem; font-weight: 500;">${track.artistName}</div>
+                            <div style="color: #888; font-size: 0.78rem; margin-top: 2px;">${track.collectionName || 'Single'} (${new Date(track.releaseDate).getFullYear()})</div>
+                        </div>
+                    </div>
+                    ${track.previewUrl ? `
+                        <div style="margin-top: 8px;">
+                            <span style="font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px;">30s Audio Preview:</span>
+                            <audio controls style="width: 100%; height: 36px; border-radius: 6px;" src="${track.previewUrl}"></audio>
+                        </div>
+                    ` : ''}
+                    <a href="${track.trackViewUrl}" target="_blank" style="display: block; margin-top: 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;">Listen full track on Apple Music ↗</a>
+                </div>
+            `;
+            handleVaiiDataOutput(`Found ${track.trackName} by ${track.artistName}.`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Music lookup failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Music search failed. Network error.</div>`));
+}
+
+function fetchAnimeMAL(animeTitle) {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying MyAnimeList data...</div>`;
+    fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(animeTitle)}&limit=1`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.data || data.data.length === 0) {
+                return handleVaiiDataOutput("No anime found for " + animeTitle, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No anime entry found for "${animeTitle}".</div>`);
+            }
+            const anime = data.data[0];
+            const genres = (anime.genres || []).map(g => g.name).join(", ");
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #2e51a2; text-align: left; display: flex; gap: 15px;">
+                    ${anime.images?.jpg?.image_url ? `<img src="${anime.images.jpg.image_url}" style="width: 95px; border-radius: 8px; object-fit: cover; border: 1px solid #333;">` : ''}
+                    <div>
+                        <div style="font-size: 1.15rem; font-weight: bold; color: #fff; margin-bottom: 3px;">⛩️ ${anime.title}</div>
+                        <div style="color: #ffc107; font-size: 0.85rem; margin-bottom: 6px;">⭐ MAL Score: ${anime.score || 'N/A'} | ${anime.episodes || '?'} eps (${anime.status})</div>
+                        <div style="color: #aaa; font-size: 0.8rem; margin-bottom: 8px;">Genres: ${genres || 'N/A'}</div>
+                        <div style="color: #ccc; font-size: 0.86rem; line-height: 1.4; max-height: 110px; overflow-y: auto;">${anime.synopsis || 'No synopsis provided.'}</div>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`${anime.title}, rating is ${anime.score || 'unrated'}. ${anime.synopsis || ''}`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Anime lookup failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Anime lookup failed. Network error.</div>`));
+}
+
+function fetchPokemonEntry(pokeName) {
+    const cleanName = pokeName.toLowerCase().trim().replace(/\s+/g, '-');
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching Pokédex telemetry...</div>`;
+    fetch(`https://pokeapi.co/api/v2/pokemon/${encodeURIComponent(cleanName)}`)
+        .then(res => {
+            if (!res.ok) throw new Error("Pokemon not found");
+            return res.json();
+        })
+        .then(p => {
+            const types = p.types.map(t => `<span style="background: #333; padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; text-transform: capitalize; color: #ffcb05; font-weight: bold;">${t.type.name}</span>`).join(' ');
+            const sprite = p.sprites.other?.['official-artwork']?.front_default || p.sprites.front_default;
+            const stats = p.stats.map(s => `<div style="font-size: 0.78rem; color: #bbb;"><strong style="text-transform: capitalize;">${s.stat.name.replace('-', ' ')}:</strong> ${s.base_stat}</div>`).join('');
+            
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ffcb05; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div>
+                            <div style="font-size: 1.3rem; font-weight: bold; text-transform: capitalize; color: #fff;">⚡ #${p.id} ${p.name}</div>
+                            <div style="display: flex; gap: 6px; margin-top: 6px;">${types}</div>
+                        </div>
+                        ${sprite ? `<img src="${sprite}" style="width: 85px; height: 85px; object-fit: contain;">` : ''}
+                    </div>
+                    <div style="border-top: 1px solid #2a2a2a; padding-top: 10px; margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                        <div style="font-size: 0.78rem; color: #bbb;"><strong>Height:</strong> ${(p.height / 10).toFixed(1)} m</div>
+                        <div style="font-size: 0.78rem; color: #bbb;"><strong>Weight:</strong> ${(p.weight / 10).toFixed(1)} kg</div>
+                        ${stats}
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`Pokemon #${p.id} ${p.name}. Type: ${p.types.map(t => t.type.name).join(', ')}.`, html);
+        })
+        .catch(() => handleVaiiDataOutput(`Pokemon "${pokeName}" not found.`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Pokémon "${pokeName}" not found in Pokédex index.</div>`));
+}
+
+function fetchOpenLibraryBook(bookTitle) {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying Open Library archives...</div>`;
+    fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(bookTitle)}&limit=1`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.docs || data.docs.length === 0) {
+                return handleVaiiDataOutput("No book found for " + bookTitle, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No book found for "${bookTitle}".</div>`);
+            }
+            const book = data.docs[0];
+            const author = (book.author_name || ['Unknown Author']).join(', ');
+            const coverUrl = book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg` : null;
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #e1ad01; text-align: left; display: flex; gap: 15px;">
+                    ${coverUrl ? `<img src="${coverUrl}" style="width: 85px; border-radius: 6px; object-fit: cover; border: 1px solid #333;">` : ''}
+                    <div>
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 4px;">📖 ${book.title}</div>
+                        <div style="color: #e1ad01; font-size: 0.9rem; margin-bottom: 6px;">✍️ By ${author}</div>
+                        <div style="color: #aaa; font-size: 0.82rem; line-height: 1.4;">
+                            📅 First Published: ${book.first_publish_year || 'Unknown'}<br>
+                            📄 Pages: ${book.number_of_pages_median || 'N/A'}<br>
+                            ⭐ Editions: ${book.edition_count || 1}
+                        </div>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`Found ${book.title} by ${author}, first published in ${book.first_publish_year || 'unknown year'}.`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Book archive lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Open Library search failed. Network error.</div>`));
+}
+
+// ==========================================
 // 4. CHAT ENGINE (GEMINI FALLBACK LOOP)
 // ==========================================
 async function executeGeminiDirectChat(userInput) {
@@ -863,7 +988,6 @@ function executeLocalFoodSearch(queryText) {
 
     const renderFallbackCard = (brandName, suggestionText, fallbackLoc) => {
         const locString = fallbackLoc ? ` ${fallbackLoc}` : "";
-        
         const cleanFallbackString = (brandName + locString).replace(/[^a-zA-Z0-9 ,]/g, '');
         const encFallback = encodeURIComponent(cleanFallbackString);
         
@@ -1174,6 +1298,22 @@ function runInfoExecution(query) {
     }
     if (cleanQuery === "show notes" || cleanQuery === "my notes") return renderNotesManager();
 
+    if (cleanQuery.startsWith("song ") || cleanQuery.startsWith("music ") || cleanQuery.startsWith("track ")) {
+        return fetchSongTrack(cleanQuery.replace(/^(song|music|track)\s+/i, '').trim());
+    }
+
+    if (cleanQuery.startsWith("anime ") || cleanQuery.startsWith("manga ")) {
+        return fetchAnimeMAL(cleanQuery.replace(/^(anime|manga)\s+/i, '').trim());
+    }
+
+    if (cleanQuery.startsWith("pokemon ") || cleanQuery.startsWith("pokedex ")) {
+        return fetchPokemonEntry(cleanQuery.replace(/^(pokemon|pokedex)\s+/i, '').trim());
+    }
+
+    if (cleanQuery.startsWith("book ") || cleanQuery.startsWith("novel ")) {
+        return fetchOpenLibraryBook(cleanQuery.replace(/^(book|novel)\s+/i, '').trim());
+    }
+
     if (cleanQuery.startsWith("news about ")) return fetchNewsAPI(query.substring(11).trim());
     if (cleanQuery === "top news" || cleanQuery === "news") return fetchNewsAPI("");
 
@@ -1371,7 +1511,6 @@ function runUnifiedWikiPipeline(query, wikiData) {
         .then(res => res.json())
         .then(wikiSearch => {
             if (wikiSearch.query?.search?.length > 0) {
-                // Find first result that isn't purely a disambiguation page
                 let targetTitle = wikiSearch.query.search[0].title;
                 if (targetTitle.toLowerCase().endsWith("(disambiguation)") && wikiSearch.query.search.length > 1) {
                     targetTitle = wikiSearch.query.search[1].title;
@@ -1380,14 +1519,12 @@ function runUnifiedWikiPipeline(query, wikiData) {
                 return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(targetTitle.replace(/ /g, '_'))}`)
                     .then(res => res.json())
                     .then(summaryData => { 
-                        // If it's still a disambiguation or "may refer to", skip or look for real summary
                         if (summaryData.type !== "disambiguation" && !summaryData.extract?.toLowerCase().includes("may refer to:")) {
                             wikiData.wikipedia = { 
                                 title: summaryData.title || targetTitle, 
                                 text: summaryData.extract 
                             };
                         } else if (wikiSearch.query.search.length > 1) {
-                            // Fetch second result fallback
                             const fallbackTitle = wikiSearch.query.search[1].title;
                             return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(fallbackTitle.replace(/ /g, '_'))}`)
                                 .then(r => r.json())
@@ -1613,6 +1750,30 @@ hubInput?.addEventListener('input', () => {
         }
     }
 
+    if ("song".startsWith(cleanInput) || cleanInput.startsWith("song")) {
+        if (cleanInput === "song" || cleanInput === "song ") {
+            customSuggestions.push("song Bohemian Rhapsody", "song Blinding Lights", "song Starboy", "song Shape of You");
+        }
+    }
+
+    if ("anime".startsWith(cleanInput) || cleanInput.startsWith("anime")) {
+        if (cleanInput === "anime" || cleanInput === "anime ") {
+            customSuggestions.push("anime Attack on Titan", "anime Jujutsu Kaisen", "anime Naruto", "anime One Piece");
+        }
+    }
+
+    if ("pokemon".startsWith(cleanInput) || cleanInput.startsWith("pokemon")) {
+        if (cleanInput === "pokemon" || cleanInput === "pokemon ") {
+            customSuggestions.push("pokemon Pikachu", "pokemon Charizard", "pokemon Gengar", "pokemon Mewtwo");
+        }
+    }
+
+    if ("book".startsWith(cleanInput) || cleanInput.startsWith("book")) {
+        if (cleanInput === "book" || cleanInput === "book ") {
+            customSuggestions.push("book The Hobbit", "book 1984", "book Harry Potter", "book The Great Gatsby");
+        }
+    }
+
     if ("news".startsWith(cleanInput) || cleanInput.startsWith("news")) {
         const newsPresets = ["news", "top news", "news about technology", "news about gaming", "news about science", "news about space", "news about artificial intelligence"];
         newsPresets.forEach(p => {
@@ -1659,6 +1820,17 @@ hubInput?.addEventListener('input', () => {
             }
         }
 
+        let itunesSuggestionsFetch = Promise.resolve([]);
+        if (cleanInput.startsWith("song ")) {
+            let sTerm = trimmedQuery.substring(5).trim();
+            if (sTerm.length >= 2) {
+                itunesSuggestionsFetch = fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(sTerm)}&entity=song&limit=4`, { signal })
+                    .then(res => res.json())
+                    .then(data => data.results ? data.results.map(r => `song ${r.trackName} - ${r.artistName}`) : [])
+                    .catch(() => []);
+            }
+        }
+
         let gnewsSuggestionsFetch = Promise.resolve([]);
         if (cleanInput.startsWith("news about ")) {
             let nTerm = trimmedQuery.substring(11).trim();
@@ -1671,8 +1843,8 @@ hubInput?.addEventListener('input', () => {
             }
         }
 
-        Promise.all([geoFetch, wikiFetch, wikitubiaFetch, omdbSuggestionsFetch, gnewsSuggestionsFetch]).then(([cities, wikiTitles, wikitubiaTitles, omdbTitles, gnewsTitles]) => {
-            let combinedCustom = [...customSuggestions, ...omdbTitles, ...gnewsTitles];
+        Promise.all([geoFetch, wikiFetch, wikitubiaFetch, omdbSuggestionsFetch, itunesSuggestionsFetch, gnewsSuggestionsFetch]).then(([cities, wikiTitles, wikitubiaTitles, omdbTitles, itunesTitles, gnewsTitles]) => {
+            let combinedCustom = [...customSuggestions, ...omdbTitles, ...itunesTitles, ...gnewsTitles];
             updateDatalist(cities, wikiTitles, wikitubiaTitles, combinedCustom);
         }).catch(() => {});
     }, 300);
