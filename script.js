@@ -292,7 +292,7 @@ const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent
 const defaultAssistantSuggestions = [
     "Open Gemini", "193 lbs to kg", "Open YouTube", "BTC", "Time in Tokyo", 
     "Hello to Spanish", "Open Minecraft", "(12 * 4) / 2", "Map of Orlando", 
-    "Song Bohemian Rhapsody", "Pokemon Charizard", "Anime Attack on Titan", "Book The Hobbit",
+    "Song Bohemian Rhapsody", "Pokemon Charizard", "Anime Attack on Titan", "Manga Berserk", "Book The Hobbit",
     "Davenport, Florida", "Florida, United States", "Draw a neon cyberpunk switch console artwork"
 ];
 
@@ -654,7 +654,7 @@ function fetchOMDBMedia(title) {
 }
 
 // ==========================================
-// NEW MODULES: ITUNES, JIKAN, POKEAPI, OPEN LIBRARY
+// MEDIA & UTILITY MODULES
 // ==========================================
 function fetchSongTrack(songQuery) {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching music library for "${songQuery}"...</div>`;
@@ -690,7 +690,7 @@ function fetchSongTrack(songQuery) {
 }
 
 function fetchAnimeMAL(animeTitle) {
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying MyAnimeList data...</div>`;
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying MyAnimeList anime data...</div>`;
     fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(animeTitle)}&limit=1`)
         .then(res => res.json())
         .then(data => {
@@ -713,6 +713,34 @@ function fetchAnimeMAL(animeTitle) {
             handleVaiiDataOutput(`${anime.title}, rating is ${anime.score || 'unrated'}. ${anime.synopsis || ''}`, html);
         })
         .catch(() => handleVaiiDataOutput("Anime lookup failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Anime lookup failed. Network error.</div>`));
+}
+
+function fetchMangaMAL(mangaTitle) {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying MyAnimeList manga data...</div>`;
+    fetch(`https://api.jikan.moe/v4/manga?q=${encodeURIComponent(mangaTitle)}&limit=1`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.data || data.data.length === 0) {
+                return handleVaiiDataOutput("No manga found for " + mangaTitle, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No manga entry found for "${mangaTitle}".</div>`);
+            }
+            const manga = data.data[0];
+            const genres = (manga.genres || []).map(g => g.name).join(", ");
+            const authors = (manga.authors || []).map(a => a.name).join(", ");
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #bc223b; text-align: left; display: flex; gap: 15px;">
+                    ${manga.images?.jpg?.image_url ? `<img src="${manga.images.jpg.image_url}" style="width: 95px; border-radius: 8px; object-fit: cover; border: 1px solid #333;">` : ''}
+                    <div>
+                        <div style="font-size: 1.15rem; font-weight: bold; color: #fff; margin-bottom: 3px;">📚 ${manga.title}</div>
+                        <div style="color: #ffc107; font-size: 0.85rem; margin-bottom: 4px;">⭐ MAL Score: ${manga.score || 'N/A'} | ${manga.chapters ? manga.chapters + ' chapters' : 'Ongoing'} (${manga.status})</div>
+                        <div style="color: #bc223b; font-size: 0.82rem; font-weight: 500; margin-bottom: 4px;">✍️ By ${authors || 'Unknown'}</div>
+                        <div style="color: #aaa; font-size: 0.78rem; margin-bottom: 8px;">Genres: ${genres || 'N/A'}</div>
+                        <div style="color: #ccc; font-size: 0.86rem; line-height: 1.4; max-height: 110px; overflow-y: auto;">${manga.synopsis || 'No synopsis provided.'}</div>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`${manga.title}, manga score is ${manga.score || 'unrated'}. ${manga.synopsis || ''}`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Manga lookup failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Manga lookup failed. Network error.</div>`));
 }
 
 function fetchPokemonEntry(pokeName) {
@@ -1302,8 +1330,12 @@ function runInfoExecution(query) {
         return fetchSongTrack(cleanQuery.replace(/^(song|music|track)\s+/i, '').trim());
     }
 
-    if (cleanQuery.startsWith("anime ") || cleanQuery.startsWith("manga ")) {
-        return fetchAnimeMAL(cleanQuery.replace(/^(anime|manga)\s+/i, '').trim());
+    if (cleanQuery.startsWith("anime ")) {
+        return fetchAnimeMAL(cleanQuery.replace(/^anime\s+/i, '').trim());
+    }
+
+    if (cleanQuery.startsWith("manga ")) {
+        return fetchMangaMAL(cleanQuery.replace(/^manga\s+/i, '').trim());
     }
 
     if (cleanQuery.startsWith("pokemon ") || cleanQuery.startsWith("pokedex ")) {
@@ -1759,6 +1791,12 @@ hubInput?.addEventListener('input', () => {
     if ("anime".startsWith(cleanInput) || cleanInput.startsWith("anime")) {
         if (cleanInput === "anime" || cleanInput === "anime ") {
             customSuggestions.push("anime Attack on Titan", "anime Jujutsu Kaisen", "anime Naruto", "anime One Piece");
+        }
+    }
+
+    if ("manga".startsWith(cleanInput) || cleanInput.startsWith("manga")) {
+        if (cleanInput === "manga" || cleanInput === "manga ") {
+            customSuggestions.push("manga Berserk", "manga Chainsaw Man", "manga One Piece", "manga Tokyo Ghoul");
         }
     }
 
