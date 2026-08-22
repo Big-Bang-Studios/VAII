@@ -527,7 +527,11 @@
                         <strong style="color: #ffc107; font-size: 1rem;">🚀 VAII Version History</strong>
                         <div style="margin-top: 10px; border-left: 2px solid #444; padding-left: 10px; display: flex; flex-direction: column; gap: 12px;">
                             <div>
-                                <strong style="color:#fff;">v4.0 (Current)</strong><br>
+                                <strong style="color:#fff;">v4.5 (Current)</strong><br>
+                                <span style="color:#aaa;">Integrated iTunes audio previews, Jikan Anime/Manga lookup, PokéAPI monster stats & sprites, Open Library books, and Gemini 3.7 Flash engine fallback.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v4.0</strong><br>
                                 <span style="color:#aaa;">Integrated Web Speech API for voice commands, GNews Aggregator, OMDB Media Search, persistent To-Do Notes, and the UI History tracker.</span>
                             </div>
                             <div>
@@ -541,10 +545,6 @@
                             <div>
                                 <strong style="color:#fff;">v2.0</strong><br>
                                 <span style="color:#aaa;">Overhauled the original news lookup into a unified "Info" module using Wikipedia summaries, and added Wiktionary to prevent single-word query confusion.</span>
-                            </div>
-                            <div>
-                                <strong style="color:#fff;">v1.5</strong><br>
-                                <span style="color:#aaa;">Added basic Google News search routing.</span>
                             </div>
                             <div>
                                 <strong style="color:#fff;">v1.0</strong><br>
@@ -563,14 +563,18 @@
                         <h4 style="color: #4da3ff; margin-bottom: 8px;">🌐 VAII Native Commands & Syntax</h4>
                         <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
                             <li><strong>General Knowledge:</strong> Type any entity or question (e.g., <code>MrBeast</code>, <code>Quantum Computing</code>) to query Wiktionary, Wikipedia, and YouTube metrics simultaneously.</li>
-                            <li><strong>App & Site Launcher:</strong> Type <code>open [site]</code> (e.g., <code>open YouTube</code>, <code>open Minecraft</code>, <code>open github.com</code>) to route directly.</li>
-                            <li><strong>Location, Weather & Time:</strong> Type <code>weather [location]</code>, <code>time in [city]</code>, or <code>map of [place]</code> for interactive weather cards, clocks, and embedded maps.</li>
-                            <li><strong>Math & Unit Conversions:</strong> Enter math equations directly like <code>(12 * 4) / 2</code> or conversions like <code>193 lbs to kg</code>, <code>100 miles to km</code>, or <code>72 f to c</code>.</li>
-                            <li><strong>Language Translation:</strong> Type <code>[phrase] to [language]</code> (e.g., <code>hello to spanish</code>).</li>
-                            <li><strong>Crypto & Stock Tickers:</strong> Type <code>BTC</code>, <code>ETH</code>, <code>SOL</code>, or <code>price of AAPL</code> for live market quotes.</li>
+                            <li><strong>Music Previews (iTunes):</strong> Type <code>song [title]</code> (e.g., <code>song Bohemian Rhapsody</code>, <code>track Blinding Lights</code>) to play a 30-second audio preview.</li>
+                            <li><strong>Anime & Manga (Jikan MAL):</strong> Type <code>anime [title]</code> or <code>manga [title]</code> (e.g., <code>anime Attack on Titan</code>) for scores, episodes, and studios.</li>
+                            <li><strong>Pokémon Dex (PokéAPI):</strong> Type <code>pokemon [name/id]</code> (e.g., <code>pokemon charizard</code>, <code>pokemon 150</code>) for pixel sprites, typings, and stats.</li>
+                            <li><strong>Books & Literature (Open Library):</strong> Type <code>book [title]</code> (e.g., <code>book The Hobbit</code>) to pull cover art, authors, and publish years.</li>
                             <li><strong>Movies & Media (OMDb):</strong> Type <code>movie [title]</code> (e.g., <code>movie Inception</code>) to fetch IMDb ratings, plot summaries, and posters.</li>
                             <li><strong>Live News (GNews):</strong> Type <code>top news</code> or <code>news about [topic]</code> (e.g., <code>news about technology</code>).</li>
-                            <li><strong>Local Food Search:</strong> Type <code>order burger</code>, <code>find pizza in Orlando</code>, or <code>order from Wendy's</code> for GPS-tailored DoorDash and Google ordering cards.</li>
+                            <li><strong>App & Site Launcher:</strong> Type <code>open [site]</code> (e.g., <code>open YouTube</code>, <code>open Minecraft</code>, <code>open github.com</code>) to route directly.</li>
+                            <li><strong>Location, Weather & Time:</strong> Type <code>weather [location]</code>, <code>time in [city]</code>, or <code>map of [place]</code>, or format as <code>City, State</code>.</li>
+                            <li><strong>Math & Unit Conversions:</strong> Enter equations like <code>(12 * 4) / 2</code> or conversions like <code>193 lbs to kg</code>, <code>100 miles to km</code>, or <code>72 f to c</code>.</li>
+                            <li><strong>Language Translation:</strong> Type <code>[phrase] to [language]</code> (e.g., <code>hello to spanish</code>).</li>
+                            <li><strong>Crypto & Stock Tickers:</strong> Type <code>BTC</code>, <code>ETH</code>, <code>SOL</code>, or <code>price of AAPL</code> for live market quotes.</li>
+                            <li><strong>Local Food Search:</strong> Type <code>order burger</code>, <code>find pizza in Orlando</code>, or <code>order from Wendy's</code> for GPS DoorDash routing.</li>
                             <li><strong>Image Generation:</strong> Type <code>draw [prompt]</code> (e.g., <code>draw a neon cyberpunk switch console artwork</code>) to render AI art.</li>
                             <li><strong>Notes Engine:</strong> Type <code>note: [your text]</code> to save local notes, and <code>show notes</code> to manage them.</li>
                         </ul>
@@ -582,7 +586,7 @@
                             <li>Select <strong>Gemini Ecosystem</strong> on the mode switcher to engage persistent, multi-turn AI chat threads.</li>
                             <li><strong>Custom Instructions:</strong> Click the gear icon (⚙️) next to Gemini to set long-term system instructions or personality guidelines.</li>
                             <li><strong>Thread Management:</strong> Access historical chat sessions via the scroll icon (📜) or start a new thread using the edit icon (📝).</li>
-                            <li><strong>Model Fallback Matrix:</strong> Cascades from <strong>Gemini 3.6 Flash</strong> down to Gemma models automatically if quota limits are reached.</li>
+                            <li><strong>Model Fallback Matrix:</strong> Cascades from <strong>Gemini 3.7 Flash</strong> down to Gemma models automatically if quota limits are reached.</li>
                         </ul>
 
                         <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 15px 0;">
