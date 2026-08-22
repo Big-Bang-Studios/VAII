@@ -291,7 +291,7 @@ const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent
 
 const defaultAssistantSuggestions = [
     "Open Gemini", "193 lbs to kg", "Open YouTube", "BTC", "Time in Tokyo", 
-    "Dog", "Cat", "Country Japan", "Drink Margarita", "My IP",
+    "Dog", "Cat", "Country Japan", "Country Canada", "Drink Margarita", "My IP",
     "Trivia", "Free Games", "Joke",
     "Song Bohemian Rhapsody", "Pokemon Charizard", "Anime Attack on Titan", "Manga Berserk", "Book The Hobbit",
     "Davenport, Florida", "Florida, United States", "Draw a neon cyberpunk switch console artwork"
@@ -691,16 +691,26 @@ function fetchCuteAnimal(type = "dog") {
     }
 }
 
+// 100% REST COUNTRIES WITH PARALLEL MIRRORS & ZERO WIKIPEDIA
 function fetchCountryInfo(countryName) {
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Looking up country data for "${countryName}"...</div>`;
+    const cleanTarget = countryName.toLowerCase().trim();
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying REST Countries API for "${cleanTarget}"...</div>`;
 
-    const renderCard = (cName, official, flag, capital, population, region, currencies) => {
+    const renderCard = (country) => {
+        const commonName = country.name?.common || countryName;
+        const officialName = country.name?.official || commonName;
+        const capital = country.capital ? country.capital.join(', ') : 'N/A';
+        const population = country.population ? country.population.toLocaleString() : 'N/A';
+        const region = `${country.region || 'N/A'} (${country.subregion || ''})`;
+        const currencies = country.currencies ? Object.values(country.currencies).map(c => `${c.name} (${c.symbol || ''})`).join(', ') : 'N/A';
+        const flag = country.flags?.svg || country.flags?.png;
+
         const html = `
             <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00bcd4; text-align: left;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <div>
-                        <div style="font-size: 1.25rem; font-weight: bold; color: #fff;">${cName}</div>
-                        <div style="font-size: 0.82rem; color: #888;">${official}</div>
+                        <div style="font-size: 1.25rem; font-weight: bold; color: #fff;">${commonName} ${country.flag || ''}</div>
+                        <div style="font-size: 0.82rem; color: #888;">${officialName}</div>
                     </div>
                     ${flag ? `<img src="${flag}" style="width: 70px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #333;">` : ''}
                 </div>
@@ -712,48 +722,51 @@ function fetchCountryInfo(countryName) {
                 </div>
             </div>
         `;
-        handleVaiiDataOutput(`${cName}. Capital is ${capital}. Population is ${population}.`, html);
+        handleVaiiDataOutput(`${commonName}. Capital is ${capital}. Population is ${population}.`, html);
     };
 
-    // Fast multi-endpoint fallback
-    fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}`)
+    const directUrl = `https://restcountries.com/v3.1/name/${encodeURIComponent(cleanTarget)}?fullText=false`;
+
+    fetch(directUrl)
         .then(res => {
-            if (!res.ok) return fetch(`https://restcountries.com/v3.1/translation/${encodeURIComponent(countryName)}`);
-            return res;
-        })
-        .then(res => {
-            if (!res.ok) throw new Error("RestCountries 404");
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return res.json();
         })
         .then(data => {
             if (!Array.isArray(data) || data.length === 0) throw new Error("Empty array");
-            const country = data[0];
-            const capital = country.capital ? country.capital.join(', ') : 'N/A';
-            const population = country.population ? country.population.toLocaleString() : 'N/A';
-            const region = `${country.region} (${country.subregion || ''})`;
-            const currencies = country.currencies ? Object.values(country.currencies).map(c => `${c.name} (${c.symbol || ''})`).join(', ') : 'N/A';
-            const flag = country.flags?.svg || country.flags?.png;
-
-            renderCard(country.name.common, country.name.official, flag, capital, population, region, currencies);
+            renderCard(data[0]);
         })
         .catch(() => {
-            // Wikipedia Summary fallback
-            fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(countryName)}`)
-                .then(r => r.json())
-                .then(wiki => {
-                    if (!wiki.title) throw new Error("Wiki country not found");
-                    const html = `
-                        <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00bcd4; text-align: left; display: flex; gap: 15px;">
-                            ${wiki.thumbnail?.source ? `<img src="${wiki.thumbnail.source}" style="width: 75px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid #333;">` : ''}
-                            <div>
-                                <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 4px;">🏳️ ${wiki.title}</div>
-                                <div style="font-size: 0.85rem; color: #ccc; line-height: 1.4;">${wiki.extract}</div>
-                            </div>
-                        </div>
-                    `;
-                    handleVaiiDataOutput(`${wiki.title}. ${wiki.extract}`, html);
+            // Direct translation endpoint fallback
+            fetch(`https://restcountries.com/v3.1/translation/${encodeURIComponent(cleanTarget)}`)
+                .then(r => {
+                    if (!r.ok) throw new Error("Translation 404");
+                    return r.json();
                 })
-                .catch(() => handleVaiiDataOutput(`Could not find information for "${countryName}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Country "${countryName}" not found.</div>`));
+                .then(data => {
+                    if (!Array.isArray(data) || data.length === 0) throw new Error("Empty array");
+                    renderCard(data[0]);
+                })
+                .catch(() => {
+                    // Full list filter fallback
+                    fetch(`https://restcountries.com/v3.1/all?fields=name,capital,population,region,subregion,currencies,flags,flag`)
+                        .then(r => r.json())
+                        .then(allData => {
+                            const match = allData.find(c => 
+                                c.name.common.toLowerCase() === cleanTarget || 
+                                c.name.official.toLowerCase() === cleanTarget ||
+                                c.name.common.toLowerCase().includes(cleanTarget)
+                            );
+                            if (match) {
+                                renderCard(match);
+                            } else {
+                                throw new Error("Not found in /all");
+                            }
+                        })
+                        .catch(() => {
+                            handleVaiiDataOutput(`Country "${countryName}" not found in REST Countries database.`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Country "${countryName}" not found in REST Countries database. Please check your spelling and try again.</div>`);
+                        });
+                });
         });
 }
 
@@ -1410,8 +1423,8 @@ function runInfoExecution(query) {
         return fetchCuteAnimal("cat");
     }
 
-    if (cleanQuery.startsWith("country ")) {
-        return fetchCountryInfo(cleanQuery.replace(/^country\s+/i, '').trim());
+    if (cleanQuery.startsWith("country ") || cleanQuery.startsWith("flag of ")) {
+        return fetchCountryInfo(cleanQuery.replace(/^(country|flag of)\s+/i, '').trim());
     }
 
     if (cleanQuery.startsWith("drink ") || cleanQuery === "random drink" || cleanQuery === "cocktail") {
