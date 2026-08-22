@@ -753,7 +753,11 @@ function executeLocalFoodSearch(queryText) {
     let searchItemName = cleanQuery;
     let searchBrandName = "";
 
-    let category = Object.keys(LOCAL_FOOD_DB).find(key => cleanQuery.includes(key));
+    let category = Object.keys(LOCAL_FOOD_DB).find(key => {
+        const regex = new RegExp(`\\b${key}\\b`, 'i');
+        return regex.test(cleanQuery);
+    });
+
     if (category) {
         const options = LOCAL_FOOD_DB[category];
         dbMatch = options[Math.floor(Math.random() * options.length)];
@@ -2083,7 +2087,7 @@ function runInfoExecution(query) {
     }
     if (cleanQuery === "show notes" || cleanQuery === "my notes") return renderNotesManager();
 
-    // 1. PRIORITY LOCATION/WEATHER/MAP MATCHERS
+    // 1. PRIORITY LOCATION/WEATHER/MAP MATCHERS (City, State / Tokyo, Japan / Davenport, Florida)
     const options = Array.from(datalist.options);
     const matchedOption = options.find(opt => opt.value.toLowerCase() === cleanQuery);
     if (matchedOption && matchedOption.getAttribute('data-lat')) {
@@ -2131,12 +2135,16 @@ function runInfoExecution(query) {
         return fetchOMDBMedia(query.replace(/^(movie|film|tickets|ticket|stream|watch)\s+/i, '').trim());
     }
 
-    // 3. UNIFIED DINING & TABLE RESERVATIONS (Order / Reserve / Restaurant)
-    let isFoodIntent = Object.keys(LOCAL_FOOD_DB).some(cat => cleanQuery.includes(cat)) || 
-                       cleanQuery.startsWith("order ") || cleanQuery.startsWith("find ") ||
-                       cleanQuery.startsWith("reserve ") || cleanQuery.startsWith("reservation ");
+    // 3. UNIFIED DINING & TABLE RESERVATIONS
+    const exactFoodCategoryMatch = Object.keys(LOCAL_FOOD_DB).some(cat => {
+        const regex = new RegExp(`\\b${cat}\\b`, 'i');
+        return regex.test(cleanQuery);
+    });
 
-    if (isFoodIntent) {
+    const isExplicitFoodCommand = cleanQuery.startsWith("order ") || cleanQuery.startsWith("find ") ||
+                                  cleanQuery.startsWith("reserve ") || cleanQuery.startsWith("reservation ");
+
+    if (exactFoodCategoryMatch || isExplicitFoodCommand) {
         executeLocalFoodSearch(query);
         return;
     }
@@ -2508,7 +2516,7 @@ function compileFinalSourceIndexBox(query, wikiData) {
 }
 
 // ==========================================
-// 7. EVENT LISTENERS
+// 9. EVENT LISTENERS
 // ==========================================
 document.querySelectorAll('input[name="vaii-mode"]').forEach(r => r.addEventListener('change', updateWelcomeMessageText));
 
