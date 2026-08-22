@@ -291,7 +291,7 @@ const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent
 
 const defaultAssistantSuggestions = [
     "Open Gemini", "193 lbs to kg", "Open YouTube", "BTC", "Time in Tokyo", 
-    "Hello to Spanish", "Open Minecraft", "(12 * 4) / 2", "Map of Orlando", 
+    "Trivia", "Free Games", "Joke",
     "Song Bohemian Rhapsody", "Pokemon Charizard", "Anime Attack on Titan", "Manga Berserk", "Book The Hobbit",
     "Davenport, Florida", "Florida, United States", "Draw a neon cyberpunk switch console artwork"
 ];
@@ -321,6 +321,12 @@ function stripHtml(html) {
     let tmp = document.createElement("DIV");
     tmp.innerHTML = html;
     return tmp.textContent || tmp.innerText || "";
+}
+
+function decodeHTMLEntities(text) {
+    let textArea = document.createElement('textarea');
+    textArea.innerHTML = text;
+    return textArea.value;
 }
 
 function cleanWiktionaryDefinition(rawHtml) {
@@ -843,20 +849,143 @@ function fetchOpenLibraryBook(bookTitle) {
         .catch(() => handleVaiiDataOutput("Book archive lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Open Library search failed. Network error.</div>`));
 }
 
+// OPEN TRIVIA DB
+function fetchTriviaQuestion() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Generating trivia question...</div>`;
+    fetch(`https://opentdb.com/api.php?amount=1&type=multiple`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.results || data.results.length === 0) {
+                return handleVaiiDataOutput("Could not load a trivia question.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">Could not load trivia question. Try again!</div>`);
+            }
+            const q = data.results[0];
+            const questionText = decodeHTMLEntities(q.question);
+            const correctAnswer = decodeHTMLEntities(q.correct_answer);
+            const incorrectAnswers = q.incorrect_answers.map(a => decodeHTMLEntities(a));
+            
+            // Shuffle choices
+            const allChoices = [...incorrectAnswers, correctAnswer].sort(() => Math.random() - 0.5);
+
+            let buttonsHtml = allChoices.map((choice, i) => {
+                return `<button class="trivia-choice-btn" data-correct="${choice === correctAnswer}" style="background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 0.9rem; cursor: pointer; text-align: left; transition: background 0.15s ease; width: 100%;">${choice}</button>`;
+            }).join('');
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff007f; text-align: left;">
+                    <div style="font-size: 0.75rem; color: #ff007f; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🎯 Trivia [${q.category}] • ${q.difficulty.toUpperCase()}</div>
+                    <div style="font-size: 1.1rem; font-weight: bold; color: #fff; margin-bottom: 14px; line-height: 1.4;">${questionText}</div>
+                    <div id="trivia-choices-box" style="display: flex; flex-direction: column; gap: 8px;">
+                        ${buttonsHtml}
+                    </div>
+                    <div id="trivia-result-box" style="margin-top: 12px; font-weight: bold; font-size: 0.95rem; display: none;"></div>
+                </div>
+            `;
+
+            handleVaiiDataOutput(`Trivia: ${questionText}`, html, () => {
+                document.querySelectorAll('.trivia-choice-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const isCorrect = e.currentTarget.getAttribute('data-correct') === 'true';
+                        const resBox = document.getElementById('trivia-result-box');
+                        document.querySelectorAll('.trivia-choice-btn').forEach(b => {
+                            b.disabled = true;
+                            if (b.getAttribute('data-correct') === 'true') {
+                                b.style.background = '#28a745';
+                                b.style.borderColor = '#28a745';
+                            } else {
+                                b.style.opacity = '0.5';
+                            }
+                        });
+
+                        if (isCorrect) {
+                            e.currentTarget.style.background = '#28a745';
+                            resBox.style.color = '#28a745';
+                            resBox.innerText = `🎉 Correct! The answer was "${correctAnswer}".`;
+                            speakText(`Correct! The answer was ${correctAnswer}`);
+                        } else {
+                            e.currentTarget.style.background = '#dc3545';
+                            resBox.style.color = '#dc3545';
+                            resBox.innerText = `❌ Incorrect! The correct answer was "${correctAnswer}".`;
+                            speakText(`Incorrect! The correct answer was ${correctAnswer}`);
+                        }
+                        resBox.style.display = 'block';
+                    });
+                });
+            });
+        })
+        .catch(() => handleVaiiDataOutput("Trivia service unavailable.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Open Trivia service unavailable. Please retry.</div>`));
+}
+
+// GAMERPOWER FREEBIES TRACKER
+function fetchGameDeals() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Tracking 100% off game giveaways...</div>`;
+    const targetUrl = `https://www.gamerpower.com/api/giveaways`;
+    const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+
+    fetch(proxiedUrl)
+        .then(res => res.json())
+        .then(data => {
+            if (!Array.isArray(data) || data.length === 0) {
+                return handleVaiiDataOutput("No active 100% off game deals found.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No active game freebies found right now.</div>`);
+            }
+
+            let dealsHtml = "";
+            data.slice(0, 3).forEach(deal => {
+                dealsHtml += `
+                    <div style="background: #252525; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; gap: 12px; align-items: center;">
+                        <img src="${deal.image}" style="width: 80px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid #333;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: bold; font-size: 0.95rem; color: #fff;">${deal.title}</div>
+                            <div style="font-size: 0.8rem; color: #28a745; font-weight: bold;">FREE <span style="text-decoration: line-through; color: #888; font-weight: normal; margin-left: 4px;">${deal.worth}</span> • ${deal.platforms}</div>
+                            <a href="${deal.open_giveaway_url}" target="_blank" style="display: inline-block; margin-top: 4px; color: #4da3ff; font-size: 0.78rem; font-weight: bold; text-decoration: none;">Claim Freebie ↗</a>
+                        </div>
+                    </div>
+                `;
+            });
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00e676; text-align: left;">
+                    <div style="font-size: 0.8rem; color: #00e676; text-transform: uppercase; font-weight: bold; margin-bottom: 10px;">🎮 Live 100% Off Game Freebies</div>
+                    ${dealsHtml}
+                </div>
+            `;
+            handleVaiiDataOutput("Here are the latest 100% off gaming deals and free giveaways.", html);
+        })
+        .catch(() => handleVaiiDataOutput("Game deals lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Game deals network error.</div>`));
+}
+
+// ICANHAZDADJOKE JOKES ENGINE
+function fetchDadJoke() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching joke...</div>`;
+    fetch('https://icanhazdadjoke.com/', {
+        headers: { 'Accept': 'application/json' }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data || !data.joke) {
+            return handleVaiiDataOutput("Why did the chicken cross the road? To get to the other side!", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">Why did the chicken cross the road? To get to the other side!</div>`);
+        }
+        const html = `
+            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff9800; text-align: left;">
+                <div style="font-size: 0.75rem; color: #ff9800; text-transform: uppercase; font-weight: bold; margin-bottom: 6px;">😂 Dad Joke</div>
+                <div style="font-size: 1.15rem; font-weight: 500; color: #fff; line-height: 1.45;">"${data.joke}"</div>
+            </div>
+        `;
+        handleVaiiDataOutput(data.joke, html);
+    })
+    .catch(() => handleVaiiDataOutput("Joke lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Joke service error.</div>`));
+}
+
 // ==========================================
 // 5. GEOLOCATION & WEATHER
 // ==========================================
 function resolveAndRenderLocation(searchLocationQuery, greetingHTML = "") {
     output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Locating coordinates for "${searchLocationQuery}"...</div>`;
-
-    // Strip country/state tokens if comma separated for the raw geo query
     let baseQuery = searchLocationQuery.split(',')[0].trim();
 
     fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(baseQuery)}&count=5&language=en&format=json`)
         .then(res => res.json())
         .then(data => {
             if (data.results && data.results.length > 0) {
-                // If there's a comma (e.g. Davenport, Florida), match admin1 or country if possible
                 let bestLoc = data.results[0];
                 if (searchLocationQuery.includes(",")) {
                     const secondary = searchLocationQuery.split(',')[1].toLowerCase().trim();
@@ -1108,6 +1237,18 @@ function runInfoExecution(query) {
         return;
     }
     if (cleanQuery === "show notes" || cleanQuery === "my notes") return renderNotesManager();
+
+    if (cleanQuery === "trivia" || cleanQuery === "quiz" || cleanQuery.startsWith("trivia ") || cleanQuery.startsWith("quiz ")) {
+        return fetchTriviaQuestion();
+    }
+
+    if (cleanQuery === "free games" || cleanQuery === "deals" || cleanQuery === "giveaways" || cleanQuery.startsWith("free game")) {
+        return fetchGameDeals();
+    }
+
+    if (cleanQuery === "joke" || cleanQuery === "tell me a joke" || cleanQuery === "make me laugh" || cleanQuery.startsWith("joke ")) {
+        return fetchDadJoke();
+    }
 
     if (cleanQuery.startsWith("song ") || cleanQuery.startsWith("music ") || cleanQuery.startsWith("track ")) {
         return fetchSongTrack(cleanQuery.replace(/^(song|music|track)\s+/i, '').trim());
@@ -1570,6 +1711,18 @@ hubInput?.addEventListener('input', () => {
         } else {
             customSuggestions = ALL_FOOD_SUGGESTIONS.slice(0, 8);
         }
+    }
+
+    if ("trivia".startsWith(cleanInput) || "quiz".startsWith(cleanInput)) {
+        customSuggestions.push("trivia", "quiz");
+    }
+
+    if ("free games".startsWith(cleanInput) || "deals".startsWith(cleanInput) || "giveaways".startsWith(cleanInput)) {
+        customSuggestions.push("free games", "deals", "giveaways");
+    }
+
+    if ("joke".startsWith(cleanInput) || "make me laugh".startsWith(cleanInput)) {
+        customSuggestions.push("joke", "tell me a joke", "make me laugh");
     }
 
     if ("song".startsWith(cleanInput) || cleanInput.startsWith("song")) {
