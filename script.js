@@ -858,26 +858,6 @@ async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningM
 // ==========================================
 // 5. UTILITIES (FOREX, QR, ISS, DUCK, COLLEGE, POSTAL, ETC.)
 // ==========================================
-const CURRENCY_SYMBOL_MAP = {
-    '$': 'USD',
-    '€': 'EUR',
-    '£': 'GBP',
-    '¥': 'JPY'
-};
-
-const VALID_ISO_CURRENCIES = new Set([
-    'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'HKD', 'NZD',
-    'SEK', 'KRW', 'SGD', 'NOK', 'MXN', 'INR', 'RUB', 'ZAR', 'TRY', 'BRL',
-    'TWD', 'DKK', 'PLN', 'THB', 'IDR', 'HUF', 'CZK', 'ILS', 'CLP', 'PHP',
-    'AED', 'COP', 'SAR', 'MYR', 'RON', 'VND', 'ARS', 'IQD'
-]);
-
-function normalizeCurrencyCode(token) {
-    if (!token) return 'USD';
-    const clean = token.toUpperCase().trim();
-    return CURRENCY_SYMBOL_MAP[clean] || clean;
-}
-
 function fetchForexConversion(amount, fromCurr, toCurr) {
     const from = normalizeCurrencyCode(fromCurr);
     const to = normalizeCurrencyCode(toCurr);
@@ -1011,19 +991,38 @@ function fetchISSTelemetry() {
 
 function fetchRandomDuck() {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Loading cute duck...</div>`;
+
+    const renderDuckCard = (imgUrl) => {
+        const html = `
+            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ffeb3b; text-align: left;">
+                <div style="font-size: 0.85rem; font-weight: bold; color: #ffeb3b; margin-bottom: 8px;">🦆 Random Duck</div>
+                <img src="${imgUrl}" style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #333;" alt="Random Duck">
+            </div>
+        `;
+        handleVaiiDataOutput("Quack! Here is a cute duck for you.", html);
+    };
+
     fetch('https://random-d.uk/api/v2/random')
-        .then(res => res.json())
-        .then(data => {
-            if (!data.url) throw new Error("Duck failed");
-            const html = `
-                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ffeb3b; text-align: left;">
-                    <div style="font-size: 0.85rem; font-weight: bold; color: #ffeb3b; margin-bottom: 8px;">🦆 Random Duck</div>
-                    <img src="${data.url}" style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #333;">
-                </div>
-            `;
-            handleVaiiDataOutput("Quack! Here is a cute duck for you.", html);
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
         })
-        .catch(() => handleVaiiDataOutput("Could not load duck.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Duck stream network error.</div>`));
+        .then(data => {
+            if (!data.url) throw new Error("Missing duck URL");
+            renderDuckCard(data.url);
+        })
+        .catch(() => {
+            fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('https://random-d.uk/api/v2/random')}`)
+                .then(r => r.json())
+                .then(proxiedData => {
+                    if (!proxiedData.url) throw new Error("Proxy missing URL");
+                    renderDuckCard(proxiedData.url);
+                })
+                .catch(() => {
+                    const staticDuckUrl = `https://random-d.uk/api/randomimg?t=${Date.now()}`;
+                    renderDuckCard(staticDuckUrl);
+                });
+        });
 }
 
 function fetchPostalCodeInfo(zipCode) {
@@ -1690,143 +1689,7 @@ function fetchDadJoke() {
 }
 
 // ==========================================
-// 7. LOCATION, MAPS & SOLAR TELEMETRY
-// ==========================================
-function resolveAndRenderLocation(searchLocationQuery, greetingHTML = "") {
-    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Locating coordinates for "${searchLocationQuery}"...</div>`;
-    let baseQuery = searchLocationQuery.split(',')[0].trim();
-
-    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(baseQuery)}&count=5&language=en&format=json`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.results && data.results.length > 0) {
-                let bestLoc = data.results[0];
-                if (searchLocationQuery.includes(",")) {
-                    const secondary = searchLocationQuery.split(',')[1].toLowerCase().trim();
-                    const matched = data.results.find(l => 
-                        (l.admin1 && l.admin1.toLowerCase().includes(secondary)) || 
-                        (l.country && l.country.toLowerCase().includes(secondary))
-                    );
-                    if (matched) bestLoc = matched;
-                }
-
-                let displayName = `${bestLoc.name}`;
-                if (bestLoc.admin1 && bestLoc.admin1 !== bestLoc.name) displayName += `, ${bestLoc.admin1}`;
-                if (bestLoc.country) displayName += ` (${bestLoc.country})`;
-
-                renderUnifiedLocationCard(bestLoc.latitude, bestLoc.longitude, bestLoc.timezone || 'auto', displayName, greetingHTML);
-            } else {
-                handleVaiiDataOutput("Could not extract metrics for " + searchLocationQuery, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not extract location metrics for "${searchLocationQuery}".</div>`);
-            }
-        })
-        .catch(err => {
-            console.error("Open-Meteo Geocoding Error:", err);
-            handleVaiiDataOutput("Location processing engine connection failure.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Location processing engine connection failure.</div>`);
-        });
-}
-
-function renderUnifiedLocationCard(lat, lon, zone, displayName, greetingHTML = "") {
-    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Loading telemetry for "${displayName}"...</div>`;
-    
-    const tzParam = (zone && zone !== 'auto') ? `&timezone=${encodeURIComponent(zone)}` : '&timezone=auto';
-    
-    const weatherPromise = fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true${tzParam}`)
-        .then(res => res.json())
-        .catch(() => null);
-
-    const solarPromise = fetch(`https://api.sunrise-sunset.org/json?lat=${lat}&lng=${lon}&formatted=0`)
-        .then(res => res.json())
-        .then(d => d.results || null)
-        .catch(() => null);
-
-    Promise.all([weatherPromise, solarPromise]).then(([weatherData, solarData]) => {
-        if (!weatherData || !weatherData.current_weather) {
-            throw new Error("Missing weather metrics");
-        }
-
-        const tempCelsius = weatherData.current_weather.temperature;
-        const tempFahrenheit = Math.round((tempCelsius * 9/5) + 32);
-        const windSpeed = weatherData.current_weather.windspeed;
-        
-        const effectiveTz = weatherData.timezone || zone || "UTC";
-        let timeString = "N/A";
-        let dateString = "N/A";
-        try {
-            timeString = new Date().toLocaleTimeString("en-US", { timeZone: effectiveTz, hour: '2-digit', minute: '2-digit' });
-            dateString = new Date().toLocaleDateString("en-US", { timeZone: effectiveTz, weekday: 'long', month: 'short', day: 'numeric' });
-        } catch(e) {
-            timeString = new Date().toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
-            dateString = new Date().toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric' });
-        }
-
-        let solarHtml = "";
-        if (solarData && solarData.sunrise && solarData.sunset) {
-            try {
-                const formatUtcToLocal = (isoStr) => {
-                    return new Date(isoStr).toLocaleTimeString("en-US", { timeZone: effectiveTz, hour: '2-digit', minute: '2-digit' });
-                };
-                const sunriseTime = formatUtcToLocal(solarData.sunrise);
-                const sunsetTime = formatUtcToLocal(solarData.sunset);
-                const solarNoon = formatUtcToLocal(solarData.solar_noon);
-                const dayLengthHours = (solarData.day_length / 3600).toFixed(1);
-
-                solarHtml = `
-                    <div style="background: linear-gradient(135deg, #2b1700 0%, #1e1e1e 100%); border: 1px solid #ff9800; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
-                        <div style="font-size: 0.75rem; color: #ffb74d; text-transform: uppercase; font-weight: bold; margin-bottom: 6px;">☀️ Solar & Twilight Telemetry</div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.82rem; color: #ddd;">
-                            <div>🌅 <strong>Sunrise:</strong> ${sunriseTime}</div>
-                            <div>🌇 <strong>Sunset:</strong> ${sunsetTime}</div>
-                            <div>☀️ <strong>Solar Noon:</strong> ${solarNoon}</div>
-                            <div>⏱️ <strong>Daylight:</strong> ${dayLengthHours} hrs</div>
-                        </div>
-                    </div>
-                `;
-            } catch(e) {}
-        }
-        
-        const htmlOutput = greetingHTML + `
-            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #4da3ff; text-align: left; margin-bottom: 15px;">
-                <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 12px;">📍 ${displayName}</div>
-                <div style="display: flex; gap: 20px; margin-bottom: 15px; border-bottom: 1px solid #2a2a2a; padding-bottom: 12px;">
-                    <div style="flex: 1;">
-                        <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Current Climate</span><br>
-                        <span style="font-size: 1.1rem; font-weight: bold; color: #28a745;">🌡️ ${tempFahrenheit}°F</span> <span style="color:#666; font-size:0.9rem;">(${tempCelsius}°C)</span><br>
-                        <span style="color: #ccc; font-size: 0.85rem;">💨 Wind: ${windSpeed} km/h</span>
-                    </div>
-                    <div style="flex: 1; border-left: 1px solid #2a2a2a; padding-left: 15px;">
-                        <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Localized Clock</span><br>
-                        <span style="font-size: 1.1rem; font-weight: bold; color: #ffc107;">🕒 ${timeString}</span><br>
-                        <span style="color: #ccc; font-size: 0.85rem;">📅 ${dateString}</span>
-                    </div>
-                </div>
-                ${solarHtml}
-                <span style="color: #888; font-size: 0.8rem; text-transform: uppercase; display: block; margin-bottom: 6px;">Interactive Mapping</span>
-                <div id="vaii-merged-map-canvas" style="width:100%; height:220px; border-radius:8px; background:#252525; border: 1px solid #333;"></div>
-            </div>
-        `;
-        
-        handleVaiiDataOutput(`Location data for ${displayName}. It is currently ${tempFahrenheit} degrees Fahrenheit.`, htmlOutput, () => {
-            if (typeof google !== 'undefined' && google.maps) {
-                const mapCoordinates = { lat: parseFloat(lat), lng: parseFloat(lon) };
-                const loadedMapInstance = new google.maps.Map(document.getElementById('vaii-merged-map-canvas'), {
-                    center: mapCoordinates, zoom: 12, disableDefaultUI: false,
-                    styles: [
-                        { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-                        { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-                        { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] }
-                    ]
-                });
-                new google.maps.Marker({ position: mapCoordinates, map: loadedMapInstance, title: displayName });
-            }
-        });
-    }).catch(err => {
-        console.error("Open-Meteo Weather Error:", err);
-        handleVaiiDataOutput("Error pulling metrics for spatial location.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Error pulling metrics for spatial location.</div>`);
-    });
-}
-
-// ==========================================
-// 8. MASTER ROUTING PIPELINE (VAII NATIVE)
+// 6. MASTER ROUTING PIPELINE (VAII NATIVE)
 // ==========================================
 function runInfoExecution(query) {
     const cleanQuery = query.toLowerCase().trim();
@@ -2188,8 +2051,118 @@ function runInfoExecution(query) {
     }
 }
 
+function runUnifiedWikiPipeline(query, wikiData) {
+    const youtubeFetch = GOOGLE_API_KEY
+        ? fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`)
+            .then(res => res.json())
+            .then(searchData => {
+                if (searchData.items?.length > 0) {
+                    return fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${searchData.items[0].id.channelId}&key=${GOOGLE_API_KEY}`)
+                        .then(res => res.json())
+                        .then(channelData => {
+                            if (channelData.items?.length > 0) {
+                                const item = channelData.items[0];
+                                wikiData.youtube = { 
+                                    title: item.snippet.title, 
+                                    text: item.snippet.description, 
+                                    subs: parseInt(item.statistics.subscriberCount).toLocaleString(), 
+                                    views: parseInt(item.statistics.viewCount).toLocaleString(), 
+                                    customUrl: item.snippet.customUrl || "" 
+                                };
+                            }
+                        });
+                }
+            }).catch(() => null)
+        : Promise.resolve();
+
+    const wikipediaFetch = fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json&origin=*`)
+        .then(res => res.json())
+        .then(wikiSearch => {
+            if (wikiSearch.query?.search?.length > 0) {
+                let targetTitle = wikiSearch.query.search[0].title;
+                if (targetTitle.toLowerCase().endsWith("(disambiguation)") && wikiSearch.query.search.length > 1) {
+                    targetTitle = wikiSearch.query.search[1].title;
+                }
+
+                return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(targetTitle.replace(/ /g, '_'))}`)
+                    .then(res => res.json())
+                    .then(summaryData => { 
+                        if (summaryData.type !== "disambiguation" && !summaryData.extract?.toLowerCase().includes("may refer to:")) {
+                            wikiData.wikipedia = { 
+                                title: summaryData.title || targetTitle, 
+                                text: summaryData.extract 
+                            };
+                        } else if (wikiSearch.query.search.length > 1) {
+                            const fallbackTitle = wikiSearch.query.search[1].title;
+                            return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(fallbackTitle.replace(/ /g, '_'))}`)
+                                .then(r => r.json())
+                                .then(fallbackSummary => {
+                                    if (fallbackSummary.extract && !fallbackSummary.extract.toLowerCase().includes("may refer to:")) {
+                                        wikiData.wikipedia = {
+                                            title: fallbackSummary.title || fallbackTitle,
+                                            text: fallbackSummary.extract
+                                        };
+                                    }
+                                });
+                        }
+                    });
+            }
+        }).catch(() => null);
+
+    Promise.all([youtubeFetch, wikipediaFetch]).then(() => { 
+        compileFinalSourceIndexBox(query, wikiData); 
+    });
+}
+
+function compileFinalSourceIndexBox(query, wikiData) {
+    let blocksHtml = [];
+
+    if (wikiData.wiktionary && wikiData.wiktionary.text) {
+        blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #28a745; text-align: left;"><strong>${wikiData.wiktionary.title}</strong> (${wikiData.wiktionary.pos}): ${wikiData.wiktionary.text}</div>`);
+    }
+    if (wikiData.youtube && wikiData.youtube.title) {
+        blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;"><strong>📺 ${wikiData.youtube.title}</strong><br><span style="font-size: 0.85rem; color: #aaa;">🔴 Subs: ${wikiData.youtube.subs} | Views: ${wikiData.youtube.views}</span><br><br><em>${wikiData.youtube.text}</em></div>`);
+    }
+    if (wikiData.wikipedia && wikiData.wikipedia.text) {
+        blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left;"><strong>${wikiData.wikipedia.title}:</strong> ${wikiData.wikipedia.text}</div>`);
+    }
+
+    let totalHTML = wikiData.greeting || "";
+    let spokenText = "";
+    if (wikiData.greeting) spokenText += "Hello! How can I help you today? ";
+
+    if (blocksHtml.length === 0) {
+        handleVaiiDataOutput(spokenText + "No matches found for " + query + ".", totalHTML + `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No matches found for "${query}".</div>`);
+        return;
+    }
+    
+    spokenText += `Here is the information I found for ${query}. `;
+    if (wikiData.wiktionary && wikiData.wiktionary.text) spokenText += wikiData.wiktionary.text;
+    else if (wikiData.wikipedia && wikiData.wikipedia.text) spokenText += wikiData.wikipedia.text;
+    else if (wikiData.youtube && wikiData.youtube.text) spokenText += wikiData.youtube.text;
+
+    totalHTML += `<div class="news-header-msg" style="color: #888; font-style: italic; margin-bottom: 12px; font-size: 0.9rem; line-height: 1.4;">I have provided the most relevant text of each information source related to "${query}".</div>`;
+    totalHTML += blocksHtml.join(`<div style="color: #888; font-style: italic; font-size: 0.85rem; margin: 15px 0 8px 0; text-align: left;">This might also be relevant:</div>`);
+
+    totalHTML += `<div class="source-box" style="border-top: 1px solid #333; padding-top: 12px; margin-top: 15px;"><span style="display: block; font-size: 0.75rem; color: #777; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Sources Index</span><div class="source-list" style="display: flex; flex-direction: column; gap: 6px;">`;
+
+    if (wikiData.wiktionary && wikiData.wiktionary.text) {
+        totalHTML += `<a href="https://en.wiktionary.org/wiki/${encodeURIComponent(query)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">📰 Wiktionary</span><span>Open Source →</span></a>`;
+    }
+    if (wikiData.youtube && wikiData.youtube.title) {
+        const channelPath = wikiData.youtube.customUrl ? wikiData.youtube.customUrl : `@channel`;
+        totalHTML += `<a href="https://www.youtube.com/${channelPath}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #ff4444; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">🔴 YouTube Channel</span><span>Live Metrics →</span></a>`;
+    }
+    if (wikiData.wikipedia && wikiData.wikipedia.text) {
+        totalHTML += `<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(wikiData.wikipedia.title)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">📰 Wikipedia</span><span>Open Source →</span></a>`;
+    }
+    totalHTML += `</div></div>`;
+    
+    handleVaiiDataOutput(spokenText, totalHTML);
+}
+
 // ==========================================
-// 9. EVENT LISTENERS
+// 7. EVENT LISTENERS
 // ==========================================
 document.querySelectorAll('input[name="vaii-mode"]').forEach(r => r.addEventListener('change', updateWelcomeMessageText));
 
