@@ -307,6 +307,10 @@ const defaultAssistantSuggestions = [
     "Convert 100 USD to EUR",
     "QR https://vaii-two.vercel.app",
     "ISS",
+    "Sunset Tokyo",
+    "Zip 90210",
+    "Duck",
+    "University Harvard",
     "Space",
     "Advice",
     "Age Logan",
@@ -708,7 +712,151 @@ function fetchOMDBMedia(title) {
 }
 
 // ==========================================
-// 5. CURRENCY & FOREX CONVERTER (ECB / OPEN EXCHANGE)
+// 4. CHAT ENGINE (GEMINI FALLBACK LOOP)
+// ==========================================
+async function executeGeminiDirectChat(userInput) {
+    if (chatHistory.length === 0) {
+        const localInstructions = localStorage.getItem('vaii_gemini_instructions') || '';
+        let systemPrompt = "You are Gemini, an advanced conversational core running inside the VAII architecture frame. STRICT STRUCTURAL RULE: You do NOT possess built-in web services, maps, currency handlers, weather telemetry, or drawing capabilities. All of those proprietary features belong exclusively to a completely separate system engine option on this dashboard named 'VAII Native'. Your singular purpose here is providing deep, persistent multi-turn conversational reasoning and textual chat history records. Keep statements direct and clear.";
+        
+        if (localInstructions.trim()) {
+            systemPrompt += `\n\n[USER SYSTEM INSTRUCTIONS / REQUIRED PERSONALITY PARAMETERS]:\n${localInstructions.trim()}`;
+        }
+
+        chatHistory.push({ role: "user", parts: [{ text: systemPrompt }] });
+        chatHistory.push({ role: "model", parts: [{ text: "System connection established. Isolated chat parameters synced. I am fully aware of my persona guidelines and that I do not contain VAII Native utilities." }] });
+    }
+
+    chatHistory.push({ role: "user", parts: [{ text: userInput }] });
+    renderFullChatLogBubble();
+
+    const spinnerBubble = document.createElement('div');
+    spinnerBubble.id = "gemini-active-typing-indicator";
+    spinnerBubble.style = "text-align: left; padding: 10px; color: #aaa; font-style: italic; display: flex; align-items: center;";
+    spinnerBubble.innerHTML = `<div class="loader-spinner"></div> Syncing conversational context vectors...`;
+    output.appendChild(spinnerBubble);
+    output.scrollTop = output.scrollHeight;
+
+    const sanitizedContents = chatHistory.map(msg => ({
+        role: msg.role || "user",
+        parts: (msg.parts || []).map(p => ({ text: p.text || "" }))
+    }));
+
+    let successfulResponseText = null;
+    let successfulModelLabel = "";
+    let structuralErrorDetected = null;
+
+    const currentApiKey = getActiveGeminiKey();
+
+    for (let i = 0; i < BASELINE_FALLBACK_TREE.length; i++) {
+        const modelObj = BASELINE_FALLBACK_TREE[i];
+        const visionUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelObj.id}:generateContent?key=${currentApiKey}`;
+        
+        try {
+            const response = await fetch(visionUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents: sanitizedContents })
+            });
+            const data = await response.json();
+
+            if (data.error) {
+                if (response.status === 400 || data.error.status === "INVALID_ARGUMENT") {
+                    structuralErrorDetected = data.error.message;
+                    break; 
+                }
+                console.warn(`Model generation tier [${modelObj.name}] quota full. Cascading downstream...`);
+                continue; 
+            }
+
+            if (!data.candidates || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0].text) {
+                continue;
+            }
+
+            successfulResponseText = data.candidates[0].content.parts[0].text;
+            successfulModelLabel = modelObj.name;
+            break; 
+        } catch (err) {
+            console.error(`Network exception on model asset [${modelObj.name}]:`, err);
+            continue;
+        }
+    }
+
+    const indicatorNode = document.getElementById("gemini-active-typing-indicator");
+    if (indicatorNode) indicatorNode.remove();
+
+    if (structuralErrorDetected) {
+        const errorDiv = document.createElement('div');
+        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
+        errorDiv.innerHTML = `
+            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ History Thread Structure Fault</div>
+            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">
+                ${structuralErrorDetected}<br><br>
+                <span style="color: #aaa; font-size: 0.85rem;">VAII automatically dropped your last submission entry to keep this specific session from breaking permanently.</span>
+            </div>
+        `;
+        output.appendChild(errorDiv);
+        chatHistory.pop(); 
+        return;
+    }
+
+    if (successfulResponseText !== null) {
+        chatHistory.push({ 
+            role: "model", 
+            parts: [{ text: successfulResponseText }],
+            activeModelName: successfulModelLabel 
+        });
+
+        renderFullChatLogBubble();
+        saveCurrentSessionState();
+
+        if (autoSpeak) {
+            let cleanResponse = successfulResponseText.replace(/[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+            speakText(cleanResponse);
+            autoSpeak = false;
+        }
+
+        if (chatHistory.length === 4) {
+            triggerBackgroundTitleGeneration(chatHistory[2].parts[0].text, successfulResponseText, successfulModelLabel);
+        }
+    } else {
+        const errorDiv = document.createElement('div');
+        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
+        errorDiv.innerHTML = `
+            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">🚨 Critical Server Outage Alert</div>
+            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5; font-weight: 500;">
+                Every single fallback layer inside the model matrix has completely exhausted its rate-limit quotas. Please wait for token limits to clear.
+            </div>
+        `;
+        output.appendChild(errorDiv);
+        chatHistory.pop(); 
+    }
+}
+
+async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningModelId) {
+    const titlePrompt = `Generate a short, highly descriptive 3 to 5 word summary title for this chat based on these two statements. Respond with ONLY the clean summary text directly, no intro text, no markdown styling markers, and no outer quotation characters.\n\nUser text: "${userMsg}"\nModel text: "${modelResponse}"`;
+    const payloadContents = [{ role: "user", parts: [{ text: titlePrompt }] }];
+    const activeModel = BASELINE_FALLBACK_TREE.find(m => m.name === runningModelId) || BASELINE_FALLBACK_TREE[0];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel.id}:generateContent?key=${getActiveGeminiKey()}`;
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: payloadContents })
+        });
+        const data = await response.json();
+        let cleanedTitle = data.candidates[0].content.parts[0].text.trim().replace(/['"]+/g, ''); 
+        if (cleanedTitle && cleanedTitle.length > 2) {
+            saveCurrentSessionState(cleanedTitle);
+        }
+    } catch (e) {
+        console.error("Dynamic title loop exception:", e);
+    }
+}
+
+// ==========================================
+// 5. UTILITIES (FOREX, QR, ISS, DUCK, COLLEGE, POSTAL, ETC.)
 // ==========================================
 const CURRENCY_SYMBOL_MAP = {
     '$': 'USD',
@@ -763,7 +911,6 @@ function fetchForexConversion(amount, fromCurr, toCurr) {
             handleVaiiDataOutput(`${num} ${from} is equal to ${convertedTotal} ${to}`, html);
         })
         .catch(() => {
-            // Open Exchange fallback
             fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(from)}`)
                 .then(r => r.json())
                 .then(erData => {
@@ -786,9 +933,6 @@ function fetchForexConversion(amount, fromCurr, toCurr) {
         });
 }
 
-// ==========================================
-// 6. OTHER UTILITIES (QR, ISS, NASA, ADVICE, AGE, DEFINE, ANIMAL, COUNTRY, DRINK, MUSIC, ANIME, POKEMON, BOOK, TRIVIA, GAMES, JOKES)
-// ==========================================
 function generateQRCode(textData) {
     const cleanData = textData.trim();
     if (!cleanData) return;
@@ -856,6 +1000,87 @@ function fetchISSTelemetry() {
             });
         })
         .catch(() => handleVaiiDataOutput("ISS Telemetry unreachable.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not establish link with ISS telemetry feed.</div>`));
+}
+
+function fetchRandomDuck() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Loading cute duck...</div>`;
+    fetch('https://random-d.uk/api/v2/random')
+        .then(res => res.json())
+        .then(data => {
+            if (!data.url) throw new Error("Duck failed");
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ffeb3b; text-align: left;">
+                    <div style="font-size: 0.85rem; font-weight: bold; color: #ffeb3b; margin-bottom: 8px;">🦆 Random Duck</div>
+                    <img src="${data.url}" style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #333;">
+                </div>
+            `;
+            handleVaiiDataOutput("Quack! Here is a cute duck for you.", html);
+        })
+        .catch(() => handleVaiiDataOutput("Could not load duck.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Duck stream network error.</div>`));
+}
+
+function fetchPostalCodeInfo(zipCode) {
+    const cleanZip = zipCode.replace(/[^0-9a-zA-Z]/g, '').trim();
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Geocoding postal code "${cleanZip}"...</div>`;
+
+    fetch(`https://api.zippopotam.us/us/${encodeURIComponent(cleanZip)}`)
+        .then(res => {
+            if (!res.ok) throw new Error("Zip code not found");
+            return res.json();
+        })
+        .then(data => {
+            const place = data.places?.[0] || {};
+            const placeName = place['place name'] || 'Unknown Area';
+            const state = place['state'] || 'N/A';
+            const stateAbbr = place['state abbreviation'] || '';
+            const lat = place['latitude'] || '0';
+            const lon = place['longitude'] || '0';
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00bcd4; text-align: left;">
+                    <div style="font-size: 0.75rem; color: #00bcd4; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">📮 Postal Code Geocoder</div>
+                    <div style="font-size: 1.3rem; font-weight: bold; color: #fff;">${placeName}, ${state} (${stateAbbr})</div>
+                    <div style="font-size: 0.85rem; color: #aaa; margin-top: 2px;">Postal Index: <strong>${data['post code']}</strong> • Country: ${data.country} (${data['country abbreviation']})</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid #2a2a2a; padding-top: 10px; margin-top: 10px; font-size: 0.85rem; color: #ccc;">
+                        <div><strong>🌐 Latitude:</strong> ${lat}</div>
+                        <div><strong>🌐 Longitude:</strong> ${lon}</div>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`Postal code ${data['post code']} matches ${placeName}, ${state}.`, html);
+        })
+        .catch(() => handleVaiiDataOutput(`Postal code "${cleanZip}" not found.`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">US Postal code "${cleanZip}" not found. Verify digits and try again.</div>`));
+}
+
+function fetchUniversityDirectory(collegeName) {
+    const cleanCollege = collegeName.trim();
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying university registry for "${cleanCollege}"...</div>`;
+
+    fetch(`https://universities.hipolabs.com/search?name=${encodeURIComponent(cleanCollege)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!Array.isArray(data) || data.length === 0) {
+                return handleVaiiDataOutput(`No university found matching "${cleanCollege}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No university records found matching "${cleanCollege}".</div>`);
+            }
+
+            const college = data[0];
+            const name = college.name;
+            const country = college.country;
+            const state = college['state-province'] ? `, ${college['state-province']}` : '';
+            const webPage = college.web_pages?.[0] || '#';
+            const domain = college.domains?.[0] || '';
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #673ab7; text-align: left;">
+                    <div style="font-size: 0.75rem; color: #b388ff; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🎓 Higher Education Directory</div>
+                    <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 4px;">${name}</div>
+                    <div style="font-size: 0.85rem; color: #aaa;">📍 ${country}${state} • Domain: <code>${domain}</code></div>
+                    <a href="${webPage}" target="_blank" style="display: inline-block; margin-top: 10px; background: #673ab7; color: #fff; text-decoration: none; padding: 7px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: bold;">Visit Campus Portal ↗</a>
+                </div>
+            `;
+            handleVaiiDataOutput(`Found ${name} located in ${country}. Domain is ${domain}.`, html);
+        })
+        .catch(() => handleVaiiDataOutput("University lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">University registry network error.</div>`));
 }
 
 function fetchNasaAPOD() {
@@ -1458,231 +1683,6 @@ function fetchDadJoke() {
 }
 
 // ==========================================
-// 7. LOCATION & MAPS
-// ==========================================
-function resolveAndRenderLocation(searchLocationQuery, greetingHTML = "") {
-    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Locating coordinates for "${searchLocationQuery}"...</div>`;
-    let baseQuery = searchLocationQuery.split(',')[0].trim();
-
-    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(baseQuery)}&count=5&language=en&format=json`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.results && data.results.length > 0) {
-                let bestLoc = data.results[0];
-                if (searchLocationQuery.includes(",")) {
-                    const secondary = searchLocationQuery.split(',')[1].toLowerCase().trim();
-                    const matched = data.results.find(l => 
-                        (l.admin1 && l.admin1.toLowerCase().includes(secondary)) || 
-                        (l.country && l.country.toLowerCase().includes(secondary))
-                    );
-                    if (matched) bestLoc = matched;
-                }
-
-                let displayName = `${bestLoc.name}`;
-                if (bestLoc.admin1 && bestLoc.admin1 !== bestLoc.name) displayName += `, ${bestLoc.admin1}`;
-                if (bestLoc.country) displayName += ` (${bestLoc.country})`;
-
-                renderUnifiedLocationCard(bestLoc.latitude, bestLoc.longitude, bestLoc.timezone || 'auto', displayName, greetingHTML);
-            } else {
-                handleVaiiDataOutput("Could not extract metrics for " + searchLocationQuery, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not extract location metrics for "${searchLocationQuery}".</div>`);
-            }
-        })
-        .catch(err => {
-            console.error("Open-Meteo Geocoding Error:", err);
-            handleVaiiDataOutput("Location processing engine connection failure.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Location processing engine connection failure.</div>`);
-        });
-}
-
-function renderUnifiedLocationCard(lat, lon, zone, displayName, greetingHTML = "") {
-    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Loading weather for "${displayName}"...</div>`;
-    
-    const tzParam = (zone && zone !== 'auto') ? `&timezone=${encodeURIComponent(zone)}` : '&timezone=auto';
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true${tzParam}`)
-        .then(res => res.json())
-        .then(weatherData => {
-            if (!weatherData.current_weather) {
-                throw new Error("Missing weather metrics");
-            }
-            const tempCelsius = weatherData.current_weather.temperature;
-            const tempFahrenheit = Math.round((tempCelsius * 9/5) + 32);
-            const windSpeed = weatherData.current_weather.windspeed;
-            
-            const effectiveTz = weatherData.timezone || zone || "UTC";
-            let timeString = "N/A";
-            let dateString = "N/A";
-            try {
-                timeString = new Date().toLocaleTimeString("en-US", { timeZone: effectiveTz, hour: '2-digit', minute: '2-digit' });
-                dateString = new Date().toLocaleDateString("en-US", { timeZone: effectiveTz, weekday: 'long', month: 'short', day: 'numeric' });
-            } catch(e) {
-                timeString = new Date().toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
-                dateString = new Date().toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric' });
-            }
-            
-            const htmlOutput = greetingHTML + `
-                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #4da3ff; text-align: left; margin-bottom: 15px;">
-                    <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 12px;">📍 ${displayName}</div>
-                    <div style="display: flex; gap: 20px; margin-bottom: 15px; border-bottom: 1px solid #2a2a2a; padding-bottom: 12px;">
-                        <div style="flex: 1;">
-                            <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Current Climate</span><br>
-                            <span style="font-size: 1.1rem; font-weight: bold; color: #28a745;">🌡️ ${tempFahrenheit}°F</span> <span style="color:#666; font-size:0.9rem;">(${tempCelsius}°C)</span><br>
-                            <span style="color: #ccc; font-size: 0.85rem;">💨 Wind: ${windSpeed} km/h</span>
-                        </div>
-                        <div style="flex: 1; border-left: 1px solid #2a2a2a; padding-left: 15px;">
-                            <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Localized Clock</span><br>
-                            <span style="font-size: 1.1rem; font-weight: bold; color: #ffc107;">🕒 ${timeString}</span><br>
-                            <span style="color: #ccc; font-size: 0.85rem;">📅 ${dateString}</span>
-                        </div>
-                    </div>
-                    <span style="color: #888; font-size: 0.8rem; text-transform: uppercase; display: block; margin-bottom: 6px;">Interactive Mapping</span>
-                    <div id="vaii-merged-map-canvas" style="width:100%; height:250px; border-radius:8px; background:#252525; border: 1px solid #333;"></div>
-                </div>
-            `;
-            
-            handleVaiiDataOutput(`Here is the location data for ${displayName}. It is currently ${tempFahrenheit} degrees Fahrenheit.`, htmlOutput, () => {
-                if (typeof google !== 'undefined' && google.maps) {
-                    const mapCoordinates = { lat: parseFloat(lat), lng: parseFloat(lon) };
-                    const loadedMapInstance = new google.maps.Map(document.getElementById('vaii-merged-map-canvas'), {
-                        center: mapCoordinates, zoom: 12, disableDefaultUI: false,
-                        styles: [
-                            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] }
-                        ]
-                    });
-                    new google.maps.Marker({ position: mapCoordinates, map: loadedMapInstance, title: displayName });
-                }
-            });
-        })
-        .catch(err => {
-            console.error("Open-Meteo Weather Error:", err);
-            handleVaiiDataOutput("Error pulling metrics for spatial location.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Error pulling metrics for spatial location.</div>`);
-        });
-}
-
-function executeVisionAnalysis(promptText) {
-    output.innerHTML = `
-        <div class="generation-status">
-            <div class="loader-spinner"></div>
-            <span style="color: #eee; font-size: 0.9rem;">VAII vision engine is processing image parameters...</span>
-        </div>
-    `;
-
-    const payload = {
-        contents: [{
-            parts: [
-                { text: promptText },
-                { inlineData: { mimeType: activeImageMimeType || "image/jpeg", data: activeImageBase64 } }
-            ]
-        }]
-    };
-
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${getActiveGeminiKey()}`, {
-        method: "POST", 
-        headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify(payload)
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) {
-            output.innerHTML = `
-                <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">
-                    <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ Google API Error</div>
-                    <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">${data.error.message}</div>
-                </div>
-            `;
-            return;
-        }
-        const descriptionResult = data.candidates[0].content.parts[0].text;
-        const finalHtml = `
-            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left;">
-                <div style="font-size: 0.75rem; color: #888; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; letter-spacing: 0.5px;">👁️ Image Analysis Output</div>
-                <div style="color: #eee; font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">${descriptionResult}</div>
-            </div>
-        `;
-        handleVaiiDataOutput(descriptionResult, finalHtml);
-        clearActiveImage();
-    }).catch(err => {
-        handleVaiiDataOutput("Network intercept error connecting to Google vision matrices.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Network intercept error connecting to Google vision matrices.</div>`);
-        console.error(err);
-    });
-}
-
-function runMarketExecution(ticker) {
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching price updates for "${ticker.toUpperCase()}"...</div>`;
-    const cleanTicker = ticker.trim().toLowerCase();
-    const cryptoMap = { btc: "bitcoin", eth: "ethereum", solana: "solana" };
-
-    if (cryptoMap[cleanTicker]) {
-        fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoMap[cleanTicker]}&vs_currencies=usd&include_24hr_change=true`)
-            .then(res => res.json())
-            .then(data => {
-                const coinData = data[cryptoMap[cleanTicker]];
-                const price = coinData.usd;
-                const change = coinData.usd_24h_change.toFixed(2);
-                const htmlOutput = `
-                    <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #6f42c1; text-align: left;">
-                        <strong>🪙 ${cryptoMap[cleanTicker].toUpperCase()} (${ticker.toUpperCase()})</strong><br>
-                        💰 Price: $${price.toLocaleString()} USD<br>
-                        ${change >= 0 ? "📈" : "📉"} 24h Change: ${change}%
-                    </div>
-                `;
-                handleVaiiDataOutput(`The price of ${cryptoMap[cleanTicker]} is ${price.toLocaleString()} dollars.`, htmlOutput);
-            }).catch(() => { handleVaiiDataOutput("Error pulling crypto ticker data.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Error pulling crypto ticker data.</div>`); });
-    } else {
-        const htmlOutput = `
-            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #6f42c1; text-align: left;">
-                <strong>📈 Stock Ticker: ${ticker.toUpperCase()}</strong><br>
-                <span style="color: #aaa; font-size: 0.9rem;">To view deep market assets, open the link directly:</span>
-                <a href="https://finance.yahoo.com/quote/${ticker.toUpperCase()}" target="_blank">Open Yahoo Finance ↗</a>
-            </div>
-        `;
-        handleVaiiDataOutput(`I found the stock ticker ${ticker.toUpperCase()}.`, htmlOutput);
-    }
-}
-
-function executeImageGeneration(imagePrompt) {
-    if (ttsBtn) ttsBtn.style.display = 'flex';
-    routingWarning.style.display = "none"; 
-    output.innerHTML = `
-        <div style="color: #888; font-style: italic; margin-bottom: 12px; font-size: 0.9rem; line-height: 1.4;">🎨 Generating artwork for "${imagePrompt}"...</div>
-        <div class="generation-status" id="image-loader">
-            <div class="loader-spinner"></div>
-            <span style="color: #eee; font-size: 0.9rem;">Assembling pixels...</span>
-        </div>
-    `;
-    const seed = Math.floor(Math.random() * 1000000);
-    const imageUrl = `https://image.pollinations.ai/p/${encodeURIComponent(imagePrompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
-    const img = new Image();
-    img.src = imageUrl;
-    img.style.width = "100%";
-    img.style.borderRadius = "8px";
-    img.style.marginTop = "10px";
-    img.style.display = "none";
-    img.style.boxShadow = "0 4px 15px rgba(0,0,0,0.5)";
-    img.onload = function() {
-        document.getElementById("image-loader")?.remove();
-        img.style.display = "block";
-    };
-    output.appendChild(img);
-}
-
-function launchTargetUrl(url) {
-    routingWarning.style.display = "block"; 
-    const htmlOutput = `
-        <div class="news-header-msg" style="color: #888; font-style: italic; margin-bottom: 4px; font-size: 0.9rem; line-height: 1.4;">Navigating to external web link...</div>
-        <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left; margin-bottom: 15px;">
-            🔗 <strong>Address:</strong> <span style="color: #4da3ff; word-break: break-all;">${url}</span>
-        </div>
-        <a href="${url}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #007bff; border-radius: 6px; padding: 10px 14px; color: white; text-decoration: none; font-weight: bold; font-size: 0.95rem;">
-            <span>Launch Link</span>
-            <span>Open Site ↗</span>
-        </a>
-    `;
-    handleVaiiDataOutput("Opening link.", htmlOutput);
-    window.open(url, '_blank');
-}
-
-// ==========================================
 // 8. MASTER ROUTING PIPELINE (VAII NATIVE)
 // ==========================================
 function runInfoExecution(query) {
@@ -1722,7 +1722,7 @@ function runInfoExecution(query) {
     }
     if (cleanQuery === "show notes" || cleanQuery === "my notes") return renderNotesManager();
 
-    // 1. CURRENCY CONVERSION (BEFORE ANY "to" TRANSLATION)
+    // 1. CURRENCY CONVERSION (BEFORE TRANSLATION)
     const forexPattern1 = /^(?:convert\s+)?([0-9.]+)?\s*([a-zA-Z]{3}|[$€£¥])\s+(?:to|in|into)\s+([a-zA-Z]{3}|[$€£¥])$/i;
     const forexPattern2 = /^(?:convert\s+)?([$€£¥])\s*([0-9.]+)\s+(?:to|in|into)\s+([a-zA-Z]{3}|[$€£¥])$/i;
 
@@ -1742,7 +1742,7 @@ function runInfoExecution(query) {
         return fetchForexConversion(amount, from, to);
     }
 
-    // 2. QR CODE GENERATOR (e.g. qr https://...)
+    // 2. QR CODE GENERATOR
     if (cleanQuery.startsWith("qr ") || cleanQuery.startsWith("qrcode ")) {
         return generateQRCode(query.replace(/^(qr|qrcode)\s+/i, '').trim());
     }
@@ -1752,27 +1752,42 @@ function runInfoExecution(query) {
         return fetchISSTelemetry();
     }
 
-    // 4. NASA APOD
+    // 4. DUCKS
+    if (cleanQuery === "duck" || cleanQuery === "ducks" || cleanQuery === "random duck") {
+        return fetchRandomDuck();
+    }
+
+    // 5. POSTAL CODE GEOCODER (Zippopotam)
+    if (cleanQuery.startsWith("zip ") || cleanQuery.startsWith("postal ")) {
+        return fetchPostalCodeInfo(cleanQuery.replace(/^(zip|postal)\s+/i, '').trim());
+    }
+
+    // 6. COLLEGE & UNIVERSITY SEARCH (Hipo)
+    if (cleanQuery.startsWith("college ") || cleanQuery.startsWith("university ")) {
+        return fetchUniversityDirectory(cleanQuery.replace(/^(college|university)\s+/i, '').trim());
+    }
+
+    // 7. NASA APOD
     if (cleanQuery === "space" || cleanQuery === "nasa" || cleanQuery === "apod" || cleanQuery === "astronomy") {
         return fetchNasaAPOD();
     }
 
-    // 5. ADVICE SLIP
+    // 8. ADVICE SLIP
     if (cleanQuery === "advice" || cleanQuery === "give me advice" || cleanQuery === "quote") {
         return fetchAdviceSlip();
     }
 
-    // 6. AGIFY NAME DEMOGRAPHICS
+    // 9. AGIFY NAME DEMOGRAPHICS
     if (cleanQuery.startsWith("age ")) {
         return fetchAgifyPrediction(cleanQuery.replace(/^age\s+/i, '').trim());
     }
 
-    // 7. DICTIONARY DEFINITIONS & PHONETICS
+    // 10. DICTIONARY DEFINITIONS & PHONETICS
     if (cleanQuery.startsWith("define ")) {
         return fetchDictionaryDefinition(cleanQuery.replace(/^define\s+/i, '').trim());
     }
 
-    // 8. PET PICTURES
+    // 11. PET PICTURES
     if (cleanQuery === "dog" || cleanQuery === "random dog" || cleanQuery === "dogs") {
         return fetchCuteAnimal("dog");
     }
@@ -1780,42 +1795,42 @@ function runInfoExecution(query) {
         return fetchCuteAnimal("cat");
     }
 
-    // 9. COUNTRY & FLAGS
+    // 12. COUNTRY & FLAGS
     if (cleanQuery.startsWith("country ") || cleanQuery.startsWith("flag of ")) {
         return fetchCountryInfo(cleanQuery.replace(/^(country|flag of)\s+/i, '').trim());
     }
 
-    // 10. COCKTAILS & DRINKS
+    // 13. COCKTAILS & DRINKS
     if (cleanQuery.startsWith("drink ") || cleanQuery === "random drink" || cleanQuery === "cocktail") {
         return fetchDrinkRecipe(cleanQuery.replace(/^drink\s+/i, '').trim());
     }
 
-    // 11. PUBLIC IP TELEMETRY
+    // 14. PUBLIC IP TELEMETRY
     if (cleanQuery === "my ip" || cleanQuery === "ip" || cleanQuery === "ip lookup" || cleanQuery === "what is my ip") {
         return fetchClientIPLookup();
     }
 
-    // 12. TRIVIA QUIZ
+    // 15. TRIVIA QUIZ
     if (cleanQuery === "trivia" || cleanQuery === "quiz" || cleanQuery.startsWith("trivia ") || cleanQuery.startsWith("quiz ")) {
         return fetchTriviaQuestion();
     }
 
-    // 13. GAME DEALS
+    // 16. GAME DEALS
     if (cleanQuery === "free games" || cleanQuery === "deals" || cleanQuery === "giveaways" || cleanQuery.startsWith("free game")) {
         return fetchGameDeals();
     }
 
-    // 14. JOKES
+    // 17. JOKES
     if (cleanQuery === "joke" || cleanQuery === "tell me a joke" || cleanQuery === "make me laugh" || cleanQuery.startsWith("joke ")) {
         return fetchDadJoke();
     }
 
-    // 15. ITUNES MUSIC PREVIEWS
+    // 18. ITUNES MUSIC PREVIEWS
     if (cleanQuery.startsWith("song ") || cleanQuery.startsWith("music ") || cleanQuery.startsWith("track ")) {
         return fetchSongTrack(cleanQuery.replace(/^(song|music|track)\s+/i, '').trim());
     }
 
-    // 16. ANILIST ANIME & MANGA
+    // 19. ANILIST ANIME & MANGA
     if (cleanQuery.startsWith("anime ")) {
         return fetchAniListMedia(cleanQuery.replace(/^anime\s+/i, '').trim(), "ANIME");
     }
@@ -1823,26 +1838,26 @@ function runInfoExecution(query) {
         return fetchAniListMedia(cleanQuery.replace(/^manga\s+/i, '').trim(), "MANGA");
     }
 
-    // 17. POKEDEX
+    // 20. POKEDEX
     if (cleanQuery.startsWith("pokemon ") || cleanQuery.startsWith("pokedex ")) {
         return fetchPokemonEntry(cleanQuery.replace(/^(pokemon|pokedex)\s+/i, '').trim());
     }
 
-    // 18. OPEN LIBRARY BOOKS
+    // 21. OPEN LIBRARY BOOKS
     if (cleanQuery.startsWith("book ") || cleanQuery.startsWith("novel ")) {
         return fetchOpenLibraryBook(cleanQuery.replace(/^(book|novel)\s+/i, '').trim());
     }
 
-    // 19. GNEWS LIVE NEWS
+    // 22. GNEWS LIVE NEWS
     if (cleanQuery.startsWith("news about ")) return fetchNewsAPI(query.substring(11).trim());
     if (cleanQuery === "top news" || cleanQuery === "news") return fetchNewsAPI("");
 
-    // 20. OMDB MOVIES
+    // 23. OMDB MOVIES
     if (cleanQuery.startsWith("movie ") || cleanQuery.startsWith("film ")) {
         return fetchOMDBMedia(cleanQuery.replace(/^(movie|film)\s+/i, '').trim());
     }
 
-    // 21. FOOD CONCIERGE
+    // 24. FOOD CONCIERGE
     let isFoodIntent = Object.keys(LOCAL_FOOD_DB).some(cat => cleanQuery.includes(cat)) || 
                        cleanQuery.startsWith("order ") || cleanQuery.startsWith("find ");
 
@@ -1857,7 +1872,7 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 22. PRE-POPULATED DATALIST LOCATION MATCH
+    // 25. PRE-POPULATED DATALIST LOCATION MATCH
     const options = Array.from(datalist.options);
     const matchedOption = options.find(opt => opt.value.toLowerCase() === cleanQuery);
     if (matchedOption && matchedOption.getAttribute('data-lat')) {
@@ -1865,16 +1880,16 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 23. LOCATION / WEATHER EXPLICIT MATCH
-    const isExplicitLocationIntent = cleanQuery.startsWith("map of ") || cleanQuery.startsWith("show map ") || cleanQuery.startsWith("time in ") || cleanQuery.startsWith("weather in ") || cleanQuery.startsWith("weather ") || cleanQuery.startsWith("clock ");
+    // 26. LOCATION / WEATHER / SUNSET / SOLAR MATCH
+    const isExplicitLocationIntent = cleanQuery.startsWith("map of ") || cleanQuery.startsWith("show map ") || cleanQuery.startsWith("time in ") || cleanQuery.startsWith("weather in ") || cleanQuery.startsWith("weather ") || cleanQuery.startsWith("clock ") || cleanQuery.startsWith("sunset in ") || cleanQuery.startsWith("sunset ") || cleanQuery.startsWith("sunrise in ") || cleanQuery.startsWith("sunrise ") || cleanQuery.startsWith("solar ");
 
     if (isExplicitLocationIntent) {
-        let parsedLocation = query.replace(/map of /i, "").replace(/show map /i, "").replace(/time in /i, "").replace(/weather in /i, "").replace(/weather /i, "").replace(/clock /i, "").trim();
+        let parsedLocation = query.replace(/map of |show map |time in |weather in |weather |clock |sunset in |sunset |sunrise in |sunrise |solar /i, "").trim();
         resolveAndRenderLocation(parsedLocation, greetingHTML);
         return;
     }
 
-    // 24. APP LAUNCHER
+    // 27. APP LAUNCHER
     if (query.toLowerCase().startsWith("open ")) {
         let rawTarget = query.substring(5).trim().toLowerCase().replace(/['"]+/g, '');
         if (!rawTarget) { output.innerText = "Please specify what you want to open."; return; }
@@ -1906,20 +1921,20 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 25. DIRECT URL NAVIGATION
+    // 28. DIRECT URL NAVIGATION
     if (/\.[a-z]{2,6}/i.test(query) || query.startsWith('http://') || query.startsWith('https://')) {
         let cleanUrl = query.startsWith('http') ? query : 'https://' + query;
         launchTargetUrl(cleanUrl);
         return;
     }
 
-    // 26. CRYPTO & MARKET QUOTES
+    // 29. CRYPTO & MARKET QUOTES
     if (cryptoMap[cleanQuery] || cleanQuery.startsWith("price of ")) {
         runMarketExecution(cleanQuery.startsWith("price of ") ? cleanQuery.substring(9).trim() : cleanQuery);
         return;
     }
 
-    // 27. ARITHMETIC, UNIT CONVERSIONS & LANGUAGE TRANSLATION
+    // 30. ARITHMETIC, UNIT CONVERSIONS & LANGUAGE TRANSLATION
     if (/^[0-9+\-*/().\s]+$/.test(query) || cleanQuery.includes(" to ")) {
         try {
             if (!cleanQuery.includes(" to ")) {
@@ -2016,6 +2031,116 @@ function runInfoExecution(query) {
             runUnifiedWikiPipeline(query, { greeting: greetingHTML });
         }
     }
+}
+
+function runUnifiedWikiPipeline(query, wikiData) {
+    const youtubeFetch = GOOGLE_API_KEY
+        ? fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`)
+            .then(res => res.json())
+            .then(searchData => {
+                if (searchData.items?.length > 0) {
+                    return fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${searchData.items[0].id.channelId}&key=${GOOGLE_API_KEY}`)
+                        .then(res => res.json())
+                        .then(channelData => {
+                            if (channelData.items?.length > 0) {
+                                const item = channelData.items[0];
+                                wikiData.youtube = { 
+                                    title: item.snippet.title, 
+                                    text: item.snippet.description, 
+                                    subs: parseInt(item.statistics.subscriberCount).toLocaleString(), 
+                                    views: parseInt(item.statistics.viewCount).toLocaleString(), 
+                                    customUrl: item.snippet.customUrl || "" 
+                                };
+                            }
+                        });
+                }
+            }).catch(() => null)
+        : Promise.resolve();
+
+    const wikipediaFetch = fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json&origin=*`)
+        .then(res => res.json())
+        .then(wikiSearch => {
+            if (wikiSearch.query?.search?.length > 0) {
+                let targetTitle = wikiSearch.query.search[0].title;
+                if (targetTitle.toLowerCase().endsWith("(disambiguation)") && wikiSearch.query.search.length > 1) {
+                    targetTitle = wikiSearch.query.search[1].title;
+                }
+
+                return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(targetTitle.replace(/ /g, '_'))}`)
+                    .then(res => res.json())
+                    .then(summaryData => { 
+                        if (summaryData.type !== "disambiguation" && !summaryData.extract?.toLowerCase().includes("may refer to:")) {
+                            wikiData.wikipedia = { 
+                                title: summaryData.title || targetTitle, 
+                                text: summaryData.extract 
+                            };
+                        } else if (wikiSearch.query.search.length > 1) {
+                            const fallbackTitle = wikiSearch.query.search[1].title;
+                            return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(fallbackTitle.replace(/ /g, '_'))}`)
+                                .then(r => r.json())
+                                .then(fallbackSummary => {
+                                    if (fallbackSummary.extract && !fallbackSummary.extract.toLowerCase().includes("may refer to:")) {
+                                        wikiData.wikipedia = {
+                                            title: fallbackSummary.title || fallbackTitle,
+                                            text: fallbackSummary.extract
+                                        };
+                                    }
+                                });
+                        }
+                    });
+            }
+        }).catch(() => null);
+
+    Promise.all([youtubeFetch, wikipediaFetch]).then(() => { 
+        compileFinalSourceIndexBox(query, wikiData); 
+    });
+}
+
+function compileFinalSourceIndexBox(query, wikiData) {
+    let blocksHtml = [];
+
+    if (wikiData.wiktionary && wikiData.wiktionary.text) {
+        blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #28a745; text-align: left;"><strong>${wikiData.wiktionary.title}</strong> (${wikiData.wiktionary.pos}): ${wikiData.wiktionary.text}</div>`);
+    }
+    if (wikiData.youtube && wikiData.youtube.title) {
+        blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;"><strong>📺 ${wikiData.youtube.title}</strong><br><span style="font-size: 0.85rem; color: #aaa;">🔴 Subs: ${wikiData.youtube.subs} | Views: ${wikiData.youtube.views}</span><br><br><em>${wikiData.youtube.text}</em></div>`);
+    }
+    if (wikiData.wikipedia && wikiData.wikipedia.text) {
+        blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left;"><strong>${wikiData.wikipedia.title}:</strong> ${wikiData.wikipedia.text}</div>`);
+    }
+
+    let totalHTML = wikiData.greeting || "";
+    let spokenText = "";
+    if (wikiData.greeting) spokenText += "Hello! How can I help you today? ";
+
+    if (blocksHtml.length === 0) {
+        handleVaiiDataOutput(spokenText + "No matches found for " + query + ".", totalHTML + `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No matches found for "${query}".</div>`);
+        return;
+    }
+    
+    spokenText += `Here is the information I found for ${query}. `;
+    if (wikiData.wiktionary && wikiData.wiktionary.text) spokenText += wikiData.wiktionary.text;
+    else if (wikiData.wikipedia && wikiData.wikipedia.text) spokenText += wikiData.wikipedia.text;
+    else if (wikiData.youtube && wikiData.youtube.text) spokenText += wikiData.youtube.text;
+
+    totalHTML += `<div class="news-header-msg" style="color: #888; font-style: italic; margin-bottom: 12px; font-size: 0.9rem; line-height: 1.4;">I have provided the most relevant text of each information source related to "${query}".</div>`;
+    totalHTML += blocksHtml.join(`<div style="color: #888; font-style: italic; font-size: 0.85rem; margin: 15px 0 8px 0; text-align: left;">This might also be relevant:</div>`);
+
+    totalHTML += `<div class="source-box" style="border-top: 1px solid #333; padding-top: 12px; margin-top: 15px;"><span style="display: block; font-size: 0.75rem; color: #777; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Sources Index</span><div class="source-list" style="display: flex; flex-direction: column; gap: 6px;">`;
+
+    if (wikiData.wiktionary && wikiData.wiktionary.text) {
+        totalHTML += `<a href="https://en.wiktionary.org/wiki/${encodeURIComponent(query)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">📰 Wiktionary</span><span>Open Source →</span></a>`;
+    }
+    if (wikiData.youtube && wikiData.youtube.title) {
+        const channelPath = wikiData.youtube.customUrl ? wikiData.youtube.customUrl : `@channel`;
+        totalHTML += `<a href="https://www.youtube.com/${channelPath}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #ff4444; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">🔴 YouTube Channel</span><span>Live Metrics →</span></a>`;
+    }
+    if (wikiData.wikipedia && wikiData.wikipedia.text) {
+        totalHTML += `<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(wikiData.wikipedia.title)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">📰 Wikipedia</span><span>Open Source →</span></a>`;
+    }
+    totalHTML += `</div></div>`;
+    
+    handleVaiiDataOutput(spokenText, totalHTML);
 }
 
 // ==========================================
@@ -2187,6 +2312,22 @@ hubInput?.addEventListener('input', () => {
         customSuggestions.push("iss", "orbit");
     }
 
+    if ("sunset".startsWith(cleanInput) || "sunrise".startsWith(cleanInput) || "solar".startsWith(cleanInput)) {
+        customSuggestions.push("sunset Tokyo", "sunrise New York", "solar Paris");
+    }
+
+    if ("zip".startsWith(cleanInput) || "postal".startsWith(cleanInput)) {
+        customSuggestions.push("zip 90210", "zip 32801", "zip 10001");
+    }
+
+    if ("duck".startsWith(cleanInput)) {
+        customSuggestions.push("duck", "random duck");
+    }
+
+    if ("college".startsWith(cleanInput) || "university".startsWith(cleanInput)) {
+        customSuggestions.push("university Harvard", "university Oxford", "college MIT");
+    }
+
     if ("space".startsWith(cleanInput) || "nasa".startsWith(cleanInput)) {
         customSuggestions.push("space", "nasa");
     }
@@ -2281,7 +2422,7 @@ hubInput?.addEventListener('input', () => {
         return; 
     }
 
-    let searchUrlQuery = trimmedQuery.replace(/map of |show map |weather in |time in /i, "").trim();
+    let searchUrlQuery = trimmedQuery.replace(/map of |show map |weather in |time in |sunset in |sunset |sunrise in |sunrise |solar /i, "").trim();
     searchUrlQuery = searchUrlQuery.replace(/order me a |order a |order some |order | near me|find /i, "").trim();
     let baseGeoSearch = searchUrlQuery.split(',')[0].trim();
 
