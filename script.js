@@ -712,6 +712,150 @@ function fetchOMDBMedia(title) {
 }
 
 // ==========================================
+// 4. CHAT ENGINE (GEMINI FALLBACK LOOP)
+// ==========================================
+async function executeGeminiDirectChat(userInput) {
+    if (chatHistory.length === 0) {
+        const localInstructions = localStorage.getItem('vaii_gemini_instructions') || '';
+        let systemPrompt = "You are Gemini, an advanced conversational core running inside the VAII architecture frame. STRICT STRUCTURAL RULE: You do NOT possess built-in web services, maps, currency handlers, weather telemetry, or drawing capabilities. All of those proprietary features belong exclusively to a completely separate system engine option on this dashboard named 'VAII Native'. Your singular purpose here is providing deep, persistent multi-turn conversational reasoning and textual chat history records. Keep statements direct and clear.";
+        
+        if (localInstructions.trim()) {
+            systemPrompt += `\n\n[USER SYSTEM INSTRUCTIONS / REQUIRED PERSONALITY PARAMETERS]:\n${localInstructions.trim()}`;
+        }
+
+        chatHistory.push({ role: "user", parts: [{ text: systemPrompt }] });
+        chatHistory.push({ role: "model", parts: [{ text: "System connection established. Isolated chat parameters synced. I am fully aware of my persona guidelines and that I do not contain VAII Native utilities." }] });
+    }
+
+    chatHistory.push({ role: "user", parts: [{ text: userInput }] });
+    renderFullChatLogBubble();
+
+    const spinnerBubble = document.createElement('div');
+    spinnerBubble.id = "gemini-active-typing-indicator";
+    spinnerBubble.style = "text-align: left; padding: 10px; color: #aaa; font-style: italic; display: flex; align-items: center;";
+    spinnerBubble.innerHTML = `<div class="loader-spinner"></div> Syncing conversational context vectors...`;
+    output.appendChild(spinnerBubble);
+    output.scrollTop = output.scrollHeight;
+
+    const sanitizedContents = chatHistory.map(msg => ({
+        role: msg.role || "user",
+        parts: (msg.parts || []).map(p => ({ text: p.text || "" }))
+    }));
+
+    let successfulResponseText = null;
+    let successfulModelLabel = "";
+    let structuralErrorDetected = null;
+
+    const currentApiKey = getActiveGeminiKey();
+
+    for (let i = 0; i < BASELINE_FALLBACK_TREE.length; i++) {
+        const modelObj = BASELINE_FALLBACK_TREE[i];
+        const visionUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelObj.id}:generateContent?key=${currentApiKey}`;
+        
+        try {
+            const response = await fetch(visionUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents: sanitizedContents })
+            });
+            const data = await response.json();
+
+            if (data.error) {
+                if (response.status === 400 || data.error.status === "INVALID_ARGUMENT") {
+                    structuralErrorDetected = data.error.message;
+                    break; 
+                }
+                console.warn(`Model generation tier [${modelObj.name}] quota full. Cascading downstream...`);
+                continue; 
+            }
+
+            if (!data.candidates || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0].text) {
+                continue;
+            }
+
+            successfulResponseText = data.candidates[0].content.parts[0].text;
+            successfulModelLabel = modelObj.name;
+            break; 
+        } catch (err) {
+            console.error(`Network exception on model asset [${modelObj.name}]:`, err);
+            continue;
+        }
+    }
+
+    const indicatorNode = document.getElementById("gemini-active-typing-indicator");
+    if (indicatorNode) indicatorNode.remove();
+
+    if (structuralErrorDetected) {
+        const errorDiv = document.createElement('div');
+        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
+        errorDiv.innerHTML = `
+            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ History Thread Structure Fault</div>
+            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">
+                ${structuralErrorDetected}<br><br>
+                <span style="color: #aaa; font-size: 0.85rem;">VAII automatically dropped your last submission entry to keep this specific session from breaking permanently.</span>
+            </div>
+        `;
+        output.appendChild(errorDiv);
+        chatHistory.pop(); 
+        return;
+    }
+
+    if (successfulResponseText !== null) {
+        chatHistory.push({ 
+            role: "model", 
+            parts: [{ text: successfulResponseText }],
+            activeModelName: successfulModelLabel 
+        });
+
+        renderFullChatLogBubble();
+        saveCurrentSessionState();
+
+        if (autoSpeak) {
+            let cleanResponse = successfulResponseText.replace(/[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+            speakText(cleanResponse);
+            autoSpeak = false;
+        }
+
+        if (chatHistory.length === 4) {
+            triggerBackgroundTitleGeneration(chatHistory[2].parts[0].text, successfulResponseText, successfulModelLabel);
+        }
+    } else {
+        const errorDiv = document.createElement('div');
+        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
+        errorDiv.innerHTML = `
+            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">🚨 Critical Server Outage Alert</div>
+            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5; font-weight: 500;">
+                Every single fallback layer inside the model matrix has completely exhausted its rate-limit quotas. Please wait for token limits to clear.
+            </div>
+        `;
+        output.appendChild(errorDiv);
+        chatHistory.pop(); 
+    }
+}
+
+async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningModelId) {
+    const titlePrompt = `Generate a short, highly descriptive 3 to 5 word summary title for this chat based on these two statements. Respond with ONLY the clean summary text directly, no intro text, no markdown styling markers, and no outer quotation characters.\n\nUser text: "${userMsg}"\nModel text: "${modelResponse}"`;
+    const payloadContents = [{ role: "user", parts: [{ text: titlePrompt }] }];
+    const activeModel = BASELINE_FALLBACK_TREE.find(m => m.name === runningModelId) || BASELINE_FALLBACK_TREE[0];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel.id}:generateContent?key=${getActiveGeminiKey()}`;
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: payloadContents })
+        });
+        const data = await response.json();
+        let cleanedTitle = data.candidates[0].content.parts[0].text.trim().replace(/['"]+/g, ''); 
+        if (cleanedTitle && cleanedTitle.length > 2) {
+            saveCurrentSessionState(cleanedTitle);
+        }
+    } catch (e) {
+        console.error("Dynamic title loop exception:", e);
+    }
+}
+
+// ==========================================
 // 5. LOCATION, MAPS & SOLAR CLIMATE CARD
 // ==========================================
 function resolveAndRenderLocation(searchLocationQuery, greetingHTML = "") {
@@ -1078,12 +1222,24 @@ function fetchUniversityDirectory(collegeName) {
 
     const renderCollegeCard = (name, country, state, webPage, domain) => {
         const stateStr = state ? `, ${state}` : '';
+        let officialUrl = webPage;
+        if (!officialUrl || officialUrl.includes("wikipedia.org") || officialUrl === '#') {
+            if (domain && domain.includes('.')) {
+                officialUrl = `https://${domain}`;
+            } else {
+                officialUrl = `https://www.google.com/search?q=${encodeURIComponent(name + ' official website')}`;
+            }
+        }
+        if (!officialUrl.startsWith('http://') && !officialUrl.startsWith('https://')) {
+            officialUrl = `https://${officialUrl}`;
+        }
+
         const html = `
             <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #673ab7; text-align: left;">
                 <div style="font-size: 0.75rem; color: #b388ff; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🎓 Higher Education Directory</div>
                 <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 4px;">${name}</div>
                 <div style="font-size: 0.85rem; color: #aaa;">📍 ${country}${stateStr} • Domain: <code>${domain || 'N/A'}</code></div>
-                ${webPage ? `<a href="${webPage}" target="_blank" style="display: inline-block; margin-top: 10px; background: #673ab7; color: #fff; text-decoration: none; padding: 7px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: bold;">Visit Campus Portal ↗</a>` : ''}
+                <a href="${officialUrl}" target="_blank" style="display: inline-block; margin-top: 10px; background: #673ab7; color: #fff; text-decoration: none; padding: 7px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: bold;">Visit Campus Portal ↗</a>
             </div>
         `;
         handleVaiiDataOutput(`Found ${name} located in ${country}.`, html);
@@ -1099,11 +1255,12 @@ function fetchUniversityDirectory(collegeName) {
         .then(data => {
             if (!Array.isArray(data) || data.length === 0) throw new Error("No entries");
             const college = data[0];
+            const realWeb = college.web_pages?.[0] || (college.domains?.[0] ? `https://${college.domains[0]}` : null);
             renderCollegeCard(
                 college.name, 
                 college.country, 
                 college['state-province'], 
-                college.web_pages?.[0], 
+                realWeb, 
                 college.domains?.[0]
             );
         })
@@ -1114,12 +1271,13 @@ function fetchUniversityDirectory(collegeName) {
                     if (!wikiData.title || wikiData.type === "disambiguation") {
                         return handleVaiiDataOutput(`No university found matching "${cleanCollege}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No university records found matching "${cleanCollege}". Check your spelling and try again.</div>`);
                     }
+                    const inferredDomain = cleanCollege.toLowerCase().replace(/[^a-z]/g, '') + ".edu";
                     renderCollegeCard(
                         wikiData.title, 
                         "Worldwide", 
                         null, 
-                        wikiData.content_urls?.desktop?.page || '#', 
-                        wikiData.title.toLowerCase().replace(/[^a-z]/g, '') + ".edu"
+                        `https://${inferredDomain}`, 
+                        inferredDomain
                     );
                 })
                 .catch(() => {
@@ -2320,7 +2478,7 @@ function compileFinalSourceIndexBox(query, wikiData) {
 }
 
 // ==========================================
-// 7. EVENT LISTENERS
+// 9. EVENT LISTENERS
 // ==========================================
 document.querySelectorAll('input[name="vaii-mode"]').forEach(r => r.addEventListener('change', updateWelcomeMessageText));
 
