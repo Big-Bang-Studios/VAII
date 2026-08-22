@@ -1076,31 +1076,56 @@ function fetchUniversityDirectory(collegeName) {
     const cleanCollege = collegeName.trim();
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying university registry for "${cleanCollege}"...</div>`;
 
-    fetch(`https://universities.hipolabs.com/search?name=${encodeURIComponent(cleanCollege)}`)
-        .then(res => res.json())
-        .then(data => {
-            if (!Array.isArray(data) || data.length === 0) {
-                return handleVaiiDataOutput(`No university found matching "${cleanCollege}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No university records found matching "${cleanCollege}".</div>`);
-            }
+    const renderCollegeCard = (name, country, state, webPage, domain) => {
+        const stateStr = state ? `, ${state}` : '';
+        const html = `
+            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #673ab7; text-align: left;">
+                <div style="font-size: 0.75rem; color: #b388ff; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🎓 Higher Education Directory</div>
+                <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 4px;">${name}</div>
+                <div style="font-size: 0.85rem; color: #aaa;">📍 ${country}${stateStr} • Domain: <code>${domain || 'N/A'}</code></div>
+                ${webPage ? `<a href="${webPage}" target="_blank" style="display: inline-block; margin-top: 10px; background: #673ab7; color: #fff; text-decoration: none; padding: 7px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: bold;">Visit Campus Portal ↗</a>` : ''}
+            </div>
+        `;
+        handleVaiiDataOutput(`Found ${name} located in ${country}.`, html);
+    };
 
-            const college = data[0];
-            const name = college.name;
-            const country = college.country;
-            const state = college['state-province'] ? `, ${college['state-province']}` : '';
-            const webPage = college.web_pages?.[0] || '#';
-            const domain = college.domains?.[0] || '';
+    const targetUrl = `http://universities.hipolabs.com/search?name=${encodeURIComponent(cleanCollege)}`;
 
-            const html = `
-                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #673ab7; text-align: left;">
-                    <div style="font-size: 0.75rem; color: #b388ff; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🎓 Higher Education Directory</div>
-                    <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 4px;">${name}</div>
-                    <div style="font-size: 0.85rem; color: #aaa;">📍 ${country}${state} • Domain: <code>${domain}</code></div>
-                    <a href="${webPage}" target="_blank" style="display: inline-block; margin-top: 10px; background: #673ab7; color: #fff; text-decoration: none; padding: 7px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: bold;">Visit Campus Portal ↗</a>
-                </div>
-            `;
-            handleVaiiDataOutput(`Found ${name} located in ${country}. Domain is ${domain}.`, html);
+    fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`)
+        .then(res => {
+            if (!res.ok) throw new Error("Proxy error");
+            return res.json();
         })
-        .catch(() => handleVaiiDataOutput("University lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">University registry network error.</div>`));
+        .then(data => {
+            if (!Array.isArray(data) || data.length === 0) throw new Error("No entries");
+            const college = data[0];
+            renderCollegeCard(
+                college.name, 
+                college.country, 
+                college['state-province'], 
+                college.web_pages?.[0], 
+                college.domains?.[0]
+            );
+        })
+        .catch(() => {
+            fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanCollege.replace(/ /g, '_'))}`)
+                .then(r => r.json())
+                .then(wikiData => {
+                    if (!wikiData.title || wikiData.type === "disambiguation") {
+                        return handleVaiiDataOutput(`No university found matching "${cleanCollege}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No university records found matching "${cleanCollege}". Check your spelling and try again.</div>`);
+                    }
+                    renderCollegeCard(
+                        wikiData.title, 
+                        "Worldwide", 
+                        null, 
+                        wikiData.content_urls?.desktop?.page || '#', 
+                        wikiData.title.toLowerCase().replace(/[^a-z]/g, '') + ".edu"
+                    );
+                })
+                .catch(() => {
+                    handleVaiiDataOutput(`No university found matching "${cleanCollege}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No university records found matching "${cleanCollege}".</div>`);
+                });
+        });
 }
 
 function fetchNasaAPOD() {
@@ -2295,7 +2320,7 @@ function compileFinalSourceIndexBox(query, wikiData) {
 }
 
 // ==========================================
-// 9. EVENT LISTENERS
+// 7. EVENT LISTENERS
 // ==========================================
 document.querySelectorAll('input[name="vaii-mode"]').forEach(r => r.addEventListener('change', updateWelcomeMessageText));
 
