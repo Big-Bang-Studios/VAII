@@ -340,9 +340,7 @@ window.initVaiiMap = function() {
 function closeAllDrawers() {
     const drawers = [helpGuide, changelogDrawer, historyDrawer, prefsDrawer];
     drawers.forEach(d => { 
-        if (d) {
-            d.style.display = "none";
-        }
+        if (d) d.style.display = "none";
     });
 }
 
@@ -710,7 +708,151 @@ function fetchOMDBMedia(title) {
 }
 
 // ==========================================
-// 4. NEW UTILITY INTEGRATIONS (FOREX, QR, ISS)
+// 4. CHAT ENGINE (GEMINI FALLBACK LOOP)
+// ==========================================
+async function executeGeminiDirectChat(userInput) {
+    if (chatHistory.length === 0) {
+        const localInstructions = localStorage.getItem('vaii_gemini_instructions') || '';
+        let systemPrompt = "You are Gemini, an advanced conversational core running inside the VAII architecture frame. STRICT STRUCTURAL RULE: You do NOT possess built-in web services, maps, currency handlers, weather telemetry, or drawing capabilities. All of those proprietary features belong exclusively to a completely separate system engine option on this dashboard named 'VAII Native'. Your singular purpose here is providing deep, persistent multi-turn conversational reasoning and textual chat history records. Keep statements direct and clear.";
+        
+        if (localInstructions.trim()) {
+            systemPrompt += `\n\n[USER SYSTEM INSTRUCTIONS / REQUIRED PERSONALITY PARAMETERS]:\n${localInstructions.trim()}`;
+        }
+
+        chatHistory.push({ role: "user", parts: [{ text: systemPrompt }] });
+        chatHistory.push({ role: "model", parts: [{ text: "System connection established. Isolated chat parameters synced. I am fully aware of my persona guidelines and that I do not contain VAII Native utilities." }] });
+    }
+
+    chatHistory.push({ role: "user", parts: [{ text: userInput }] });
+    renderFullChatLogBubble();
+
+    const spinnerBubble = document.createElement('div');
+    spinnerBubble.id = "gemini-active-typing-indicator";
+    spinnerBubble.style = "text-align: left; padding: 10px; color: #aaa; font-style: italic; display: flex; align-items: center;";
+    spinnerBubble.innerHTML = `<div class="loader-spinner"></div> Syncing conversational context vectors...`;
+    output.appendChild(spinnerBubble);
+    output.scrollTop = output.scrollHeight;
+
+    const sanitizedContents = chatHistory.map(msg => ({
+        role: msg.role || "user",
+        parts: (msg.parts || []).map(p => ({ text: p.text || "" }))
+    }));
+
+    let successfulResponseText = null;
+    let successfulModelLabel = "";
+    let structuralErrorDetected = null;
+
+    const currentApiKey = getActiveGeminiKey();
+
+    for (let i = 0; i < BASELINE_FALLBACK_TREE.length; i++) {
+        const modelObj = BASELINE_FALLBACK_TREE[i];
+        const visionUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelObj.id}:generateContent?key=${currentApiKey}`;
+        
+        try {
+            const response = await fetch(visionUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents: sanitizedContents })
+            });
+            const data = await response.json();
+
+            if (data.error) {
+                if (response.status === 400 || data.error.status === "INVALID_ARGUMENT") {
+                    structuralErrorDetected = data.error.message;
+                    break; 
+                }
+                console.warn(`Model generation tier [${modelObj.name}] quota full. Cascading downstream...`);
+                continue; 
+            }
+
+            if (!data.candidates || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0].text) {
+                continue;
+            }
+
+            successfulResponseText = data.candidates[0].content.parts[0].text;
+            successfulModelLabel = modelObj.name;
+            break; 
+        } catch (err) {
+            console.error(`Network exception on model asset [${modelObj.name}]:`, err);
+            continue;
+        }
+    }
+
+    const indicatorNode = document.getElementById("gemini-active-typing-indicator");
+    if (indicatorNode) indicatorNode.remove();
+
+    if (structuralErrorDetected) {
+        const errorDiv = document.createElement('div');
+        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
+        errorDiv.innerHTML = `
+            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ History Thread Structure Fault</div>
+            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">
+                ${structuralErrorDetected}<br><br>
+                <span style="color: #aaa; font-size: 0.85rem;">VAII automatically dropped your last submission entry to keep this specific session from breaking permanently.</span>
+            </div>
+        `;
+        output.appendChild(errorDiv);
+        chatHistory.pop(); 
+        return;
+    }
+
+    if (successfulResponseText !== null) {
+        chatHistory.push({ 
+            role: "model", 
+            parts: [{ text: successfulResponseText }],
+            activeModelName: successfulModelLabel 
+        });
+
+        renderFullChatLogBubble();
+        saveCurrentSessionState();
+
+        if (autoSpeak) {
+            let cleanResponse = successfulResponseText.replace(/[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+            speakText(cleanResponse);
+            autoSpeak = false;
+        }
+
+        if (chatHistory.length === 4) {
+            triggerBackgroundTitleGeneration(chatHistory[2].parts[0].text, successfulResponseText, successfulModelLabel);
+        }
+    } else {
+        const errorDiv = document.createElement('div');
+        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
+        errorDiv.innerHTML = `
+            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">🚨 Critical Server Outage Alert</div>
+            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5; font-weight: 500;">
+                Every single fallback layer inside the model matrix has completely exhausted its rate-limit quotas. Please wait for token limits to clear.
+            </div>
+        `;
+        output.appendChild(errorDiv);
+        chatHistory.pop(); 
+    }
+}
+
+async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningModelId) {
+    const titlePrompt = `Generate a short, highly descriptive 3 to 5 word summary title for this chat based on these two statements. Respond with ONLY the clean summary text directly, no intro text, no markdown styling markers, and no outer quotation characters.\n\nUser text: "${userMsg}"\nModel text: "${modelResponse}"`;
+    const payloadContents = [{ role: "user", parts: [{ text: titlePrompt }] }];
+    const activeModel = BASELINE_FALLBACK_TREE.find(m => m.name === runningModelId) || BASELINE_FALLBACK_TREE[0];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel.id}:generateContent?key=${getActiveGeminiKey()}`;
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: payloadContents })
+        });
+        const data = await response.json();
+        let cleanedTitle = data.candidates[0].content.parts[0].text.trim().replace(/['"]+/g, ''); 
+        if (cleanedTitle && cleanedTitle.length > 2) {
+            saveCurrentSessionState(cleanedTitle);
+        }
+    } catch (e) {
+        console.error("Dynamic title loop exception:", e);
+    }
+}
+
+// ==========================================
+// 5. UTILITIES (FOREX, QR, ISS, NASA, ADVICE, AGE, DEFINE, ETC.)
 // ==========================================
 function fetchForexConversion(amount, fromCurr, toCurr) {
     const from = fromCurr.toUpperCase().trim();
@@ -844,386 +986,875 @@ function fetchISSTelemetry() {
         .catch(() => handleVaiiDataOutput("ISS Telemetry unreachable.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not establish link with ISS telemetry feed.</div>`));
 }
 
-// ==========================================
-// 5. NATIVE MODULES (MAPS, WEATHER, VISION, FOOD)
-// ==========================================
-function executeLocalFoodSearch(queryText) {
-    routingWarning.style.display = "none";
-    
-    let originalQuery = queryText.trim();
-    let cleanQuery = originalQuery.toLowerCase();
-    let explicitLocation = "";
-    
-    const locInMatch = originalQuery.match(/\s+in\s+(.+)$/i);
-    const locNearMatch = originalQuery.match(/\s+near\s+(.+)$/i);
-    
-    if (locInMatch) {
-        explicitLocation = locInMatch[1].trim();
-        cleanQuery = originalQuery.substring(0, locInMatch.index).toLowerCase().trim();
-    } else if (locNearMatch) {
-        explicitLocation = locNearMatch[1].trim();
-        cleanQuery = originalQuery.substring(0, locNearMatch.index).toLowerCase().trim();
-    }
-
-    let dbMatch = null;
-    let searchItemName = cleanQuery;
-    let searchBrandName = "";
-
-    let category = Object.keys(LOCAL_FOOD_DB).find(key => cleanQuery.includes(key));
-    if (category) {
-        const options = LOCAL_FOOD_DB[category];
-        dbMatch = options[Math.floor(Math.random() * options.length)];
-        searchBrandName = dbMatch.name;
-        searchItemName = dbMatch.item;
-    } else {
-        for (let cat in LOCAL_FOOD_DB) {
-            let brand = LOCAL_FOOD_DB[cat].find(b => {
-                let normName = b.name.toLowerCase().replace(/['\s]/g, '');
-                let normQuery = cleanQuery.replace(/['\s]/g, '');
-                return normQuery.includes(normName) || normName.includes(normQuery);
-            });
-            if (brand) {
-                dbMatch = brand;
-                searchBrandName = dbMatch.name;
-                searchItemName = dbMatch.item;
-                break;
-            }
-        }
-    }
-
-    if (!searchBrandName) {
-        searchBrandName = cleanQuery; 
-    }
-
-    let placesSearchQuery = searchBrandName;
-    if (explicitLocation) {
-        placesSearchQuery += ` in ${explicitLocation}`;
-    }
-
-    output.innerHTML = `
-        <div class="generation-status">
-            <div class="loader-spinner"></div>
-            <span style="color: #eee; font-size: 0.9rem;">Processing order request for "${searchItemName}"...</span>
-        </div>
-    `;
-
-    const renderFallbackCard = (brandName, suggestionText, fallbackLoc) => {
-        const locString = fallbackLoc ? ` ${fallbackLoc}` : "";
-        const cleanFallbackString = (brandName + locString).replace(/[^a-zA-Z0-9 ,]/g, '');
-        const encFallback = encodeURIComponent(cleanFallbackString);
-        
-        const ddLink = `https://www.doordash.com/search/store/${encFallback}/`;
-        const goLink = `https://www.google.com/search?q=Order+delivery+from+${encFallback}`;
-
-        const htmlOutput = `
-            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #007bff; text-align: left; margin-bottom: 15px;">
-                <div style="font-size: 0.8rem; color: #007bff; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🍔 VAII Database Suggestion</div>
-                <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 8px;">${brandName}</div>
-                <div style="color: #ccc; font-size: 0.95rem; margin-bottom: 15px;">💡 Suggested: <strong>${suggestionText || queryText}</strong> ${fallbackLoc ? 'near ' + fallbackLoc : ''}</div>
-                
-                <div style="font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">Auto-Routing Delivery Links</div>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <a href="${ddLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #FF3008; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                        <span>Route to DoorDash</span><span>➔</span>
-                    </a>
-                    <a href="${goLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #4285F4; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                        <span>Google Local Order</span><span>➔</span>
-                    </a>
-                </div>
-            </div>
-        `;
-        handleVaiiDataOutput(`I suggest ordering ${suggestionText || queryText} from ${brandName}.`, htmlOutput);
-    };
-
-    const processPlacesSearch = (lat, lon) => {
-        if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
-            return renderFallbackCard(searchBrandName, searchItemName, explicitLocation);
-        }
-
-        const request = { query: placesSearchQuery };
-        if (lat && lon) {
-            request.location = new google.maps.LatLng(lat, lon);
-            request.radius = '16000';
-        }
-
-        const service = new google.maps.places.PlacesService(document.createElement('div'));
-        
-        service.textSearch(request, (results, status) => {
-            if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
-                results.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-                const bestPlace = results[0];
-                
-                const placeName = bestPlace.name;
-                const rating = bestPlace.rating || "N/A";
-                const address = bestPlace.formatted_address || "";
-                
-                const cleanAddressSearch = (placeName + " " + address).replace(/[^a-zA-Z0-9 ,]/g, '');
-                const encQuery = encodeURIComponent(cleanAddressSearch);
-                
-                const googleOrderLink = `https://www.google.com/search?q=Order+delivery+from+${encQuery}`;
-                const doorDashLink = `https://www.doordash.com/search/store/${encQuery}/`;
-                const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeName + " " + address)}`;
-
-                let suggestionHTML = dbMatch ? `<div style="color: #ccc; font-size: 0.95rem; margin-bottom: 4px;">💡 Suggested: <strong>${searchItemName}</strong></div>` : "";
-
-                const htmlOutput = `
-                    <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff9800; text-align: left; margin-bottom: 15px;">
-                        <div style="font-size: 0.8rem; color: #ff9800; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🍔 GPS Confirmed Match</div>
-                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 8px;">${placeName}</div>
-                        ${suggestionHTML}
-                        <div style="color: #ccc; font-size: 0.95rem; margin-bottom: 4px;">⭐ Rating: ${rating} / 5.0</div>
-                        <a href="${mapLink}" target="_blank" style="color: #ff9800; text-decoration: none; font-size: 0.85rem; display: block; margin-bottom: 15px;">📍 ${address} ↗</a>
-                        
-                        <div style="font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">Auto-Routing Delivery Links</div>
-                        <div style="display: flex; flex-direction: column; gap: 8px;">
-                            <a href="${doorDashLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #FF3008; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                                <span>Route to DoorDash</span><span>➔</span>
-                            </a>
-                            <a href="${googleOrderLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #4285F4; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                                <span>Google Local Order</span><span>➔</span>
-                            </a>
-                        </div>
-                    </div>
-                `;
-                handleVaiiDataOutput(`I found a match. ${placeName} has a rating of ${rating} stars.`, htmlOutput);
-            } else {
-                return renderFallbackCard(searchBrandName, searchItemName, explicitLocation);
-            }
-        });
-    };
-
-    if (explicitLocation) {
-        processPlacesSearch(null, null);
-    } else if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (position) => { processPlacesSearch(position.coords.latitude, position.coords.longitude); },
-            () => { processPlacesSearch(null, null); }
-        );
-    } else {
-        processPlacesSearch(null, null);
-    }
-}
-
-function resolveAndRenderLocation(searchLocationQuery, greetingHTML = "") {
-    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Locating coordinates for "${searchLocationQuery}"...</div>`;
-    let baseQuery = searchLocationQuery.split(',')[0].trim();
-
-    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(baseQuery)}&count=5&language=en&format=json`)
+function fetchNasaAPOD() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Transmitting NASA deep space telemetry...</div>`;
+    fetch('https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY')
         .then(res => res.json())
         .then(data => {
-            if (data.results && data.results.length > 0) {
-                let bestLoc = data.results[0];
-                if (searchLocationQuery.includes(",")) {
-                    const secondary = searchLocationQuery.split(',')[1].toLowerCase().trim();
-                    const matched = data.results.find(l => 
-                        (l.admin1 && l.admin1.toLowerCase().includes(secondary)) || 
-                        (l.country && l.country.toLowerCase().includes(secondary))
-                    );
-                    if (matched) bestLoc = matched;
-                }
+            if (!data.title) throw new Error("NASA APOD failed");
+            const isVideo = data.media_type === "video";
+            const mediaElement = isVideo
+                ? `<iframe src="${data.url}" style="width: 100%; height: 220px; border-radius: 8px; border: 1px solid #333;" frameborder="0" allowfullscreen></iframe>`
+                : `<img src="${data.url}" style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #333;">`;
 
-                let displayName = `${bestLoc.name}`;
-                if (bestLoc.admin1 && bestLoc.admin1 !== bestLoc.name) displayName += `, ${bestLoc.admin1}`;
-                if (bestLoc.country) displayName += ` (${bestLoc.country})`;
-
-                renderUnifiedLocationCard(bestLoc.latitude, bestLoc.longitude, bestLoc.timezone || 'auto', displayName, greetingHTML);
-            } else {
-                handleVaiiDataOutput("Could not extract metrics for " + searchLocationQuery, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not extract location metrics for "${searchLocationQuery}".</div>`);
-            }
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #3f51b5; text-align: left;">
+                    <div style="font-size: 0.75rem; color: #7986cb; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🚀 NASA Astronomy Picture of the Day</div>
+                    <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 10px;">${data.title} (${data.date})</div>
+                    ${mediaElement}
+                    <div style="font-size: 0.84rem; color: #ccc; line-height: 1.45; margin-top: 10px; max-height: 120px; overflow-y: auto;">${data.explanation}</div>
+                </div>
+            `;
+            handleVaiiDataOutput(`NASA APOD: ${data.title}. ${data.explanation}`, html);
         })
-        .catch(err => {
-            console.error("Open-Meteo Geocoding Error:", err);
-            handleVaiiDataOutput("Location processing engine connection failure.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Location processing engine connection failure.</div>`);
-        });
+        .catch(() => handleVaiiDataOutput("Could not load NASA telemetry.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">NASA APOD connection timed out. Please try again.</div>`));
 }
 
-function renderUnifiedLocationCard(lat, lon, zone, displayName, greetingHTML = "") {
-    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Loading weather for "${displayName}"...</div>`;
-    
-    const tzParam = (zone && zone !== 'auto') ? `&timezone=${encodeURIComponent(zone)}` : '&timezone=auto';
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true${tzParam}`)
+function fetchAdviceSlip() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching advice...</div>`;
+    fetch('https://api.adviceslip.com/advice')
         .then(res => res.json())
-        .then(weatherData => {
-            if (!weatherData.current_weather) {
-                throw new Error("Missing weather metrics");
+        .then(data => {
+            const advice = data?.slip?.advice;
+            if (!advice) throw new Error("Advice failed");
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00bcd4; text-align: left;">
+                    <div style="font-size: 0.75rem; color: #00bcd4; text-transform: uppercase; font-weight: bold; margin-bottom: 6px;">💡 Words of Advice</div>
+                    <div style="font-size: 1.2rem; font-weight: 500; color: #fff; line-height: 1.45;">"${advice}"</div>
+                </div>
+            `;
+            handleVaiiDataOutput(`Advice: ${advice}`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Advice engine error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Advice engine network error.</div>`));
+}
+
+function fetchAgifyPrediction(name) {
+    const cleanName = name.trim();
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Calculating demographics for "${cleanName}"...</div>`;
+    fetch(`https://api.agify.io/?name=${encodeURIComponent(cleanName)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.name || data.age === null) {
+                return handleVaiiDataOutput(`Could not estimate age for "${cleanName}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No statistical demographic data found for name "${cleanName}".</div>`);
             }
-            const tempCelsius = weatherData.current_weather.temperature;
-            const tempFahrenheit = Math.round((tempCelsius * 9/5) + 32);
-            const windSpeed = weatherData.current_weather.windspeed;
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff4081; text-align: left;">
+                    <div style="font-size: 0.75rem; color: #ff4081; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">📊 Name Demographic Estimator</div>
+                    <div style="font-size: 1.3rem; font-weight: bold; color: #fff; text-transform: capitalize;">${data.name}</div>
+                    <div style="display: flex; gap: 20px; margin-top: 10px; border-top: 1px solid #2a2a2a; padding-top: 10px;">
+                        <div><span style="color: #888; font-size: 0.78rem;">ESTIMATED AGE</span><br><strong style="font-size: 1.3rem; color: #00e676;">${data.age} yrs</strong></div>
+                        <div style="border-left: 1px solid #2a2a2a; padding-left: 15px;"><span style="color: #888; font-size: 0.78rem;">SAMPLE POPULATION</span><br><strong style="font-size: 1.3rem; color: #ffc107;">${Number(data.count).toLocaleString()}</strong></div>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`The average estimated age for someone named ${data.name} is ${data.age} years old based on a sample of ${data.count} records.`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Agify lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Demographic server connection error.</div>`));
+}
+
+function fetchDictionaryDefinition(word) {
+    const cleanWord = word.trim().toLowerCase();
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Looking up definition for "${cleanWord}"...</div>`;
+    fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`)
+        .then(res => {
+            if (!res.ok) throw new Error("Word not found");
+            return res.json();
+        })
+        .then(data => {
+            const entry = data[0];
+            const phoneticText = entry.phonetic || entry.phonetics?.find(p => p.text)?.text || '';
+            const audioUrl = entry.phonetics?.find(p => p.audio && p.audio.trim() !== '')?.audio || '';
             
-            const effectiveTz = weatherData.timezone || zone || "UTC";
-            let timeString = "N/A";
-            let dateString = "N/A";
-            try {
-                timeString = new Date().toLocaleTimeString("en-US", { timeZone: effectiveTz, hour: '2-digit', minute: '2-digit' });
-                dateString = new Date().toLocaleDateString("en-US", { timeZone: effectiveTz, weekday: 'long', month: 'short', day: 'numeric' });
-            } catch(e) {
-                timeString = new Date().toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
-                dateString = new Date().toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric' });
-            }
-            
-            const htmlOutput = greetingHTML + `
-                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #4da3ff; text-align: left; margin-bottom: 15px;">
-                    <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 12px;">📍 ${displayName}</div>
-                    <div style="display: flex; gap: 20px; margin-bottom: 15px; border-bottom: 1px solid #2a2a2a; padding-bottom: 12px;">
-                        <div style="flex: 1;">
-                            <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Current Climate</span><br>
-                            <span style="font-size: 1.1rem; font-weight: bold; color: #28a745;">🌡️ ${tempFahrenheit}°F</span> <span style="color:#666; font-size:0.9rem;">(${tempCelsius}°C)</span><br>
-                            <span style="color: #ccc; font-size: 0.85rem;">💨 Wind: ${windSpeed} km/h</span>
-                        </div>
-                        <div style="flex: 1; border-left: 1px solid #2a2a2a; padding-left: 15px;">
-                            <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Localized Clock</span><br>
-                            <span style="font-size: 1.1rem; font-weight: bold; color: #ffc107;">🕒 ${timeString}</span><br>
-                            <span style="color: #ccc; font-size: 0.85rem;">📅 ${dateString}</span>
+            let meaningsHtml = "";
+            (entry.meanings || []).slice(0, 2).forEach(m => {
+                const def = m.definitions?.[0]?.definition || '';
+                const example = m.definitions?.[0]?.example ? `<br><em style="color:#888; font-size:0.8rem;">"${m.definitions[0].example}"</em>` : '';
+                meaningsHtml += `<div style="margin-top: 8px;"><span style="color:#4da3ff; font-weight:bold; font-size:0.8rem; text-transform:uppercase;">${m.partOfSpeech}</span>: <span style="color:#ddd; font-size:0.88rem;">${def}</span>${example}</div>`;
+            });
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #8bc34a; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div>
+                            <div style="font-size: 1.3rem; font-weight: bold; color: #fff; text-transform: capitalize;">📖 ${entry.word}</div>
+                            ${phoneticText ? `<div style="color: #8bc34a; font-size: 0.85rem;">${phoneticText}</div>` : ''}
                         </div>
                     </div>
-                    <span style="color: #888; font-size: 0.8rem; text-transform: uppercase; display: block; margin-bottom: 6px;">Interactive Mapping</span>
-                    <div id="vaii-merged-map-canvas" style="width:100%; height:250px; border-radius:8px; background:#252525; border: 1px solid #333;"></div>
+                    ${audioUrl ? `
+                        <div style="margin: 8px 0 12px 0;">
+                            <span style="font-size: 0.72rem; color: #aaa; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px;">Phonetic Audio:</span>
+                            <audio controls style="width: 100%; height: 36px; border-radius: 6px;" src="${audioUrl}"></audio>
+                        </div>
+                    ` : ''}
+                    <div style="border-top: 1px solid #2a2a2a; padding-top: 8px;">${meaningsHtml}</div>
                 </div>
             `;
-            
-            handleVaiiDataOutput(`Here is the location data for ${displayName}. It is currently ${tempFahrenheit} degrees Fahrenheit.`, htmlOutput, () => {
-                if (typeof google !== 'undefined' && google.maps) {
-                    const mapCoordinates = { lat: parseFloat(lat), lng: parseFloat(lon) };
-                    const loadedMapInstance = new google.maps.Map(document.getElementById('vaii-merged-map-canvas'), {
-                        center: mapCoordinates, zoom: 12, disableDefaultUI: false,
-                        styles: [
-                            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] }
-                        ]
-                    });
-                    new google.maps.Marker({ position: mapCoordinates, map: loadedMapInstance, title: displayName });
-                }
+            handleVaiiDataOutput(`Definition for ${entry.word}: ${entry.meanings?.[0]?.definitions?.[0]?.definition || ''}`, html);
+        })
+        .catch(() => handleVaiiDataOutput(`No definition found for "${cleanWord}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">No dictionary definition found for "${cleanWord}".</div>`));
+}
+
+function fetchCountryInfo(countryName) {
+    const cleanTarget = countryName.toLowerCase().trim();
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching country data for "${cleanTarget}"...</div>`;
+
+    const renderCard = (c, popValue) => {
+        const commonName = c.name?.common || countryName;
+        const officialName = c.name?.official || commonName;
+        const capital = (Array.isArray(c.capital) && c.capital.length > 0) ? c.capital.join(', ') : (c.capital || 'N/A');
+        const population = popValue ? Number(popValue).toLocaleString() : 'N/A';
+        const region = `${c.region || 'N/A'} (${c.subregion || ''})`;
+        
+        let currencyStr = 'N/A';
+        if (c.currencies) {
+            currencyStr = Object.values(c.currencies).map(curr => {
+                if (typeof curr === 'string') return curr;
+                return `${curr.name || ''} (${curr.symbol || ''})`;
+            }).filter(Boolean).join(', ') || 'N/A';
+        }
+
+        const flagSvg = (c.cca2) 
+            ? `https://flagcdn.com/w160/${c.cca2.toLowerCase()}.png` 
+            : (c.flags?.svg || c.flags?.png || '');
+
+        const html = `
+            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00bcd4; text-align: left;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <div>
+                        <div style="font-size: 1.25rem; font-weight: bold; color: #fff;">${commonName} ${c.flag || ''}</div>
+                        <div style="font-size: 0.82rem; color: #888;">${officialName}</div>
+                    </div>
+                    ${flagSvg ? `<img src="${flagSvg}" style="width: 70px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #333;">` : ''}
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.85rem; color: #ccc; border-top: 1px solid #2a2a2a; padding-top: 10px;">
+                    <div><strong>🏛️ Capital:</strong> ${capital}</div>
+                    <div><strong>👥 Population:</strong> ${population}</div>
+                    <div><strong>🌍 Region:</strong> ${region}</div>
+                    <div><strong>💰 Currency:</strong> ${currencyStr}</div>
+                </div>
+            </div>
+        `;
+        handleVaiiDataOutput(`${commonName}. Capital is ${capital}. Population is ${population}.`, html);
+    };
+
+    fetch('https://raw.githubusercontent.com/mledoze/countries/master/countries.json')
+        .then(res => {
+            if (!res.ok) throw new Error("CDN error");
+            return res.json();
+        })
+        .then(countries => {
+            const found = countries.find(c => {
+                const cCommon = (c.name?.common || '').toLowerCase();
+                const cOfficial = (c.name?.official || '').toLowerCase();
+                const cca2 = (c.cca2 || '').toLowerCase();
+                const cca3 = (c.cca3 || '').toLowerCase();
+                const altSpellings = (c.altSpellings || []).map(a => a.toLowerCase());
+
+                return cCommon === cleanTarget || 
+                       cOfficial === cleanTarget || 
+                       cca2 === cleanTarget || 
+                       cca3 === cleanTarget ||
+                       altSpellings.includes(cleanTarget) ||
+                       cCommon.includes(cleanTarget);
             });
+
+            if (!found) throw new Error("Country not found in dataset");
+
+            if (found.cca2) {
+                fetch(`https://api.worldbank.org/v2/country/${found.cca2}/indicator/SP.POP.TOTL?format=json&mrnev=1`)
+                    .then(r => r.json())
+                    .then(wbData => {
+                        const pop = wbData?.[1]?.[0]?.value || found.population || null;
+                        renderCard(found, pop);
+                    })
+                    .catch(() => renderCard(found, found.population || null));
+            } else {
+                renderCard(found, found.population || null);
+            }
         })
         .catch(err => {
-            console.error("Open-Meteo Weather Error:", err);
-            handleVaiiDataOutput("Error pulling metrics for spatial location.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Error pulling metrics for spatial location.</div>`);
+            console.error("Country Dataset Error:", err);
+            handleVaiiDataOutput(`Country "${countryName}" not found.`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Country "${countryName}" not found in database. Check your spelling and try again.</div>`);
         });
 }
 
-function executeVisionAnalysis(promptText) {
-    output.innerHTML = `
-        <div class="generation-status">
-            <div class="loader-spinner"></div>
-            <span style="color: #eee; font-size: 0.9rem;">VAII vision engine is processing image parameters...</span>
-        </div>
-    `;
+function fetchDrinkRecipe(drinkName) {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Finding cocktail recipe...</div>`;
+    const url = (!drinkName || drinkName === "random") 
+        ? 'https://www.thecocktaildb.com/api/json/v1/1/random.php'
+        : `https://www.thecocktaildb.com/api/json/v1/1/search.php?s=${encodeURIComponent(drinkName)}`;
 
-    const payload = {
-        contents: [{
-            parts: [
-                { text: promptText },
-                { inlineData: { mimeType: activeImageMimeType || "image/jpeg", data: activeImageBase64 } }
-            ]
-        }]
-    };
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.drinks || data.drinks.length === 0) {
+                return handleVaiiDataOutput(`No cocktail found for "${drinkName}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No cocktail recipes found for "${drinkName}".</div>`);
+            }
+            const drink = data.drinks[0];
+            let ingredients = [];
+            for (let i = 1; i <= 15; i++) {
+                const ing = drink[`strIngredient${i}`];
+                const meas = drink[`strMeasure${i}`];
+                if (ing) ingredients.push(`${meas ? meas.trim() + ' ' : ''}${ing.trim()}`);
+            }
 
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${getActiveGeminiKey()}`, {
-        method: "POST", 
-        headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify(payload)
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) {
-            output.innerHTML = `
-                <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">
-                    <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ Google API Error</div>
-                    <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">${data.error.message}</div>
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #e91e63; text-align: left; display: flex; gap: 15px;">
+                    ${drink.strDrinkThumb ? `<img src="${drink.strDrinkThumb}" style="width: 90px; height: 90px; border-radius: 8px; object-fit: cover; border: 1px solid #333;">` : ''}
+                    <div style="flex: 1;">
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff;">🍸 ${drink.strDrink}</div>
+                        <div style="color: #e91e63; font-size: 0.8rem; font-weight: bold; margin-bottom: 6px;">${drink.strAlcoholic} • ${drink.strGlass}</div>
+                        <div style="font-size: 0.82rem; color: #aaa; margin-bottom: 6px;"><strong>Ingredients:</strong> ${ingredients.join(', ')}</div>
+                        <div style="font-size: 0.82rem; color: #ddd; line-height: 1.4;">${drink.strInstructions}</div>
+                    </div>
                 </div>
             `;
-            return;
+            handleVaiiDataOutput(`${drink.strDrink}. ${drink.strInstructions}`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Cocktail recipe search failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Cocktail database network error.</div>`));
+}
+
+function fetchClientIPLookup() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying network parameters...</div>`;
+    fetch('https://ipapi.co/json/')
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) throw new Error("IP API failed");
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #673ab7; text-align: left;">
+                    <div style="font-size: 0.75rem; color: #673ab7; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🌐 Public IP Telemetry</div>
+                    <div style="font-size: 1.3rem; font-weight: bold; color: #fff; margin-bottom: 8px;">${data.ip}</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.85rem; color: #ccc; border-top: 1px solid #2a2a2a; padding-top: 10px;">
+                        <div><strong>🏢 ISP:</strong> ${data.org || data.asn || 'N/A'}</div>
+                        <div><strong>📍 Location:</strong> ${data.city}, ${data.region}</div>
+                        <div><strong>🏳️ Country:</strong> ${data.country_name} (${data.country_code})</div>
+                        <div><strong>📮 Postal:</strong> ${data.postal || 'N/A'}</div>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`Your public IP address is ${data.ip}, located in ${data.city}, ${data.region}.`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Could not retrieve IP parameters.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not retrieve IP parameters.</div>`));
+}
+
+function fetchSongTrack(songQuery) {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching music library for "${songQuery}"...</div>`;
+    fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(songQuery)}&entity=song&limit=1`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.results || data.results.length === 0) {
+                return handleVaiiDataOutput("No song track found for " + songQuery, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No songs found for "${songQuery}".</div>`);
+            }
+            const track = data.results[0];
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #1db954; text-align: left;">
+                    <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 12px;">
+                        <img src="${track.artworkUrl100}" style="width: 75px; height: 75px; border-radius: 8px; object-fit: cover; border: 1px solid #333;">
+                        <div>
+                            <div style="font-size: 1.15rem; font-weight: bold; color: #fff;">🎵 ${track.trackName}</div>
+                            <div style="color: #1db954; font-size: 0.9rem; font-weight: 500;">${track.artistName}</div>
+                            <div style="color: #888; font-size: 0.78rem; margin-top: 2px;">${track.collectionName || 'Single'} (${new Date(track.releaseDate).getFullYear()})</div>
+                        </div>
+                    </div>
+                    ${track.previewUrl ? `
+                        <div style="margin-top: 8px;">
+                            <span style="font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px;">30s Audio Preview:</span>
+                            <audio controls style="width: 100%; height: 36px; border-radius: 6px;" src="${track.previewUrl}"></audio>
+                        </div>
+                    ` : ''}
+                    <a href="${track.trackViewUrl}" target="_blank" style="display: block; margin-top: 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;">Listen full track on Apple Music ↗</a>
+                </div>
+            `;
+            handleVaiiDataOutput(`Found ${track.trackName} by ${track.artistName}.`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Music lookup failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Music search failed. Network error.</div>`));
+}
+
+function fetchAniListMedia(title, mediaType = "ANIME") {
+    const isAnime = (mediaType === "ANIME");
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying AniList ${isAnime ? 'anime' : 'manga'} data...</div>`;
+
+    const query = `
+        query ($search: String, $type: MediaType) {
+            Media (search: $search, type: $type, sort: POPULARITY_DESC) {
+                id
+                title {
+                    romaji
+                    english
+                }
+                coverImage {
+                    large
+                }
+                averageScore
+                episodes
+                chapters
+                status
+                genres
+                description(asHtml: false)
+                staff(perPage: 1) {
+                    nodes {
+                        name {
+                            full
+                        }
+                    }
+                }
+            }
         }
-        const descriptionResult = data.candidates[0].content.parts[0].text;
-        const finalHtml = `
-            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left;">
-                <div style="font-size: 0.75rem; color: #888; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; letter-spacing: 0.5px;">👁️ Image Analysis Output</div>
-                <div style="color: #eee; font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">${descriptionResult}</div>
+    `;
+
+    const variables = {
+        search: title,
+        type: mediaType
+    };
+
+    fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify({ query, variables })
+    })
+    .then(res => res.json())
+    .then(resData => {
+        const media = resData.data?.Media;
+        if (!media) {
+            return handleVaiiDataOutput(`No ${isAnime ? 'anime' : 'manga'} found for ${title}`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No ${isAnime ? 'anime' : 'manga'} entry found for "${title}".</div>`);
+        }
+
+        const displayTitle = media.title.english || media.title.romaji;
+        const genres = (media.genres || []).join(", ");
+        const score = media.averageScore ? (media.averageScore / 10).toFixed(1) : 'N/A';
+        const countInfo = isAnime 
+            ? `${media.episodes || '?'} eps` 
+            : `${media.chapters ? media.chapters + ' chapters' : 'Ongoing'}`;
+        const authorInfo = (!isAnime && media.staff?.nodes?.[0]?.name?.full)
+            ? `<div style="color: #bc223b; font-size: 0.82rem; font-weight: 500; margin-bottom: 4px;">✍️ By ${media.staff.nodes[0].name.full}</div>`
+            : '';
+
+        let cleanDesc = (media.description || 'No description provided.')
+            .replace(/<[^>]*>/g, '')
+            .replace(/\n\n/g, ' ')
+            .trim();
+
+        const borderColor = isAnime ? "#2e51a2" : "#bc223b";
+        const icon = isAnime ? "⛩️" : "📚";
+
+        const html = `
+            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid ${borderColor}; text-align: left; display: flex; gap: 15px;">
+                ${media.coverImage?.large ? `<img src="${media.coverImage.large}" style="width: 95px; border-radius: 8px; object-fit: cover; border: 1px solid #333;">` : ''}
+                <div>
+                    <div style="font-size: 1.15rem; font-weight: bold; color: #fff; margin-bottom: 3px;">${icon} ${displayTitle}</div>
+                    <div style="color: #ffc107; font-size: 0.85rem; margin-bottom: 4px;">⭐ Score: ${score} / 10 | ${countInfo} (${media.status ? media.status.replace(/_/g, ' ') : 'Unknown'})</div>
+                    ${authorInfo}
+                    <div style="color: #aaa; font-size: 0.78rem; margin-bottom: 8px;">Genres: ${genres || 'N/A'}</div>
+                    <div style="color: #ccc; font-size: 0.86rem; line-height: 1.4; max-height: 110px; overflow-y: auto;">${cleanDesc}</div>
+                </div>
             </div>
         `;
-        handleVaiiDataOutput(descriptionResult, finalHtml);
-        clearActiveImage();
-    }).catch(err => {
-        handleVaiiDataOutput("Network intercept error connecting to Google vision matrices.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Network intercept error connecting to Google vision matrices.</div>`);
-        console.error(err);
+        handleVaiiDataOutput(`${displayTitle}, score is ${score}. ${cleanDesc}`, html);
+    })
+    .catch(err => {
+        console.error("AniList API Error:", err);
+        handleVaiiDataOutput(`${isAnime ? 'Anime' : 'Manga'} lookup failed. Network error.`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">${isAnime ? 'Anime' : 'Manga'} lookup failed. Network error. Please try again.</div>`);
     });
 }
 
-function runMarketExecution(ticker) {
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching price updates for "${ticker.toUpperCase()}"...</div>`;
-    const cleanTicker = ticker.trim().toLowerCase();
-    const cryptoMap = { btc: "bitcoin", eth: "ethereum", solana: "solana" };
+function fetchPokemonEntry(pokeName) {
+    const cleanName = pokeName.toLowerCase().trim().replace(/\s+/g, '-');
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching Pokédex telemetry...</div>`;
+    fetch(`https://pokeapi.co/api/v2/pokemon/${encodeURIComponent(cleanName)}`)
+        .then(res => {
+            if (!res.ok) throw new Error("Pokemon not found");
+            return res.json();
+        })
+        .then(p => {
+            const types = p.types.map(t => `<span style="background: #333; padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; text-transform: capitalize; color: #ffcb05; font-weight: bold;">${t.type.name}</span>`).join(' ');
+            const sprite = p.sprites.other?.['official-artwork']?.front_default || p.sprites.front_default;
+            const stats = p.stats.map(s => `<div style="font-size: 0.78rem; color: #bbb;"><strong style="text-transform: capitalize;">${s.stat.name.replace('-', ' ')}:</strong> ${s.base_stat}</div>`).join('');
+            
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ffcb05; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div>
+                            <div style="font-size: 1.3rem; font-weight: bold; text-transform: capitalize; color: #fff;">⚡ #${p.id} ${p.name}</div>
+                            <div style="display: flex; gap: 6px; margin-top: 6px;">${types}</div>
+                        </div>
+                        ${sprite ? `<img src="${sprite}" style="width: 85px; height: 85px; object-fit: contain;">` : ''}
+                    </div>
+                    <div style="border-top: 1px solid #2a2a2a; padding-top: 10px; margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                        <div style="font-size: 0.78rem; color: #bbb;"><strong>Height:</strong> ${(p.height / 10).toFixed(1)} m</div>
+                        <div style="font-size: 0.78rem; color: #bbb;"><strong>Weight:</strong> ${(p.weight / 10).toFixed(1)} kg</div>
+                        ${stats}
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`Pokemon #${p.id} ${p.name}. Type: ${p.types.map(t => t.type.name).join(', ')}.`, html);
+        })
+        .catch(() => handleVaiiDataOutput(`Pokemon "${pokeName}" not found.`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Pokémon "${pokeName}" not found in Pokédex index.</div>`));
+}
 
-    if (cryptoMap[cleanTicker]) {
-        fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoMap[cleanTicker]}&vs_currencies=usd&include_24hr_change=true`)
-            .then(res => res.json())
-            .then(data => {
-                const coinData = data[cryptoMap[cleanTicker]];
-                const price = coinData.usd;
-                const change = coinData.usd_24h_change.toFixed(2);
-                const htmlOutput = `
-                    <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #6f42c1; text-align: left;">
-                        <strong>🪙 ${cryptoMap[cleanTicker].toUpperCase()} (${ticker.toUpperCase()})</strong><br>
-                        💰 Price: $${price.toLocaleString()} USD<br>
-                        ${change >= 0 ? "📈" : "📉"} 24h Change: ${change}%
+function fetchOpenLibraryBook(bookTitle) {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying Open Library archives...</div>`;
+    fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(bookTitle)}&limit=1`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.docs || data.docs.length === 0) {
+                return handleVaiiDataOutput("No book found for " + bookTitle, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No book found for "${bookTitle}".</div>`);
+            }
+            const book = data.docs[0];
+            const author = (book.author_name || ['Unknown Author']).join(', ');
+            const coverUrl = book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg` : null;
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #e1ad01; text-align: left; display: flex; gap: 15px;">
+                    ${coverUrl ? `<img src="${coverUrl}" style="width: 85px; border-radius: 6px; object-fit: cover; border: 1px solid #333;">` : ''}
+                    <div>
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 4px;">📖 ${book.title}</div>
+                        <div style="color: #e1ad01; font-size: 0.9rem; margin-bottom: 6px;">✍️ By ${author}</div>
+                        <div style="color: #aaa; font-size: 0.82rem; line-height: 1.4;">
+                            📅 First Published: ${book.first_publish_year || 'Unknown'}<br>
+                            📄 Pages: ${book.number_of_pages_median || 'N/A'}<br>
+                            ⭐ Editions: ${book.edition_count || 1}
+                        </div>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`Found ${book.title} by ${author}, first published in ${book.first_publish_year || 'unknown year'}.`, html);
+        })
+        .catch(() => handleVaiiDataOutput("Book archive lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Open Library search failed. Network error.</div>`));
+}
+
+function fetchTriviaQuestion() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Generating trivia question...</div>`;
+    fetch(`https://opentdb.com/api.php?amount=1&type=multiple`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.results || data.results.length === 0) {
+                return handleVaiiDataOutput("Could not load a trivia question.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">Could not load trivia question. Try again!</div>`);
+            }
+            const q = data.results[0];
+            const questionText = decodeHTMLEntities(q.question);
+            const correctAnswer = decodeHTMLEntities(q.correct_answer);
+            const incorrectAnswers = q.incorrect_answers.map(a => decodeHTMLEntities(a));
+            
+            const allChoices = [...incorrectAnswers, correctAnswer].sort(() => Math.random() - 0.5);
+
+            let buttonsHtml = allChoices.map((choice) => {
+                return `<button class="trivia-choice-btn" data-correct="${choice === correctAnswer}" style="background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 0.9rem; cursor: pointer; text-align: left; transition: background 0.15s ease; width: 100%;">${choice}</button>`;
+            }).join('');
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff007f; text-align: left;">
+                    <div style="font-size: 0.75rem; color: #ff007f; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🎯 Trivia [${q.category}] • ${q.difficulty.toUpperCase()}</div>
+                    <div style="font-size: 1.1rem; font-weight: bold; color: #fff; margin-bottom: 14px; line-height: 1.4;">${questionText}</div>
+                    <div id="trivia-choices-box" style="display: flex; flex-direction: column; gap: 8px;">
+                        ${buttonsHtml}
+                    </div>
+                    <div id="trivia-result-box" style="margin-top: 12px; font-weight: bold; font-size: 0.95rem; display: none;"></div>
+                </div>
+            `;
+
+            handleVaiiDataOutput(`Trivia: ${questionText}`, html, () => {
+                document.querySelectorAll('.trivia-choice-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const isCorrect = e.currentTarget.getAttribute('data-correct') === 'true';
+                        const resBox = document.getElementById('trivia-result-box');
+                        document.querySelectorAll('.trivia-choice-btn').forEach(b => {
+                            b.disabled = true;
+                            if (b.getAttribute('data-correct') === 'true') {
+                                b.style.background = '#28a745';
+                                b.style.borderColor = '#28a745';
+                            } else {
+                                b.style.opacity = '0.5';
+                            }
+                        });
+
+                        if (isCorrect) {
+                            e.currentTarget.style.background = '#28a745';
+                            resBox.style.color = '#28a745';
+                            resBox.innerText = `🎉 Correct! The answer was "${correctAnswer}".`;
+                            speakText(`Correct! The answer was ${correctAnswer}`);
+                        } else {
+                            e.currentTarget.style.background = '#dc3545';
+                            resBox.style.color = '#dc3545';
+                            resBox.innerText = `❌ Incorrect! The correct answer was "${correctAnswer}".`;
+                            speakText(`Incorrect! The correct answer was ${correctAnswer}`);
+                        }
+                        resBox.style.display = 'block';
+                    });
+                });
+            });
+        })
+        .catch(() => handleVaiiDataOutput("Trivia service unavailable.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Open Trivia service unavailable. Please retry.</div>`));
+}
+
+function fetchGameDeals() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Tracking top free games & discounts...</div>`;
+    
+    fetch(`https://www.cheapshark.com/api/1.0/deals?sortBy=Savings&pageSize=5`)
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        })
+        .then(deals => {
+            if (!Array.isArray(deals) || deals.length === 0) {
+                return handleVaiiDataOutput("No active game deals found.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No active game deals found right now.</div>`);
+            }
+
+            let dealsHtml = "";
+            deals.slice(0, 3).forEach(deal => {
+                const isFree = parseFloat(deal.salePrice) === 0;
+                const priceLabel = isFree 
+                    ? `<span style="color: #00e676; font-weight: bold;">FREE</span>` 
+                    : `<span style="color: #28a745; font-weight: bold;">$${deal.salePrice}</span>`;
+                
+                dealsHtml += `
+                    <div style="background: #252525; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; gap: 12px; align-items: center;">
+                        <img src="${deal.thumb}" style="width: 80px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid #333;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: bold; font-size: 0.95rem; color: #fff;">${deal.title}</div>
+                            <div style="font-size: 0.8rem; color: #aaa; margin-top: 2px;">
+                                ${priceLabel} <span style="text-decoration: line-through; color: #777; margin-left: 4px;">$${deal.normalPrice}</span> • <span style="color: #ff9800;">${Math.round(deal.savings)}% OFF</span>
+                            </div>
+                            <a href="https://www.cheapshark.com/redirect?dealID=${deal.dealID}" target="_blank" style="display: inline-block; margin-top: 4px; color: #4da3ff; font-size: 0.78rem; font-weight: bold; text-decoration: none;">View Game Deal ↗</a>
+                        </div>
                     </div>
                 `;
-                handleVaiiDataOutput(`The price of ${cryptoMap[cleanTicker]} is ${price.toLocaleString()} dollars.`, htmlOutput);
-            }).catch(() => { handleVaiiDataOutput("Error pulling crypto ticker data.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Error pulling crypto ticker data.</div>`); });
-    } else {
-        const htmlOutput = `
-            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #6f42c1; text-align: left;">
-                <strong>📈 Stock Ticker: ${ticker.toUpperCase()}</strong><br>
-                <span style="color: #aaa; font-size: 0.9rem;">To view deep market assets, open the link directly:</span>
-                <a href="https://finance.yahoo.com/quote/${ticker.toUpperCase()}" target="_blank">Open Yahoo Finance ↗</a>
+            });
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00e676; text-align: left;">
+                    <div style="font-size: 0.8rem; color: #00e676; text-transform: uppercase; font-weight: bold; margin-bottom: 10px;">🎮 Top PC Gaming Freebies & Deals</div>
+                    ${dealsHtml}
+                </div>
+            `;
+            handleVaiiDataOutput("Here are the top gaming freebies and discounts.", html);
+        })
+        .catch(err => {
+            console.error("CheapShark deals error:", err);
+            handleVaiiDataOutput("Game deals lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Gaming deals feed network error. Please try again.</div>`);
+        });
+}
+
+function fetchDadJoke() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching joke...</div>`;
+    fetch('https://icanhazdadjoke.com/', {
+        headers: { 'Accept': 'application/json' }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data || !data.joke) {
+            return handleVaiiDataOutput("Why did the chicken cross the road? To get to the other side!", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">Why did the chicken cross the road? To get to the other side!</div>`);
+        }
+        const html = `
+            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff9800; text-align: left;">
+                <div style="font-size: 0.75rem; color: #ff9800; text-transform: uppercase; font-weight: bold; margin-bottom: 6px;">😂 Dad Joke</div>
+                <div style="font-size: 1.15rem; font-weight: 500; color: #fff; line-height: 1.45;">"${data.joke}"</div>
             </div>
         `;
-        handleVaiiDataOutput(`I found the stock ticker ${ticker.toUpperCase()}.`, htmlOutput);
+        handleVaiiDataOutput(data.joke, html);
+    })
+    .catch(() => handleVaiiDataOutput("Joke lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Joke service error.</div>`));
+}
+
+// ==========================================
+// 6. ROUTING LOGIC (VAII NATIVE)
+// ==========================================
+function runInfoExecution(query) {
+    const cleanQuery = query.toLowerCase().trim();
+    const cryptoMap = { btc: "bitcoin", eth: "ethereum", solana: "solana" };
+    const greetingsList = ["hello", "hi", "hey", "sup", "yo", "greetings"];
+    let greetingHTML = "";
+
+    if (greetingsList.includes(cleanQuery)) {
+        greetingHTML = `
+            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #17a2b8; text-align: left; margin-bottom: 15px;">
+                👋 <strong>Assistant:</strong><br><span>Hello! How can I help you today? System initialized.</span>
+            </div>
+        `;
     }
-}
 
-function executeImageGeneration(imagePrompt) {
-    if (ttsBtn) ttsBtn.style.display = 'flex';
-    routingWarning.style.display = "none"; 
-    output.innerHTML = `
-        <div style="color: #888; font-style: italic; margin-bottom: 12px; font-size: 0.9rem; line-height: 1.4;">🎨 Generating artwork for "${imagePrompt}"...</div>
-        <div class="generation-status" id="image-loader">
-            <div class="loader-spinner"></div>
-            <span style="color: #eee; font-size: 0.9rem;">Assembling pixels...</span>
-        </div>
-    `;
-    const seed = Math.floor(Math.random() * 1000000);
-    const imageUrl = `https://image.pollinations.ai/p/${encodeURIComponent(imagePrompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
-    const img = new Image();
-    img.src = imageUrl;
-    img.style.width = "100%";
-    img.style.borderRadius = "8px";
-    img.style.marginTop = "10px";
-    img.style.display = "none";
-    img.style.boxShadow = "0 4px 15px rgba(0,0,0,0.5)";
-    img.onload = function() {
-        document.getElementById("image-loader")?.remove();
-        img.style.display = "block";
-    };
-    output.appendChild(img);
-}
+    if (cleanQuery.includes("calendar") || cleanQuery.includes("calender") || cleanQuery.includes("schedule") || cleanQuery === "agenda" || cleanQuery.includes("email") || cleanQuery.includes("gmail") || cleanQuery.includes("inbox")) {
+        const htmlLayout = greetingHTML + `
+            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">
+                ⚠️ <strong>Workspace Elements Disabled:</strong><br><br>
+                <span style="color: #aaa; font-size: 0.9rem;">Private calendar and email protocols remain inactive to preserve a standard authorization route.</span>
+            </div>
+        `;
+        handleVaiiDataOutput("Private calendar and email protocols remain inactive.", htmlLayout);
+        return; 
+    }
 
-function launchTargetUrl(url) {
-    routingWarning.style.display = "block"; 
-    const htmlOutput = `
-        <div class="news-header-msg" style="color: #888; font-style: italic; margin-bottom: 4px; font-size: 0.9rem; line-height: 1.4;">Navigating to external web link...</div>
-        <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left; margin-bottom: 15px;">
-            🔗 <strong>Address:</strong> <span style="color: #4da3ff; word-break: break-all;">${url}</span>
-        </div>
-        <a href="${url}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #007bff; border-radius: 6px; padding: 10px 14px; color: white; text-decoration: none; font-weight: bold; font-size: 0.95rem;">
-            <span>Launch Link</span>
-            <span>Open Site ↗</span>
-        </a>
-    `;
-    handleVaiiDataOutput("Opening link.", htmlOutput);
-    window.open(url, '_blank');
+    if (cleanQuery.startsWith("note:")) {
+        let text = query.substring(5).trim();
+        if (text) {
+            let notes = JSON.parse(localStorage.getItem('vaii_notes') || '[]');
+            notes.push(text);
+            localStorage.setItem('vaii_notes', JSON.stringify(notes));
+            handleVaiiDataOutput("Note securely saved to local storage.", `<div style="background: #1a1a1a; padding: 14px; border-left: 3px solid #28a745; text-align: left; border-radius: 8px;">✅ Note securely saved to local storage. Type <code>show notes</code> to view.</div>`);
+        }
+        return;
+    }
+    if (cleanQuery === "show notes" || cleanQuery === "my notes") return renderNotesManager();
+
+    // FOREX CONVERTER (e.g. convert 100 USD to EUR)
+    const forexMatch = cleanQuery.match(/^convert\s+([0-9.]+)\s*([a-zA-Z]{3})\s+to\s+([a-zA-Z]{3})$/i);
+    if (forexMatch) {
+        return fetchForexConversion(forexMatch[1], forexMatch[2], forexMatch[3]);
+    }
+
+    // QR CODE GENERATOR (e.g. qr https://...)
+    if (cleanQuery.startsWith("qr ") || cleanQuery.startsWith("qrcode ")) {
+        return generateQRCode(query.replace(/^(qr|qrcode)\s+/i, '').trim());
+    }
+
+    // ISS TELEMETRY (e.g., iss, orbit)
+    if (cleanQuery === "iss" || cleanQuery === "orbit" || cleanQuery === "where is the iss" || cleanQuery === "space station") {
+        return fetchISSTelemetry();
+    }
+
+    if (cleanQuery === "space" || cleanQuery === "nasa" || cleanQuery === "apod" || cleanQuery === "astronomy") {
+        return fetchNasaAPOD();
+    }
+
+    if (cleanQuery === "advice" || cleanQuery === "give me advice" || cleanQuery === "quote") {
+        return fetchAdviceSlip();
+    }
+
+    if (cleanQuery.startsWith("age ")) {
+        return fetchAgifyPrediction(cleanQuery.replace(/^age\s+/i, '').trim());
+    }
+
+    if (cleanQuery.startsWith("define ")) {
+        return fetchDictionaryDefinition(cleanQuery.replace(/^define\s+/i, '').trim());
+    }
+
+    if (cleanQuery === "dog" || cleanQuery === "random dog" || cleanQuery === "dogs") {
+        return fetchCuteAnimal("dog");
+    }
+
+    if (cleanQuery === "cat" || cleanQuery === "random cat" || cleanQuery === "cats") {
+        return fetchCuteAnimal("cat");
+    }
+
+    if (cleanQuery.startsWith("country ") || cleanQuery.startsWith("flag of ")) {
+        return fetchCountryInfo(cleanQuery.replace(/^(country|flag of)\s+/i, '').trim());
+    }
+
+    if (cleanQuery.startsWith("drink ") || cleanQuery === "random drink" || cleanQuery === "cocktail") {
+        return fetchDrinkRecipe(cleanQuery.replace(/^drink\s+/i, '').trim());
+    }
+
+    if (cleanQuery === "my ip" || cleanQuery === "ip" || cleanQuery === "ip lookup" || cleanQuery === "what is my ip") {
+        return fetchClientIPLookup();
+    }
+
+    if (cleanQuery === "trivia" || cleanQuery === "quiz" || cleanQuery.startsWith("trivia ") || cleanQuery.startsWith("quiz ")) {
+        return fetchTriviaQuestion();
+    }
+
+    if (cleanQuery === "free games" || cleanQuery === "deals" || cleanQuery === "giveaways" || cleanQuery.startsWith("free game")) {
+        return fetchGameDeals();
+    }
+
+    if (cleanQuery === "joke" || cleanQuery === "tell me a joke" || cleanQuery === "make me laugh" || cleanQuery.startsWith("joke ")) {
+        return fetchDadJoke();
+    }
+
+    if (cleanQuery.startsWith("song ") || cleanQuery.startsWith("music ") || cleanQuery.startsWith("track ")) {
+        return fetchSongTrack(cleanQuery.replace(/^(song|music|track)\s+/i, '').trim());
+    }
+
+    if (cleanQuery.startsWith("anime ")) {
+        return fetchAniListMedia(cleanQuery.replace(/^anime\s+/i, '').trim(), "ANIME");
+    }
+
+    if (cleanQuery.startsWith("manga ")) {
+        return fetchAniListMedia(cleanQuery.replace(/^manga\s+/i, '').trim(), "MANGA");
+    }
+
+    if (cleanQuery.startsWith("pokemon ") || cleanQuery.startsWith("pokedex ")) {
+        return fetchPokemonEntry(cleanQuery.replace(/^(pokemon|pokedex)\s+/i, '').trim());
+    }
+
+    if (cleanQuery.startsWith("book ") || cleanQuery.startsWith("novel ")) {
+        return fetchOpenLibraryBook(cleanQuery.replace(/^(book|novel)\s+/i, '').trim());
+    }
+
+    if (cleanQuery.startsWith("news about ")) return fetchNewsAPI(query.substring(11).trim());
+    if (cleanQuery === "top news" || cleanQuery === "news") return fetchNewsAPI("");
+
+    if (cleanQuery.startsWith("movie ") || cleanQuery.startsWith("film ")) {
+        return fetchOMDBMedia(cleanQuery.replace(/^(movie|film)\s+/i, '').trim());
+    }
+
+    let isFoodIntent = Object.keys(LOCAL_FOOD_DB).some(cat => cleanQuery.includes(cat)) || 
+                       cleanQuery.startsWith("order ") || cleanQuery.startsWith("find ");
+
+    if (isFoodIntent) {
+        let foodItem = query.replace(/order me a /i, "")
+            .replace(/order a /i, "")
+            .replace(/order some /i, "")
+            .replace(/order /i, "")
+            .replace(/find /i, "")
+            .trim();
+        executeLocalFoodSearch(foodItem);
+        return;
+    }
+
+    const options = Array.from(datalist.options);
+    const matchedOption = options.find(opt => opt.value.toLowerCase() === cleanQuery);
+    if (matchedOption && matchedOption.getAttribute('data-lat')) {
+        renderUnifiedLocationCard(matchedOption.getAttribute('data-lat'), matchedOption.getAttribute('data-lon'), matchedOption.getAttribute('data-tz'), matchedOption.value, greetingHTML);
+        return;
+    }
+
+    const isExplicitLocationIntent = cleanQuery.startsWith("map of ") || cleanQuery.startsWith("show map ") || cleanQuery.startsWith("time in ") || cleanQuery.startsWith("weather in ") || cleanQuery.startsWith("weather ") || cleanQuery.startsWith("clock ");
+
+    if (isExplicitLocationIntent) {
+        let parsedLocation = query.replace(/map of /i, "").replace(/show map /i, "").replace(/time in /i, "").replace(/weather in /i, "").replace(/weather /i, "").replace(/clock /i, "").trim();
+        resolveAndRenderLocation(parsedLocation, greetingHTML);
+        return;
+    }
+
+    if (query.toLowerCase().startsWith("open ")) {
+        let rawTarget = query.substring(5).trim().toLowerCase().replace(/['"]+/g, '');
+        if (!rawTarget) { output.innerText = "Please specify what you want to open."; return; }
+        output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Resolving address for "${rawTarget}"...</div>`;
+        
+        const randomizedRoutes = {
+            "gemini": ["https://gemini.google.com"],
+            "google gemini": ["https://gemini.google.com"],
+            "youtube music": ["https://music.youtube.com"],
+            "minecraft": ["https://minecraft.net"],
+            "wikipedia": ["https://wikipedia.org"],
+            "m&t": ["https://mandtbank.com"],
+            "m&t bank": ["https://mandtbank.com"]
+        };
+
+        if (randomizedRoutes[rawTarget]) {
+            launchTargetUrl(randomizedRoutes[rawTarget][0]);
+            return;
+        }
+
+        let sanitizedDomain = rawTarget.replace(/&/g, 'and').replace(/[^a-z0-9.-]/g, '');
+        if (!sanitizedDomain) sanitizedDomain = "google";
+        
+        if (sanitizedDomain.includes('.')) {
+            launchTargetUrl(`https://${sanitizedDomain}`);
+        } else {
+            launchTargetUrl(`https://${sanitizedDomain}.com`);
+        }
+        return;
+    }
+
+    if (/\.[a-z]{2,6}/i.test(query) || query.startsWith('http://') || query.startsWith('https://')) {
+        let cleanUrl = query.startsWith('http') ? query : 'https://' + query;
+        launchTargetUrl(cleanUrl);
+        return;
+    }
+
+    if (cryptoMap[cleanQuery] || cleanQuery.startsWith("price of ")) {
+        runMarketExecution(cleanQuery.startsWith("price of ") ? cleanQuery.substring(9).trim() : cleanQuery);
+        return;
+    }
+
+    if (/^[0-9+\-*/().\s]+$/.test(query) || cleanQuery.includes(" to ")) {
+        try {
+            if (!cleanQuery.includes(" to ")) {
+                const result = Function(`"use strict"; return (${query})`)();
+                const htmlOutput = `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #28a745; text-align: left;">🔢 <strong>Calculation:</strong><br><span style="font-size: 1.3rem; font-weight: bold;">${query} = ${result}</span></div>`;
+                handleVaiiDataOutput("The answer is " + result, htmlOutput);
+                return;
+            }
+        } catch(e) {}
+
+        if (cleanQuery.includes(" to ")) {
+            const parts = query.split(/ to /i);
+            const source = parts[0].trim();
+            const targetLanguage = parts[1].trim();
+            const unitMatch = source.match(/^([0-9.]+)\s*([a-zA-Z°]+)$/);
+            
+            if (unitMatch) {
+                const num = parseFloat(unitMatch[1]);
+                const fromUnit = unitMatch[2].toLowerCase();
+                const toUnit = targetLanguage.toLowerCase();
+                let conversionResult = null;
+                if (fromUnit === "lbs" && toUnit === "kg") conversionResult = `${(num * 0.45359237).toFixed(2)} kg`;
+                if (fromUnit === "kg" && toUnit === "lbs") conversionResult = `${(num / 0.45359237).toFixed(2)} lbs`;
+                if (fromUnit === "miles" && toUnit === "km") conversionResult = `${(num * 1.60934).toFixed(2)} km`;
+                if (fromUnit === "km" && toUnit === "miles") conversionResult = `${(num / 1.60934).toFixed(2)} miles`;
+                if (fromUnit === "f" && toUnit === "c") conversionResult = `${((num - 32) * 5 / 9).toFixed(1)}°C`;
+                if (fromUnit === "c" && toUnit === "f") conversionResult = `${((num * 9 / 5) + 32).toFixed(1)}°F`;
+                
+                if (conversionResult) {
+                    const htmlOutput = `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #28a745; text-align: left;">🔄 <strong>Conversion:</strong><br>📤 Result: <strong style="color: #28a745; font-size: 1.3rem; display:block; margin-top:4px;">${conversionResult}</strong></div>`;
+                    handleVaiiDataOutput("That converts to " + conversionResult, htmlOutput);
+                    return;
+                }
+            }
+
+            output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Translating phrase...</div>`;
+
+            fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(source)}&langpair=en|${encodeURIComponent(targetLanguage.substring(0,2))}`)
+                .then(res => res.json())
+                .then(data => {
+                    const transText = data.responseData.translatedText;
+                    const htmlOutput = `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #4da3ff; text-align: left;">🗣️ <strong>Translation:</strong><br>📤 Result: <strong style="color: #4da3ff; font-size: 1.1rem; display:block; margin-top:4px;">"${transText}"</strong></div>`;
+                    handleVaiiDataOutput("The translation is " + transText, htmlOutput);
+                }).catch(() => { handleVaiiDataOutput("Translation engine network failure.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Translation engine network failure.</div>`); });
+            return;
+        }
+    }
+
+    routingWarning.style.display = "none";
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching knowledge base for "${query}"...</div>`;
+
+    if (query.includes(",")) {
+        let basePart = query.split(',')[0].trim();
+        fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(basePart)}&count=5&language=en&format=json`)
+            .then(res => res.json())
+            .then(geoData => {
+                if (geoData.results && geoData.results.length > 0) {
+                    const secondary = query.split(',')[1].toLowerCase().trim();
+                    const matched = geoData.results.find(l => 
+                        (l.admin1 && l.admin1.toLowerCase().includes(secondary)) || 
+                        (l.country && l.country.toLowerCase().includes(secondary))
+                    ) || geoData.results[0];
+
+                    let formattedName = `${matched.name}`;
+                    if (matched.admin1 && matched.admin1 !== matched.name) formattedName += `, ${matched.admin1}`;
+                    if (matched.country) formattedName += ` (${matched.country})`;
+
+                    renderUnifiedLocationCard(matched.latitude, matched.longitude, matched.timezone || 'auto', formattedName, greetingHTML);
+                } else {
+                    proceedWithWikiPipeline();
+                }
+            })
+            .catch(() => {
+                proceedWithWikiPipeline();
+            });
+    } else {
+        proceedWithWikiPipeline();
+    }
+
+    function proceedWithWikiPipeline() {
+        if (!query.includes(" ")) {
+            fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(query.toLowerCase())}`)
+                .then(res => res.json())
+                .then(dictData => {
+                    const key = Object.keys(dictData)[0];
+                    const rawDefinition = cleanWiktionaryDefinition(dictData[key][0].definitions[0].definition);
+                    let wikiData = { wiktionary: { title: query, text: rawDefinition, pos: dictData[key][0].partOfSpeech || "noun" } };
+                    if (greetingHTML) wikiData.greeting = greetingHTML;
+                    runUnifiedWikiPipeline(query, wikiData);
+                }).catch(() => {
+                    runUnifiedWikiPipeline(query, { greeting: greetingHTML });
+                });
+        } else {
+            runUnifiedWikiPipeline(query, { greeting: greetingHTML });
+        }
+    }
 }
 
 // ==========================================
@@ -1547,12 +2178,13 @@ hubInput?.addEventListener('input', () => {
 });
 
 executeActionBtn?.addEventListener('click', () => {
-    const query = hubInput.value.trim();
-    const mode = document.querySelector('input[name="vaii-mode"]:checked').value;
+    const query = (hubInput?.value || "").trim();
+    const modeEl = document.querySelector('input[name="vaii-mode"]:checked');
+    const mode = modeEl ? modeEl.value : "native";
     
     if (!query && !activeImageBase64) return;
     
-    hubInput.value = "";
+    if (hubInput) hubInput.value = "";
     if (routingWarning) routingWarning.style.display = "none";
     
     if (activeImageBase64) {
