@@ -322,6 +322,18 @@ function stripHtml(html) {
     return tmp.textContent || tmp.innerText || "";
 }
 
+function cleanWiktionaryDefinition(rawHtml) {
+    if (!rawHtml) return "";
+    let tmp = document.createElement("DIV");
+    tmp.innerHTML = rawHtml;
+    // Strip styles, links, and parser classes
+    tmp.querySelectorAll('style, script, .mw-parser-output, .defdate').forEach(el => el.remove());
+    let clean = tmp.textContent || tmp.innerText || "";
+    // Regex cleanup of any lingering CSS blocks
+    clean = clean.replace(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/g, '').trim();
+    return clean;
+}
+
 function speakText(text) {
     if (!('speechSynthesis' in window) || !text) return;
     window.speechSynthesis.cancel(); 
@@ -1318,7 +1330,7 @@ function runInfoExecution(query) {
                 .then(res => res.json())
                 .then(dictData => {
                     const key = Object.keys(dictData)[0];
-                    const rawDefinition = dictData[key][0].definitions[0].definition.replace(/<[^>]*>/g, '').trim();
+                    const rawDefinition = cleanWiktionaryDefinition(dictData[key][0].definitions[0].definition);
                     let wikiData = { wiktionary: { title: query, text: rawDefinition, pos: dictData[key][0].partOfSpeech || "noun" } };
                     if (greetingHTML) wikiData.greeting = greetingHTML;
                     runUnifiedWikiPipeline(query, wikiData);
@@ -1359,13 +1371,35 @@ function runUnifiedWikiPipeline(query, wikiData) {
         .then(res => res.json())
         .then(wikiSearch => {
             if (wikiSearch.query?.search?.length > 0) {
-                return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiSearch.query.search[0].title.replace(/ /g, '_'))}`)
+                // Find first result that isn't purely a disambiguation page
+                let targetTitle = wikiSearch.query.search[0].title;
+                if (targetTitle.toLowerCase().endsWith("(disambiguation)") && wikiSearch.query.search.length > 1) {
+                    targetTitle = wikiSearch.query.search[1].title;
+                }
+
+                return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(targetTitle.replace(/ /g, '_'))}`)
                     .then(res => res.json())
                     .then(summaryData => { 
-                        wikiData.wikipedia = { 
-                            title: wikiSearch.query.search[0].title, 
-                            text: summaryData.extract 
-                        }; 
+                        // If it's still a disambiguation or "may refer to", skip or look for real summary
+                        if (summaryData.type !== "disambiguation" && !summaryData.extract?.toLowerCase().includes("may refer to:")) {
+                            wikiData.wikipedia = { 
+                                title: summaryData.title || targetTitle, 
+                                text: summaryData.extract 
+                            };
+                        } else if (wikiSearch.query.search.length > 1) {
+                            // Fetch second result fallback
+                            const fallbackTitle = wikiSearch.query.search[1].title;
+                            return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(fallbackTitle.replace(/ /g, '_'))}`)
+                                .then(r => r.json())
+                                .then(fallbackSummary => {
+                                    if (fallbackSummary.extract && !fallbackSummary.extract.toLowerCase().includes("may refer to:")) {
+                                        wikiData.wikipedia = {
+                                            title: fallbackSummary.title || fallbackTitle,
+                                            text: fallbackSummary.extract
+                                        };
+                                    }
+                                });
+                        }
                     });
             }
         }).catch(() => null);
@@ -1378,13 +1412,13 @@ function runUnifiedWikiPipeline(query, wikiData) {
 function compileFinalSourceIndexBox(query, wikiData) {
     let blocksHtml = [];
 
-    if (wikiData.wiktionary) {
+    if (wikiData.wiktionary && wikiData.wiktionary.text) {
         blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #28a745; text-align: left;"><strong>${wikiData.wiktionary.title}</strong> (${wikiData.wiktionary.pos}): ${wikiData.wiktionary.text}</div>`);
     }
-    if (wikiData.youtube) {
+    if (wikiData.youtube && wikiData.youtube.title) {
         blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;"><strong>📺 ${wikiData.youtube.title}</strong><br><span style="font-size: 0.85rem; color: #aaa;">🔴 Subs: ${wikiData.youtube.subs} | Views: ${wikiData.youtube.views}</span><br><br><em>${wikiData.youtube.text}</em></div>`);
     }
-    if (wikiData.wikipedia) {
+    if (wikiData.wikipedia && wikiData.wikipedia.text) {
         blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left;"><strong>${wikiData.wikipedia.title}:</strong> ${wikiData.wikipedia.text}</div>`);
     }
 
@@ -1398,23 +1432,23 @@ function compileFinalSourceIndexBox(query, wikiData) {
     }
     
     spokenText += `Here is the information I found for ${query}. `;
-    if (wikiData.wiktionary) spokenText += wikiData.wiktionary.text;
-    else if (wikiData.wikipedia) spokenText += wikiData.wikipedia.text;
-    else if (wikiData.youtube) spokenText += wikiData.youtube.text;
+    if (wikiData.wiktionary && wikiData.wiktionary.text) spokenText += wikiData.wiktionary.text;
+    else if (wikiData.wikipedia && wikiData.wikipedia.text) spokenText += wikiData.wikipedia.text;
+    else if (wikiData.youtube && wikiData.youtube.text) spokenText += wikiData.youtube.text;
 
     totalHTML += `<div class="news-header-msg" style="color: #888; font-style: italic; margin-bottom: 12px; font-size: 0.9rem; line-height: 1.4;">I have provided the most relevant text of each information source related to "${query}".</div>`;
     totalHTML += blocksHtml.join(`<div style="color: #888; font-style: italic; font-size: 0.85rem; margin: 15px 0 8px 0; text-align: left;">This might also be relevant:</div>`);
 
     totalHTML += `<div class="source-box" style="border-top: 1px solid #333; padding-top: 12px; margin-top: 15px;"><span style="display: block; font-size: 0.75rem; color: #777; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Sources Index</span><div class="source-list" style="display: flex; flex-direction: column; gap: 6px;">`;
 
-    if (wikiData.wiktionary) {
+    if (wikiData.wiktionary && wikiData.wiktionary.text) {
         totalHTML += `<a href="https://en.wiktionary.org/wiki/${encodeURIComponent(query)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">📰 Wiktionary</span><span>Open Source →</span></a>`;
     }
-    if (wikiData.youtube) {
+    if (wikiData.youtube && wikiData.youtube.title) {
         const channelPath = wikiData.youtube.customUrl ? wikiData.youtube.customUrl : `@channel`;
         totalHTML += `<a href="https://www.youtube.com/${channelPath}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #ff4444; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">🔴 YouTube Channel</span><span>Live Metrics →</span></a>`;
     }
-    if (wikiData.wikipedia) {
+    if (wikiData.wikipedia && wikiData.wikipedia.text) {
         totalHTML += `<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(wikiData.wikipedia.title)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">📰 Wikipedia</span><span>Open Source →</span></a>`;
     }
     totalHTML += `</div></div>`;
