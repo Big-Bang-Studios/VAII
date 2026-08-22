@@ -15,13 +15,13 @@
             height: 100vh !important;
             height: 100dvh !important;
             width: 100% !important;
-            overflow: hidden !important; /* Locks outer body scroll */
+            overflow: hidden !important;
             margin: 0;
             padding: 0;
             background-color: #121212 !important;
             color: #ffffff !important;
             font-family: system-ui, -apple-system, sans-serif;
-            position: fixed; /* Prevents mobile browser viewport bounce */
+            position: fixed;
         }
 
         body {
@@ -85,7 +85,6 @@
             flex-shrink: 0;
         }
         
-        /* CARD SCROLLING ISOLATION */
         .widget {
             background-color: #1e1e1e;
             padding: 18px;
@@ -97,12 +96,11 @@
             width: 100%;
             max-height: calc(100vh - 110px);
             max-height: calc(100dvh - 110px);
-            overflow-y: auto !important; /* ONLY THE CARD SCROLLS */
+            overflow-y: auto !important;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
         }
 
-        /* CENTERED AUTH HEADER */
         #auth-title {
             color: #ffffff;
             font-size: 1.25rem;
@@ -112,7 +110,6 @@
             font-weight: bold;
         }
         
-        /* TOP NAVIGATION BUTTON BAR */
         .widget-header {
             display: flex;
             gap: 8px;
@@ -159,7 +156,6 @@
             border-color: #4da3ff;
         }
         
-        /* SLIDING DRAWERS */
         .help-drawer {
             display: none;
             background: #252525;
@@ -187,7 +183,6 @@
             margin-bottom: 6px;
         }
         
-        /* CONTROLS SECTION AT TOP */
         .search-container {
             display: flex;
             flex-direction: column;
@@ -203,7 +198,6 @@
             flex-shrink: 0;
         }
 
-        /* INPUT ROW AT BOTTOM OF CARD */
         .input-row {
             display: flex;
             gap: 8px;
@@ -349,7 +343,6 @@
             transform: scale(0.98);
         }
         
-        /* OUTPUT RESPONSE CONTAINER IN MIDDLE */
         .output-box {
             margin-top: 12px;
             margin-bottom: 12px;
@@ -453,7 +446,6 @@
             font-size: 1rem;
         }
 
-        /* CARD FOOTER NAVIGATION */
         .card-footer-nav {
             display: flex;
             justify-content: space-between;
@@ -527,8 +519,12 @@
                         <strong style="color: #ffc107; font-size: 1rem;">🚀 VAII Version History</strong>
                         <div style="margin-top: 10px; border-left: 2px solid #444; padding-left: 10px; display: flex; flex-direction: column; gap: 12px;">
                             <div>
-                                <strong style="color:#fff;">v5.5 (Current)</strong><br>
-                                <span style="color:#aaa;">Integrated REST Countries & World Bank Open Data for demographic metrics, Dog CEO & CATAAS pet photos, TheCocktailDB mixing guides, ipapi.co client telemetry, and native CheapShark deal tracking.</span>
+                                <strong style="color:#fff;">v5.8 (Current)</strong><br>
+                                <span style="color:#aaa;">Added NASA Astronomy Picture of the Day (APOD), Advice Slip generator, Agify.io name age predictor, DictionaryAPI with voice phonetics, and World Bank population data.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v5.5</strong><br>
+                                <span style="color:#aaa;">Integrated REST Countries stat cards, Dog CEO & CATAAS pet photos, TheCocktailDB mixing guides, ipapi.co client telemetry, and native CheapShark deal tracking.</span>
                             </div>
                             <div>
                                 <strong style="color:#fff;">v5.0</strong><br>
@@ -536,7 +532,7 @@
                             </div>
                             <div>
                                 <strong style="color:#fff;">v4.5</strong><br>
-                                <span style="color:#aaa;">Integrated iTunes audio previews, AniList Anime/Manga lookup, PokéAPI monster stats & sprites, Open Library books, and Gemini 3.7 Flash engine fallback.</span>
+                                <span style="color:#aaa;">Integrated iTunes audio previews, PokéAPI monster stats & sprites, Open Library books, and Gemini 3.7 Flash engine fallback.</span>
                             </div>
                             <div>
                                 <strong style="color:#fff;">v4.0</strong><br>
@@ -571,8 +567,12 @@
                         <h4 style="color: #4da3ff; margin-bottom: 8px;">🌐 VAII Native Commands & Syntax</h4>
                         <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
                             <li><strong>General Knowledge:</strong> Type any entity or question (e.g., <code>MrBeast</code>, <code>Quantum Computing</code>) to query Wiktionary, Wikipedia, and YouTube metrics simultaneously.</li>
+                            <li><strong>NASA APOD (Astronomy):</strong> Type <code>space</code> or <code>nasa</code> to fetch NASA's Astronomy Picture of the Day with full celestial explanations.</li>
+                            <li><strong>Advice & Quotes (Advice Slip):</strong> Type <code>advice</code> for instant random pearls of wisdom.</li>
+                            <li><strong>Age Demographics (Agify):</strong> Type <code>age [name]</code> (e.g., <code>age Logan</code>, <code>age Alex</code>) to predict estimated age and sample size metrics.</li>
+                            <li><strong>Dictionary & Phonetics:</strong> Type <code>define [word]</code> (e.g., <code>define serendipity</code>) for definitions, parts of speech, examples, and audio pronunciation.</li>
                             <li><strong>Cute Animals:</strong> Type <code>dog</code> or <code>cat</code> for instant cute pet photography.</li>
-                            <li><strong>Country & Flags (REST Countries & World Bank):</strong> Type <code>country [name]</code> (e.g., <code>country Japan</code>, <code>country Brazil</code>) for official flags, capitals, World Bank live population data, and currencies.</li>
+                            <li><strong>Country & Flags (REST Countries & World Bank):</strong> Type <code>country [name]</code> (e.g., <code>country Japan</code>, <code>country Brazil</code>) for official flags, capitals, World Bank live population metrics, and currencies.</li>
                             <li><strong>Drink & Cocktails (TheCocktailDB):</strong> Type <code>drink [name]</code> or <code>random drink</code> for ingredients, measures, and preparation recipes.</li>
                             <li><strong>Public IP & Network (ipapi):</strong> Type <code>my ip</code> or <code>ip lookup</code> to display your live IP, ISP, and geographic network parameters.</li>
                             <li><strong>Interactive Trivia Quiz:</strong> Type <code>trivia</code> or <code>quiz</code> to answer interactive multiple-choice questions.</li>
