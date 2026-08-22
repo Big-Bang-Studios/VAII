@@ -914,31 +914,36 @@ function fetchTriviaQuestion() {
         .catch(() => handleVaiiDataOutput("Trivia service unavailable.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Open Trivia service unavailable. Please retry.</div>`));
 }
 
-// GAMERPOWER FREEBIES TRACKER (CORS PROXIED)
+// GAMING DEALS & FREEBIES (CHEAPSHARK NATIVE CORS)
 function fetchGameDeals() {
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Tracking 100% off game giveaways...</div>`;
-    const targetUrl = `https://www.gamerpower.com/api/giveaways`;
-    const proxiedUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
-
-    fetch(proxiedUrl)
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Tracking top free games & discounts...</div>`;
+    
+    fetch(`https://www.cheapshark.com/api/1.0/deals?sortBy=Savings&pageSize=5`)
         .then(res => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return res.json();
         })
-        .then(data => {
-            if (!Array.isArray(data) || data.length === 0) {
-                return handleVaiiDataOutput("No active 100% off game deals found.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No active game freebies found right now.</div>`);
+        .then(deals => {
+            if (!Array.isArray(deals) || deals.length === 0) {
+                return handleVaiiDataOutput("No active game deals found.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No active game deals found right now.</div>`);
             }
 
             let dealsHtml = "";
-            data.slice(0, 3).forEach(deal => {
+            deals.slice(0, 3).forEach(deal => {
+                const isFree = parseFloat(deal.salePrice) === 0;
+                const priceLabel = isFree 
+                    ? `<span style="color: #00e676; font-weight: bold;">FREE</span>` 
+                    : `<span style="color: #28a745; font-weight: bold;">$${deal.salePrice}</span>`;
+                
                 dealsHtml += `
                     <div style="background: #252525; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; gap: 12px; align-items: center;">
-                        <img src="${deal.image}" style="width: 80px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid #333;">
+                        <img src="${deal.thumb}" style="width: 80px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid #333;">
                         <div style="flex: 1;">
                             <div style="font-weight: bold; font-size: 0.95rem; color: #fff;">${deal.title}</div>
-                            <div style="font-size: 0.8rem; color: #28a745; font-weight: bold;">FREE <span style="text-decoration: line-through; color: #888; font-weight: normal; margin-left: 4px;">${deal.worth}</span> • ${deal.platforms}</div>
-                            <a href="${deal.open_giveaway_url}" target="_blank" style="display: inline-block; margin-top: 4px; color: #4da3ff; font-size: 0.78rem; font-weight: bold; text-decoration: none;">Claim Freebie ↗</a>
+                            <div style="font-size: 0.8rem; color: #aaa; margin-top: 2px;">
+                                ${priceLabel} <span style="text-decoration: line-through; color: #777; margin-left: 4px;">$${deal.normalPrice}</span> • <span style="color: #ff9800;">${Math.round(deal.savings)}% OFF</span>
+                            </div>
+                            <a href="https://www.cheapshark.com/redirect?dealID=${deal.dealID}" target="_blank" style="display: inline-block; margin-top: 4px; color: #4da3ff; font-size: 0.78rem; font-weight: bold; text-decoration: none;">View Game Deal ↗</a>
                         </div>
                     </div>
                 `;
@@ -946,42 +951,15 @@ function fetchGameDeals() {
 
             const html = `
                 <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00e676; text-align: left;">
-                    <div style="font-size: 0.8rem; color: #00e676; text-transform: uppercase; font-weight: bold; margin-bottom: 10px;">🎮 Live 100% Off Game Freebies</div>
+                    <div style="font-size: 0.8rem; color: #00e676; text-transform: uppercase; font-weight: bold; margin-bottom: 10px;">🎮 Top PC Gaming Freebies & Deals</div>
                     ${dealsHtml}
                 </div>
             `;
-            handleVaiiDataOutput("Here are the latest 100% off gaming deals and free giveaways.", html);
+            handleVaiiDataOutput("Here are the top gaming freebies and discounts.", html);
         })
         .catch(err => {
-            console.error("Game deals primary proxy error, trying fallback...", err);
-            fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`)
-                .then(r => r.json())
-                .then(data => {
-                    if (!Array.isArray(data) || data.length === 0) throw new Error("Empty data");
-                    let dealsHtml = "";
-                    data.slice(0, 3).forEach(deal => {
-                        dealsHtml += `
-                            <div style="background: #252525; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; gap: 12px; align-items: center;">
-                                <img src="${deal.image}" style="width: 80px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid #333;">
-                                <div style="flex: 1;">
-                                    <div style="font-weight: bold; font-size: 0.95rem; color: #fff;">${deal.title}</div>
-                                    <div style="font-size: 0.8rem; color: #28a745; font-weight: bold;">FREE <span style="text-decoration: line-through; color: #888; font-weight: normal; margin-left: 4px;">${deal.worth}</span> • ${deal.platforms}</div>
-                                    <a href="${deal.open_giveaway_url}" target="_blank" style="display: inline-block; margin-top: 4px; color: #4da3ff; font-size: 0.78rem; font-weight: bold; text-decoration: none;">Claim Freebie ↗</a>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    const html = `
-                        <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00e676; text-align: left;">
-                            <div style="font-size: 0.8rem; color: #00e676; text-transform: uppercase; font-weight: bold; margin-bottom: 10px;">🎮 Live 100% Off Game Freebies</div>
-                            ${dealsHtml}
-                        </div>
-                    `;
-                    handleVaiiDataOutput("Here are the latest 100% off gaming deals and free giveaways.", html);
-                })
-                .catch(() => {
-                    handleVaiiDataOutput("Game deals lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Game deals network error. Please try again.</div>`);
-                });
+            console.error("CheapShark deals error:", err);
+            handleVaiiDataOutput("Game deals lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Gaming deals feed network error. Please try again.</div>`);
         });
 }
 
