@@ -304,10 +304,9 @@ const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent
 
 const defaultAssistantSuggestions = [
     "Open Gemini", 
-    "193 lbs to kg", 
-    "Open YouTube", 
-    "BTC", 
-    "Time in Tokyo", 
+    "Convert 100 USD to EUR",
+    "QR https://vaii-two.vercel.app",
+    "ISS",
     "Space",
     "Advice",
     "Age Logan",
@@ -711,6 +710,118 @@ function fetchOMDBMedia(title) {
 }
 
 // ==========================================
+// 4. NEW UTILITY INTEGRATIONS (FOREX, QR, ISS)
+// ==========================================
+function fetchForexConversion(amount, fromCurr, toCurr) {
+    const from = fromCurr.toUpperCase();
+    const to = toCurr.toUpperCase();
+    const num = parseFloat(amount) || 1;
+
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Converting ${num} ${from} to ${to}...</div>`;
+
+    if (from === to) {
+        const html = `
+            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #28a745; text-align: left;">
+                <div style="font-size: 0.75rem; color: #888; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">💱 Currency Conversion</div>
+                <div style="font-size: 1.3rem; font-weight: bold; color: #fff;">${num} ${from} = ${num} ${to}</div>
+            </div>
+        `;
+        return handleVaiiDataOutput(`${num} ${from} equals ${num} ${to}`, html);
+    }
+
+    fetch(`https://api.frankfurter.dev/v2/rates?base=${encodeURIComponent(from)}&quotes=${encodeURIComponent(to)}`)
+        .then(res => {
+            if (!res.ok) throw new Error("Forex error");
+            return res.json();
+        })
+        .then(data => {
+            const rate = data?.rates?.[to];
+            if (!rate) throw new Error("Rate not found");
+            const total = (num * rate).toFixed(2);
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #28a745; text-align: left;">
+                    <div style="font-size: 0.75rem; color: #28a745; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">💱 Live European Central Bank Forex</div>
+                    <div style="font-size: 1.3rem; font-weight: bold; color: #fff;">${num} ${from} = <span style="color: #28a745;">${total} ${to}</span></div>
+                    <div style="font-size: 0.82rem; color: #888; margin-top: 6px;">Exchange Rate: 1 ${from} = ${rate} ${to}</div>
+                </div>
+            `;
+            handleVaiiDataOutput(`${num} ${from} is equal to ${total} ${to}`, html);
+        })
+        .catch(() => handleVaiiDataOutput(`Could not convert from ${from} to ${to}.`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Currency conversion failed. Verify ISO-3 codes (e.g. USD, EUR, GBP, JPY).</div>`));
+}
+
+function generateQRCode(textData) {
+    const cleanData = textData.trim();
+    if (!cleanData) return;
+
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Rendering dynamic QR code...</div>`;
+
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(cleanData)}`;
+
+    const html = `
+        <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00bcd4; text-align: center;">
+            <div style="font-size: 0.75rem; color: #00bcd4; text-transform: uppercase; font-weight: bold; margin-bottom: 10px; text-align: left;">📱 Dynamic QR Code</div>
+            <div style="background: #fff; padding: 10px; border-radius: 8px; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+                <img src="${qrImageUrl}" style="width: 180px; height: 180px; display: block;" alt="QR Code">
+            </div>
+            <div style="font-size: 0.82rem; color: #aaa; margin-top: 10px; word-break: break-all; text-align: left;"><strong>Payload:</strong> ${cleanData}</div>
+            <a href="${qrImageUrl}" download="qrcode.png" target="_blank" style="display: block; margin-top: 12px; background: #00bcd4; color: #121212; font-weight: bold; padding: 8px 12px; border-radius: 6px; text-decoration: none; font-size: 0.85rem;">Download QR Image ➔</a>
+        </div>
+    `;
+    handleVaiiDataOutput("Dynamic QR Code generated.", html);
+}
+
+function fetchISSTelemetry() {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Locking International Space Station orbital telemetry...</div>`;
+    fetch('https://api.wheretheiss.at/v1/satellites/25544')
+        .then(res => res.json())
+        .then(data => {
+            if (!data.latitude || !data.longitude) throw new Error("ISS error");
+            const lat = parseFloat(data.latitude).toFixed(4);
+            const lon = parseFloat(data.longitude).toFixed(4);
+            const velocity = Math.round(data.velocity).toLocaleString();
+            const altitude = parseFloat(data.altitude).toFixed(1);
+            const visibility = data.visibility ? data.visibility.toUpperCase() : "ORBITING";
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00e676; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div style="font-size: 0.75rem; color: #00e676; text-transform: uppercase; font-weight: bold;">🛰️ International Space Station (NORAD #25544)</div>
+                        <span style="background: #252525; border: 1px solid #333; color: #ffc107; font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 4px;">${visibility}</span>
+                    </div>
+                    <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 12px;">Live Orbit Coordinates</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid #2a2a2a; padding-top: 10px; font-size: 0.88rem; color: #ccc;">
+                        <div><strong>🌐 Latitude:</strong> ${lat}°</div>
+                        <div><strong>🌐 Longitude:</strong> ${lon}°</div>
+                        <div><strong>🚀 Velocity:</strong> ${velocity} km/h</div>
+                        <div><strong>📐 Altitude:</strong> ${altitude} km</div>
+                    </div>
+                    <div id="vaii-iss-map-canvas" style="width:100%; height:200px; border-radius:8px; background:#252525; border: 1px solid #333; margin-top: 12px;"></div>
+                </div>
+            `;
+
+            handleVaiiDataOutput(`The International Space Station is at latitude ${lat}, longitude ${lon}, traveling at ${velocity} kilometers per hour.`, html, () => {
+                if (typeof google !== 'undefined' && google.maps) {
+                    const issPos = { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) };
+                    const issMap = new google.maps.Map(document.getElementById('vaii-iss-map-canvas'), {
+                        center: issPos, 
+                        zoom: 3, 
+                        disableDefaultUI: false,
+                        styles: [
+                            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+                            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+                            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] }
+                        ]
+                    });
+                    new google.maps.Marker({ position: issPos, map: issMap, title: "ISS Current Position" });
+                }
+            });
+        })
+        .catch(() => handleVaiiDataOutput("ISS Telemetry unreachable.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not establish link with ISS telemetry feed.</div>`));
+}
+
+// ==========================================
 // MEDIA & UTILITY MODULES
 // ==========================================
 function fetchNasaAPOD() {
@@ -849,7 +960,6 @@ function fetchCuteAnimal(type = "dog") {
     }
 }
 
-// 100% RELIABLE REST-COUNTRIES MIRROR WITH WORLD BANK POPULATION INTEGRATION
 function fetchCountryInfo(countryName) {
     const cleanTarget = countryName.toLowerCase().trim();
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching country data for "${cleanTarget}"...</div>`;
@@ -1317,532 +1427,6 @@ function fetchDadJoke() {
 }
 
 // ==========================================
-// 4. CHAT ENGINE (GEMINI FALLBACK LOOP)
-// ==========================================
-async function executeGeminiDirectChat(userInput) {
-    if (chatHistory.length === 0) {
-        const localInstructions = localStorage.getItem('vaii_gemini_instructions') || '';
-        let systemPrompt = "You are Gemini, an advanced conversational core running inside the VAII architecture frame. STRICT STRUCTURAL RULE: You do NOT possess built-in web services, maps, currency handlers, weather telemetry, or drawing capabilities. All of those proprietary features belong exclusively to a completely separate system engine option on this dashboard named 'VAII Native'. Your singular purpose here is providing deep, persistent multi-turn conversational reasoning and textual chat history records. Keep statements direct and clear.";
-        
-        if (localInstructions.trim()) {
-            systemPrompt += `\n\n[USER SYSTEM INSTRUCTIONS / REQUIRED PERSONALITY PARAMETERS]:\n${localInstructions.trim()}`;
-        }
-
-        chatHistory.push({ role: "user", parts: [{ text: systemPrompt }] });
-        chatHistory.push({ role: "model", parts: [{ text: "System connection established. Isolated chat parameters synced. I am fully aware of my persona guidelines and that I do not contain VAII Native utilities." }] });
-    }
-
-    chatHistory.push({ role: "user", parts: [{ text: userInput }] });
-    renderFullChatLogBubble();
-
-    const spinnerBubble = document.createElement('div');
-    spinnerBubble.id = "gemini-active-typing-indicator";
-    spinnerBubble.style = "text-align: left; padding: 10px; color: #aaa; font-style: italic; display: flex; align-items: center;";
-    spinnerBubble.innerHTML = `<div class="loader-spinner"></div> Syncing conversational context vectors...`;
-    output.appendChild(spinnerBubble);
-    output.scrollTop = output.scrollHeight;
-
-    const sanitizedContents = chatHistory.map(msg => ({
-        role: msg.role || "user",
-        parts: (msg.parts || []).map(p => ({ text: p.text || "" }))
-    }));
-
-    let successfulResponseText = null;
-    let successfulModelLabel = "";
-    let structuralErrorDetected = null;
-
-    const currentApiKey = getActiveGeminiKey();
-
-    for (let i = 0; i < BASELINE_FALLBACK_TREE.length; i++) {
-        const modelObj = BASELINE_FALLBACK_TREE[i];
-        const visionUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelObj.id}:generateContent?key=${currentApiKey}`;
-        
-        try {
-            const response = await fetch(visionUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ contents: sanitizedContents })
-            });
-            const data = await response.json();
-
-            if (data.error) {
-                if (response.status === 400 || data.error.status === "INVALID_ARGUMENT") {
-                    structuralErrorDetected = data.error.message;
-                    break; 
-                }
-                console.warn(`Model generation tier [${modelObj.name}] quota full. Cascading downstream...`);
-                continue; 
-            }
-
-            if (!data.candidates || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0].text) {
-                continue;
-            }
-
-            successfulResponseText = data.candidates[0].content.parts[0].text;
-            successfulModelLabel = modelObj.name;
-            break; 
-        } catch (err) {
-            console.error(`Network exception on model asset [${modelObj.name}]:`, err);
-            continue;
-        }
-    }
-
-    const indicatorNode = document.getElementById("gemini-active-typing-indicator");
-    if (indicatorNode) indicatorNode.remove();
-
-    if (structuralErrorDetected) {
-        const errorDiv = document.createElement('div');
-        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
-        errorDiv.innerHTML = `
-            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ History Thread Structure Fault</div>
-            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">
-                ${structuralErrorDetected}<br><br>
-                <span style="color: #aaa; font-size: 0.85rem;">VAII automatically dropped your last submission entry to keep this specific session from breaking permanently.</span>
-            </div>
-        `;
-        output.appendChild(errorDiv);
-        chatHistory.pop(); 
-        return;
-    }
-
-    if (successfulResponseText !== null) {
-        chatHistory.push({ 
-            role: "model", 
-            parts: [{ text: successfulResponseText }],
-            activeModelName: successfulModelLabel 
-        });
-
-        renderFullChatLogBubble();
-        saveCurrentSessionState();
-
-        if (autoSpeak) {
-            let cleanResponse = successfulResponseText.replace(/[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
-            speakText(cleanResponse);
-            autoSpeak = false;
-        }
-
-        if (chatHistory.length === 4) {
-            triggerBackgroundTitleGeneration(chatHistory[2].parts[0].text, successfulResponseText, successfulModelLabel);
-        }
-    } else {
-        const errorDiv = document.createElement('div');
-        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
-        errorDiv.innerHTML = `
-            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">🚨 Critical Server Outage Alert</div>
-            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5; font-weight: 500;">
-                Every single fallback layer inside the model matrix has completely exhausted its rate-limit quotas. Please wait for token limits to clear.
-            </div>
-        `;
-        output.appendChild(errorDiv);
-        chatHistory.pop(); 
-    }
-}
-
-async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningModelId) {
-    const titlePrompt = `Generate a short, highly descriptive 3 to 5 word summary title for this chat based on these two statements. Respond with ONLY the clean summary text directly, no intro text, no markdown styling markers, and no outer quotation characters.\n\nUser text: "${userMsg}"\nModel text: "${modelResponse}"`;
-    const payloadContents = [{ role: "user", parts: [{ text: titlePrompt }] }];
-    const activeModel = BASELINE_FALLBACK_TREE.find(m => m.name === runningModelId) || BASELINE_FALLBACK_TREE[0];
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel.id}:generateContent?key=${getActiveGeminiKey()}`;
-
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: payloadContents })
-        });
-        const data = await response.json();
-        let cleanedTitle = data.candidates[0].content.parts[0].text.trim().replace(/['"]+/g, ''); 
-        if (cleanedTitle && cleanedTitle.length > 2) {
-            saveCurrentSessionState(cleanedTitle);
-        }
-    } catch (e) {
-        console.error("Dynamic title loop exception:", e);
-    }
-}
-
-// ==========================================
-// 5. NATIVE MODULES (MAPS, WEATHER, VISION, FOOD)
-// ==========================================
-function executeLocalFoodSearch(queryText) {
-    routingWarning.style.display = "none";
-    
-    let originalQuery = queryText.trim();
-    let cleanQuery = originalQuery.toLowerCase();
-    let explicitLocation = "";
-    
-    const locInMatch = originalQuery.match(/\s+in\s+(.+)$/i);
-    const locNearMatch = originalQuery.match(/\s+near\s+(.+)$/i);
-    
-    if (locInMatch) {
-        explicitLocation = locInMatch[1].trim();
-        cleanQuery = originalQuery.substring(0, locInMatch.index).toLowerCase().trim();
-    } else if (locNearMatch) {
-        explicitLocation = locNearMatch[1].trim();
-        cleanQuery = originalQuery.substring(0, locNearMatch.index).toLowerCase().trim();
-    }
-
-    let dbMatch = null;
-    let searchItemName = cleanQuery;
-    let searchBrandName = "";
-
-    let category = Object.keys(LOCAL_FOOD_DB).find(key => cleanQuery.includes(key));
-    if (category) {
-        const options = LOCAL_FOOD_DB[category];
-        dbMatch = options[Math.floor(Math.random() * options.length)];
-        searchBrandName = dbMatch.name;
-        searchItemName = dbMatch.item;
-    } else {
-        for (let cat in LOCAL_FOOD_DB) {
-            let brand = LOCAL_FOOD_DB[cat].find(b => {
-                let normName = b.name.toLowerCase().replace(/['\s]/g, '');
-                let normQuery = cleanQuery.replace(/['\s]/g, '');
-                return normQuery.includes(normName) || normName.includes(normQuery);
-            });
-            if (brand) {
-                dbMatch = brand;
-                searchBrandName = dbMatch.name;
-                searchItemName = dbMatch.item;
-                break;
-            }
-        }
-    }
-
-    if (!searchBrandName) {
-        searchBrandName = cleanQuery; 
-    }
-
-    let placesSearchQuery = searchBrandName;
-    if (explicitLocation) {
-        placesSearchQuery += ` in ${explicitLocation}`;
-    }
-
-    output.innerHTML = `
-        <div class="generation-status">
-            <div class="loader-spinner"></div>
-            <span style="color: #eee; font-size: 0.9rem;">Processing order request for "${searchItemName}"...</span>
-        </div>
-    `;
-
-    const renderFallbackCard = (brandName, suggestionText, fallbackLoc) => {
-        const locString = fallbackLoc ? ` ${fallbackLoc}` : "";
-        const cleanFallbackString = (brandName + locString).replace(/[^a-zA-Z0-9 ,]/g, '');
-        const encFallback = encodeURIComponent(cleanFallbackString);
-        
-        const ddLink = `https://www.doordash.com/search/store/${encFallback}/`;
-        const goLink = `https://www.google.com/search?q=Order+delivery+from+${encFallback}`;
-
-        const htmlOutput = `
-            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #007bff; text-align: left; margin-bottom: 15px;">
-                <div style="font-size: 0.8rem; color: #007bff; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🍔 VAII Database Suggestion</div>
-                <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 8px;">${brandName}</div>
-                <div style="color: #ccc; font-size: 0.95rem; margin-bottom: 15px;">💡 Suggested: <strong>${suggestionText || queryText}</strong> ${fallbackLoc ? 'near ' + fallbackLoc : ''}</div>
-                
-                <div style="font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">Auto-Routing Delivery Links</div>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <a href="${ddLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #FF3008; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                        <span>Route to DoorDash</span><span>➔</span>
-                    </a>
-                    <a href="${goLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #4285F4; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                        <span>Google Local Order</span><span>➔</span>
-                    </a>
-                </div>
-            </div>
-        `;
-        handleVaiiDataOutput(`I suggest ordering ${suggestionText || queryText} from ${brandName}.`, htmlOutput);
-    };
-
-    const processPlacesSearch = (lat, lon) => {
-        if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
-            return renderFallbackCard(searchBrandName, searchItemName, explicitLocation);
-        }
-
-        const request = { query: placesSearchQuery };
-        if (lat && lon) {
-            request.location = new google.maps.LatLng(lat, lon);
-            request.radius = '16000';
-        }
-
-        const service = new google.maps.places.PlacesService(document.createElement('div'));
-        
-        service.textSearch(request, (results, status) => {
-            if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
-                results.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-                const bestPlace = results[0];
-                
-                const placeName = bestPlace.name;
-                const rating = bestPlace.rating || "N/A";
-                const address = bestPlace.formatted_address || "";
-                
-                const cleanAddressSearch = (placeName + " " + address).replace(/[^a-zA-Z0-9 ,]/g, '');
-                const encQuery = encodeURIComponent(cleanAddressSearch);
-                
-                const googleOrderLink = `https://www.google.com/search?q=Order+delivery+from+${encQuery}`;
-                const doorDashLink = `https://www.doordash.com/search/store/${encQuery}/`;
-                const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeName + " " + address)}`;
-
-                let suggestionHTML = dbMatch ? `<div style="color: #ccc; font-size: 0.95rem; margin-bottom: 4px;">💡 Suggested: <strong>${searchItemName}</strong></div>` : "";
-
-                const htmlOutput = `
-                    <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff9800; text-align: left; margin-bottom: 15px;">
-                        <div style="font-size: 0.8rem; color: #ff9800; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🍔 GPS Confirmed Match</div>
-                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 8px;">${placeName}</div>
-                        ${suggestionHTML}
-                        <div style="color: #ccc; font-size: 0.95rem; margin-bottom: 4px;">⭐ Rating: ${rating} / 5.0</div>
-                        <a href="${mapLink}" target="_blank" style="color: #ff9800; text-decoration: none; font-size: 0.85rem; display: block; margin-bottom: 15px;">📍 ${address} ↗</a>
-                        
-                        <div style="font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">Auto-Routing Delivery Links</div>
-                        <div style="display: flex; flex-direction: column; gap: 8px;">
-                            <a href="${doorDashLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #FF3008; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                                <span>Route to DoorDash</span><span>➔</span>
-                            </a>
-                            <a href="${googleOrderLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #4285F4; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                                <span>Google Local Order</span><span>➔</span>
-                            </a>
-                        </div>
-                    </div>
-                `;
-                handleVaiiDataOutput(`I found a match. ${placeName} has a rating of ${rating} stars.`, htmlOutput);
-            } else {
-                return renderFallbackCard(searchBrandName, searchItemName, explicitLocation);
-            }
-        });
-    };
-
-    if (explicitLocation) {
-        processPlacesSearch(null, null);
-    } else if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (position) => { processPlacesSearch(position.coords.latitude, position.coords.longitude); },
-            () => { processPlacesSearch(null, null); }
-        );
-    } else {
-        processPlacesSearch(null, null);
-    }
-}
-
-function resolveAndRenderLocation(searchLocationQuery, greetingHTML = "") {
-    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Locating coordinates for "${searchLocationQuery}"...</div>`;
-    let baseQuery = searchLocationQuery.split(',')[0].trim();
-
-    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(baseQuery)}&count=5&language=en&format=json`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.results && data.results.length > 0) {
-                let bestLoc = data.results[0];
-                if (searchLocationQuery.includes(",")) {
-                    const secondary = searchLocationQuery.split(',')[1].toLowerCase().trim();
-                    const matched = data.results.find(l => 
-                        (l.admin1 && l.admin1.toLowerCase().includes(secondary)) || 
-                        (l.country && l.country.toLowerCase().includes(secondary))
-                    );
-                    if (matched) bestLoc = matched;
-                }
-
-                let displayName = `${bestLoc.name}`;
-                if (bestLoc.admin1 && bestLoc.admin1 !== bestLoc.name) displayName += `, ${bestLoc.admin1}`;
-                if (bestLoc.country) displayName += ` (${bestLoc.country})`;
-
-                renderUnifiedLocationCard(bestLoc.latitude, bestLoc.longitude, bestLoc.timezone || 'auto', displayName, greetingHTML);
-            } else {
-                handleVaiiDataOutput("Could not extract metrics for " + searchLocationQuery, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not extract location metrics for "${searchLocationQuery}".</div>`);
-            }
-        })
-        .catch(err => {
-            console.error("Open-Meteo Geocoding Error:", err);
-            handleVaiiDataOutput("Location processing engine connection failure.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Location processing engine connection failure.</div>`);
-        });
-}
-
-function renderUnifiedLocationCard(lat, lon, zone, displayName, greetingHTML = "") {
-    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Loading weather for "${displayName}"...</div>`;
-    
-    const tzParam = (zone && zone !== 'auto') ? `&timezone=${encodeURIComponent(zone)}` : '&timezone=auto';
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true${tzParam}`)
-        .then(res => res.json())
-        .then(weatherData => {
-            if (!weatherData.current_weather) {
-                throw new Error("Missing weather metrics");
-            }
-            const tempCelsius = weatherData.current_weather.temperature;
-            const tempFahrenheit = Math.round((tempCelsius * 9/5) + 32);
-            const windSpeed = weatherData.current_weather.windspeed;
-            
-            const effectiveTz = weatherData.timezone || zone || "UTC";
-            let timeString = "N/A";
-            let dateString = "N/A";
-            try {
-                timeString = new Date().toLocaleTimeString("en-US", { timeZone: effectiveTz, hour: '2-digit', minute: '2-digit' });
-                dateString = new Date().toLocaleDateString("en-US", { timeZone: effectiveTz, weekday: 'long', month: 'short', day: 'numeric' });
-            } catch(e) {
-                timeString = new Date().toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
-                dateString = new Date().toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric' });
-            }
-            
-            const htmlOutput = greetingHTML + `
-                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #4da3ff; text-align: left; margin-bottom: 15px;">
-                    <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 12px;">📍 ${displayName}</div>
-                    <div style="display: flex; gap: 20px; margin-bottom: 15px; border-bottom: 1px solid #2a2a2a; padding-bottom: 12px;">
-                        <div style="flex: 1;">
-                            <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Current Climate</span><br>
-                            <span style="font-size: 1.1rem; font-weight: bold; color: #28a745;">🌡️ ${tempFahrenheit}°F</span> <span style="color:#666; font-size:0.9rem;">(${tempCelsius}°C)</span><br>
-                            <span style="color: #ccc; font-size: 0.85rem;">💨 Wind: ${windSpeed} km/h</span>
-                        </div>
-                        <div style="flex: 1; border-left: 1px solid #2a2a2a; padding-left: 15px;">
-                            <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Localized Clock</span><br>
-                            <span style="font-size: 1.1rem; font-weight: bold; color: #ffc107;">🕒 ${timeString}</span><br>
-                            <span style="color: #ccc; font-size: 0.85rem;">📅 ${dateString}</span>
-                        </div>
-                    </div>
-                    <span style="color: #888; font-size: 0.8rem; text-transform: uppercase; display: block; margin-bottom: 6px;">Interactive Mapping</span>
-                    <div id="vaii-merged-map-canvas" style="width:100%; height:250px; border-radius:8px; background:#252525; border: 1px solid #333;"></div>
-                </div>
-            `;
-            
-            handleVaiiDataOutput(`Here is the location data for ${displayName}. It is currently ${tempFahrenheit} degrees Fahrenheit.`, htmlOutput, () => {
-                if (typeof google !== 'undefined' && google.maps) {
-                    const mapCoordinates = { lat: parseFloat(lat), lng: parseFloat(lon) };
-                    const loadedMapInstance = new google.maps.Map(document.getElementById('vaii-merged-map-canvas'), {
-                        center: mapCoordinates, zoom: 12, disableDefaultUI: false,
-                        styles: [
-                            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] }
-                        ]
-                    });
-                    new google.maps.Marker({ position: mapCoordinates, map: loadedMapInstance, title: displayName });
-                }
-            });
-        })
-        .catch(err => {
-            console.error("Open-Meteo Weather Error:", err);
-            handleVaiiDataOutput("Error pulling metrics for spatial location.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Error pulling metrics for spatial location.</div>`);
-        });
-}
-
-function executeVisionAnalysis(promptText) {
-    output.innerHTML = `
-        <div class="generation-status">
-            <div class="loader-spinner"></div>
-            <span style="color: #eee; font-size: 0.9rem;">VAII vision engine is processing image parameters...</span>
-        </div>
-    `;
-
-    const payload = {
-        contents: [{
-            parts: [
-                { text: promptText },
-                { inlineData: { mimeType: activeImageMimeType || "image/jpeg", data: activeImageBase64 } }
-            ]
-        }]
-    };
-
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${getActiveGeminiKey()}`, {
-        method: "POST", 
-        headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify(payload)
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) {
-            output.innerHTML = `
-                <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">
-                    <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ Google API Error</div>
-                    <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">${data.error.message}</div>
-                </div>
-            `;
-            return;
-        }
-        const descriptionResult = data.candidates[0].content.parts[0].text;
-        const finalHtml = `
-            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left;">
-                <div style="font-size: 0.75rem; color: #888; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; letter-spacing: 0.5px;">👁️ Image Analysis Output</div>
-                <div style="color: #eee; font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">${descriptionResult}</div>
-            </div>
-        `;
-        handleVaiiDataOutput(descriptionResult, finalHtml);
-        clearActiveImage();
-    }).catch(err => {
-        handleVaiiDataOutput("Network intercept error connecting to Google vision matrices.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Network intercept error connecting to Google vision matrices.</div>`);
-        console.error(err);
-    });
-}
-
-function runMarketExecution(ticker) {
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching price updates for "${ticker.toUpperCase()}"...</div>`;
-    const cleanTicker = ticker.trim().toLowerCase();
-    const cryptoMap = { btc: "bitcoin", eth: "ethereum", solana: "solana" };
-
-    if (cryptoMap[cleanTicker]) {
-        fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoMap[cleanTicker]}&vs_currencies=usd&include_24hr_change=true`)
-            .then(res => res.json())
-            .then(data => {
-                const coinData = data[cryptoMap[cleanTicker]];
-                const price = coinData.usd;
-                const change = coinData.usd_24h_change.toFixed(2);
-                const htmlOutput = `
-                    <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #6f42c1; text-align: left;">
-                        <strong>🪙 ${cryptoMap[cleanTicker].toUpperCase()} (${ticker.toUpperCase()})</strong><br>
-                        💰 Price: $${price.toLocaleString()} USD<br>
-                        ${change >= 0 ? "📈" : "📉"} 24h Change: ${change}%
-                    </div>
-                `;
-                handleVaiiDataOutput(`The price of ${cryptoMap[cleanTicker]} is ${price.toLocaleString()} dollars.`, htmlOutput);
-            }).catch(() => { handleVaiiDataOutput("Error pulling crypto ticker data.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Error pulling crypto ticker data.</div>`); });
-    } else {
-        const htmlOutput = `
-            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #6f42c1; text-align: left;">
-                <strong>📈 Stock Ticker: ${ticker.toUpperCase()}</strong><br>
-                <span style="color: #aaa; font-size: 0.9rem;">To view deep market assets, open the link directly:</span>
-                <a href="https://finance.yahoo.com/quote/${ticker.toUpperCase()}" target="_blank">Open Yahoo Finance ↗</a>
-            </div>
-        `;
-        handleVaiiDataOutput(`I found the stock ticker ${ticker.toUpperCase()}.`, htmlOutput);
-    }
-}
-
-function executeImageGeneration(imagePrompt) {
-    if (ttsBtn) ttsBtn.style.display = 'flex';
-    routingWarning.style.display = "none"; 
-    output.innerHTML = `
-        <div style="color: #888; font-style: italic; margin-bottom: 12px; font-size: 0.9rem; line-height: 1.4;">🎨 Generating artwork for "${imagePrompt}"...</div>
-        <div class="generation-status" id="image-loader">
-            <div class="loader-spinner"></div>
-            <span style="color: #eee; font-size: 0.9rem;">Assembling pixels...</span>
-        </div>
-    `;
-    const seed = Math.floor(Math.random() * 1000000);
-    const imageUrl = `https://image.pollinations.ai/p/${encodeURIComponent(imagePrompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
-    const img = new Image();
-    img.src = imageUrl;
-    img.style.width = "100%";
-    img.style.borderRadius = "8px";
-    img.style.marginTop = "10px";
-    img.style.display = "none";
-    img.style.boxShadow = "0 4px 15px rgba(0,0,0,0.5)";
-    img.onload = function() {
-        document.getElementById("image-loader")?.remove();
-        img.style.display = "block";
-    };
-    output.appendChild(img);
-}
-
-function launchTargetUrl(url) {
-    routingWarning.style.display = "block"; 
-    const htmlOutput = `
-        <div class="news-header-msg" style="color: #888; font-style: italic; margin-bottom: 4px; font-size: 0.9rem; line-height: 1.4;">Navigating to external web link...</div>
-        <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left; margin-bottom: 15px;">
-            🔗 <strong>Address:</strong> <span style="color: #4da3ff; word-break: break-all;">${url}</span>
-        </div>
-        <a href="${url}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #007bff; border-radius: 6px; padding: 10px 14px; color: white; text-decoration: none; font-weight: bold; font-size: 0.95rem;">
-            <span>Launch Link</span>
-            <span>Open Site ↗</span>
-        </a>
-    `;
-    handleVaiiDataOutput("Opening link.", htmlOutput);
-    window.open(url, '_blank');
-}
-
-// ==========================================
 // 6. ROUTING LOGIC (VAII NATIVE)
 // ==========================================
 function runInfoExecution(query) {
@@ -1881,6 +1465,22 @@ function runInfoExecution(query) {
         return;
     }
     if (cleanQuery === "show notes" || cleanQuery === "my notes") return renderNotesManager();
+
+    // FOREX CONVERTER (e.g., convert 100 USD to EUR)
+    const forexMatch = cleanQuery.match(/^convert\s+([0-9.]+)\s*([a-zA-Z]{3})\s+to\s+([a-zA-Z]{3})$/i);
+    if (forexMatch) {
+        return fetchForexConversion(forexMatch[1], forexMatch[2], forexMatch[3]);
+    }
+
+    // QR CODE GENERATOR (e.g. qr https://...)
+    if (cleanQuery.startsWith("qr ") || cleanQuery.startsWith("qrcode ")) {
+        return generateQRCode(query.replace(/^(qr|qrcode)\s+/i, '').trim());
+    }
+
+    // ISS TELEMETRY (e.g., iss, orbit)
+    if (cleanQuery === "iss" || cleanQuery === "orbit" || cleanQuery === "where is the iss" || cleanQuery === "space station") {
+        return fetchISSTelemetry();
+    }
 
     if (cleanQuery === "space" || cleanQuery === "nasa" || cleanQuery === "apod" || cleanQuery === "astronomy") {
         return fetchNasaAPOD();
@@ -2391,6 +1991,18 @@ hubInput?.addEventListener('input', () => {
         } else {
             customSuggestions = ALL_FOOD_SUGGESTIONS.slice(0, 8);
         }
+    }
+
+    if ("convert".startsWith(cleanInput)) {
+        customSuggestions.push("convert 100 USD to EUR", "convert 50 GBP to JPY", "convert 1000 CAD to USD");
+    }
+
+    if ("qr".startsWith(cleanInput)) {
+        customSuggestions.push("qr https://vaii-two.vercel.app", "qr wifi-network-password");
+    }
+
+    if ("iss".startsWith(cleanInput) || "orbit".startsWith(cleanInput)) {
+        customSuggestions.push("iss", "orbit");
     }
 
     if ("space".startsWith(cleanInput) || "nasa".startsWith(cleanInput)) {
