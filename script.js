@@ -306,6 +306,9 @@ const defaultAssistantSuggestions = [
     "Open Gemini", 
     "Convert 100 USD to EUR",
     "QR https://vaii-two.vercel.app",
+    "Tickets Superman",
+    "Stream Inception",
+    "Reserve steak Orlando",
     "ISS",
     "Sunset Tokyo",
     "Zip 90210",
@@ -691,24 +694,62 @@ function fetchNewsAPI(topic) {
         });
 }
 
+// CINEMATIC MEDIA WITH FANDANGO SHOWTIMES & STREAMING/RENTAL DISPATCH
 function fetchOMDBMedia(title) {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying media database...</div>`;
     fetch(`https://www.omdbapi.com/?t=${encodeURIComponent(title)}&apikey=${OMDB_API_KEY}`)
         .then(res => res.json())
         .then(data => {
             if (data.Response === "False") return handleVaiiDataOutput(data.Error, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">${data.Error}</div>`);
+            
+            const movieTitleEnc = encodeURIComponent(data.Title);
+            const fandangoLink = `https://www.fandango.com/search?q=${movieTitleEnc}`;
+            const streamLink = `https://www.google.com/search?q=where+to+watch+${movieTitleEnc}+movie`;
+
             const html = `
-                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #e50914; text-align: left; display: flex; gap: 15px;">
-                    ${data.Poster !== "N/A" ? `<img src="${data.Poster}" style="width: 90px; border-radius: 6px; object-fit: cover;">` : ''}
-                    <div>
-                        <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 4px;">🎬 ${data.Title} (${data.Year})</div>
-                        <div style="color: #ffc107; font-size: 0.85rem; margin-bottom: 8px;">⭐ IMDB: ${data.imdbRating} | ${data.Genre}</div>
-                        <div style="color: #ccc; font-size: 0.9rem; line-height: 1.4;">${data.Plot}</div>
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #e50914; text-align: left;">
+                    <div style="display: flex; gap: 15px; margin-bottom: 12px;">
+                        ${data.Poster !== "N/A" ? `<img src="${data.Poster}" style="width: 90px; border-radius: 6px; object-fit: cover;">` : ''}
+                        <div>
+                            <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 4px;">🎬 ${data.Title} (${data.Year})</div>
+                            <div style="color: #ffc107; font-size: 0.85rem; margin-bottom: 6px;">⭐ IMDB: ${data.imdbRating} | ${data.Genre}</div>
+                            <div style="color: #ccc; font-size: 0.88rem; line-height: 1.4;">${data.Plot}</div>
+                        </div>
+                    </div>
+                    <div style="border-top: 1px solid #2a2a2a; padding-top: 10px; display: flex; gap: 8px;">
+                        <a href="${fandangoLink}" target="_blank" style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f37321; color: #fff; text-decoration: none; padding: 8px; border-radius: 6px; font-size: 0.82rem; font-weight: bold;">🎟️ Fandango Tickets ↗</a>
+                        <a href="${streamLink}" target="_blank" style="flex: 1; display: flex; align-items: center; justify-content: center; background: #007bff; color: #fff; text-decoration: none; padding: 8px; border-radius: 6px; font-size: 0.82rem; font-weight: bold;">📺 Stream & Rent ↗</a>
                     </div>
                 </div>
             `;
             handleVaiiDataOutput("I found " + data.Title + " from " + data.Year + ". " + data.Plot, html);
         }).catch(() => handleVaiiDataOutput("OMDB routing failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">OMDB routing failed. Network error.</div>`));
+}
+
+// OPENTABLE RESERVATIONS DISPATCHER
+function executeOpenTableReservation(queryText) {
+    const cleanSearch = queryText.trim();
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Dispatching OpenTable reservation link...</div>`;
+    
+    const openTableUrl = `https://www.opentable.com/s?term=${encodeURIComponent(cleanSearch)}`;
+    const googleReserveUrl = `https://www.google.com/search?q=reserve+table+at+${encodeURIComponent(cleanSearch)}`;
+
+    const html = `
+        <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #da3743; text-align: left;">
+            <div style="font-size: 0.75rem; color: #da3743; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🍽️ Dining Reservation Dispatcher</div>
+            <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 6px;">${cleanSearch}</div>
+            <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 12px;">Lock in your table and time slot instantly through verified dining channels.</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <a href="${openTableUrl}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #da3743; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
+                    <span>Reserve on OpenTable</span><span>➔</span>
+                </a>
+                <a href="${googleReserveUrl}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #444; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
+                    <span>Google Dining Search</span><span>↗</span>
+                </a>
+            </div>
+        </div>
+    `;
+    handleVaiiDataOutput(`Here are your reservation links for ${cleanSearch}.`, html);
 }
 
 // ==========================================
@@ -1166,10 +1207,7 @@ function fetchRandomDuck() {
         "https://images.unsplash.com/photo-1555852095-64e7428df0fa?auto=format&fit=crop&w=800&q=80",
         "https://images.unsplash.com/photo-1459682687441-7761439a709d?auto=format&fit=crop&w=800&q=80",
         "https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1598439210625-5067c578f3f6?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1589254065878-42c9da997008?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1563889362352-b0492c224f61?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1618233421255-09a25b1f02c4?auto=format&fit=crop&w=800&q=80"
+        "https://images.unsplash.com/photo-1598439210625-5067c578f3f6?auto=format&fit=crop&w=800&q=80"
     ];
 
     const randomDuck = duckPool[Math.floor(Math.random() * duckPool.length)];
@@ -1737,7 +1775,7 @@ function fetchOpenLibraryBook(bookTitle) {
                 <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #e1ad01; text-align: left; display: flex; gap: 15px;">
                     ${coverUrl ? `<img src="${coverUrl}" style="width: 85px; border-radius: 6px; object-fit: cover; border: 1px solid #333;">` : ''}
                     <div>
-                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff;">📖 ${book.title}</div>
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 4px;">📖 ${book.title}</div>
                         <div style="color: #e1ad01; font-size: 0.9rem; margin-bottom: 6px;">✍️ By ${author}</div>
                         <div style="color: #aaa; font-size: 0.82rem; line-height: 1.4;">
                             📅 First Published: ${book.first_publish_year || 'Unknown'}<br>
@@ -2091,7 +2129,17 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 2. STRICT CURRENCY CONVERSION
+    // 2. OPENTABLE RESTAURANT RESERVATIONS
+    if (cleanQuery.startsWith("reserve ") || cleanQuery.startsWith("reservation ")) {
+        return executeOpenTableReservation(query.replace(/^(reserve|reservation)\s+/i, '').trim());
+    }
+
+    // 3. CINEMATIC MEDIA, FANDANGO TICKETS & STREAMING ROUTING
+    if (cleanQuery.startsWith("movie ") || cleanQuery.startsWith("film ") || cleanQuery.startsWith("tickets ") || cleanQuery.startsWith("ticket ") || cleanQuery.startsWith("stream ") || cleanQuery.startsWith("watch ")) {
+        return fetchOMDBMedia(query.replace(/^(movie|film|tickets|ticket|stream|watch)\s+/i, '').trim());
+    }
+
+    // 4. STRICT CURRENCY CONVERSION
     const forexPattern1 = /^(?:convert\s+)?([0-9.]+)?\s*([a-zA-Z]{3}|[$€£¥])\s+(?:to|in|into)\s+([a-zA-Z]{3}|[$€£¥])$/i;
     const forexPattern2 = /^(?:convert\s+)?([$€£¥])\s*([0-9.]+)\s+(?:to|in|into)\s+([a-zA-Z]{3}|[$€£¥])$/i;
 
@@ -2120,52 +2168,52 @@ function runInfoExecution(query) {
         }
     }
 
-    // 3. QR CODE GENERATOR
+    // 5. QR CODE GENERATOR
     if (cleanQuery.startsWith("qr ") || cleanQuery.startsWith("qrcode ")) {
         return generateQRCode(query.replace(/^(qr|qrcode)\s+/i, '').trim());
     }
 
-    // 4. ISS TELEMETRY
+    // 6. ISS TELEMETRY
     if (cleanQuery === "iss" || cleanQuery === "orbit" || cleanQuery === "where is the iss" || cleanQuery === "space station") {
         return fetchISSTelemetry();
     }
 
-    // 5. DUCKS (INSTANT)
+    // 7. DUCKS (INSTANT)
     if (cleanQuery === "duck" || cleanQuery === "ducks" || cleanQuery === "random duck") {
         return fetchRandomDuck();
     }
 
-    // 6. POSTAL CODE GEOCODER
+    // 8. POSTAL CODE GEOCODER
     if (cleanQuery.startsWith("zip ") || cleanQuery.startsWith("postal ")) {
         return fetchPostalCodeInfo(cleanQuery.replace(/^(zip|postal)\s+/i, '').trim());
     }
 
-    // 7. COLLEGE & UNIVERSITY SEARCH
+    // 9. COLLEGE & UNIVERSITY SEARCH
     if (cleanQuery.startsWith("college ") || cleanQuery.startsWith("university ")) {
         return fetchUniversityDirectory(cleanQuery.replace(/^(college|university)\s+/i, '').trim());
     }
 
-    // 8. NASA APOD
+    // 10. NASA APOD
     if (cleanQuery === "space" || cleanQuery === "nasa" || cleanQuery === "apod" || cleanQuery === "astronomy") {
         return fetchNasaAPOD();
     }
 
-    // 9. ADVICE SLIP
+    // 11. ADVICE SLIP
     if (cleanQuery === "advice" || cleanQuery === "give me advice" || cleanQuery === "quote") {
         return fetchAdviceSlip();
     }
 
-    // 10. AGIFY NAME DEMOGRAPHICS
+    // 12. AGIFY NAME DEMOGRAPHICS
     if (cleanQuery.startsWith("age ")) {
         return fetchAgifyPrediction(cleanQuery.replace(/^age\s+/i, '').trim());
     }
 
-    // 11. DICTIONARY DEFINITIONS & PHONETICS
+    // 13. DICTIONARY DEFINITIONS & PHONETICS
     if (cleanQuery.startsWith("define ")) {
         return fetchDictionaryDefinition(cleanQuery.replace(/^define\s+/i, '').trim());
     }
 
-    // 12. PET PICTURES
+    // 14. PET PICTURES
     if (cleanQuery === "dog" || cleanQuery === "random dog" || cleanQuery === "dogs") {
         return fetchCuteAnimal("dog");
     }
@@ -2173,42 +2221,42 @@ function runInfoExecution(query) {
         return fetchCuteAnimal("cat");
     }
 
-    // 13. COUNTRY & FLAGS
+    // 15. COUNTRY & FLAGS
     if (cleanQuery.startsWith("country ") || cleanQuery.startsWith("flag of ")) {
         return fetchCountryInfo(cleanQuery.replace(/^(country|flag of)\s+/i, '').trim());
     }
 
-    // 14. COCKTAILS & DRINKS
+    // 16. COCKTAILS & DRINKS
     if (cleanQuery.startsWith("drink ") || cleanQuery === "random drink" || cleanQuery === "cocktail") {
         return fetchDrinkRecipe(cleanQuery.replace(/^drink\s+/i, '').trim());
     }
 
-    // 15. PUBLIC IP TELEMETRY
+    // 17. PUBLIC IP TELEMETRY
     if (cleanQuery === "my ip" || cleanQuery === "ip" || cleanQuery === "ip lookup" || cleanQuery === "what is my ip") {
         return fetchClientIPLookup();
     }
 
-    // 16. TRIVIA QUIZ
+    // 18. TRIVIA QUIZ
     if (cleanQuery === "trivia" || cleanQuery === "quiz" || cleanQuery.startsWith("trivia ") || cleanQuery.startsWith("quiz ")) {
         return fetchTriviaQuestion();
     }
 
-    // 17. GAME DEALS
+    // 19. GAME DEALS
     if (cleanQuery === "free games" || cleanQuery === "deals" || cleanQuery === "giveaways" || cleanQuery.startsWith("free game")) {
         return fetchGameDeals();
     }
 
-    // 18. JOKES
+    // 20. JOKES
     if (cleanQuery === "joke" || cleanQuery === "tell me a joke" || cleanQuery === "make me laugh" || cleanQuery.startsWith("joke ")) {
         return fetchDadJoke();
     }
 
-    // 19. ITUNES MUSIC PREVIEWS
+    // 21. ITUNES MUSIC PREVIEWS
     if (cleanQuery.startsWith("song ") || cleanQuery.startsWith("music ") || cleanQuery.startsWith("track ")) {
         return fetchSongTrack(cleanQuery.replace(/^(song|music|track)\s+/i, '').trim());
     }
 
-    // 20. ANILIST ANIME & MANGA
+    // 22. ANILIST ANIME & MANGA
     if (cleanQuery.startsWith("anime ")) {
         return fetchAniListMedia(cleanQuery.replace(/^anime\s+/i, '').trim(), "ANIME");
     }
@@ -2216,26 +2264,21 @@ function runInfoExecution(query) {
         return fetchAniListMedia(cleanQuery.replace(/^manga\s+/i, '').trim(), "MANGA");
     }
 
-    // 21. POKEDEX
+    // 23. POKEDEX
     if (cleanQuery.startsWith("pokemon ") || cleanQuery.startsWith("pokedex ")) {
         return fetchPokemonEntry(cleanQuery.replace(/^(pokemon|pokedex)\s+/i, '').trim());
     }
 
-    // 22. OPEN LIBRARY BOOKS
+    // 24. OPEN LIBRARY BOOKS
     if (cleanQuery.startsWith("book ") || cleanQuery.startsWith("novel ")) {
         return fetchOpenLibraryBook(cleanQuery.replace(/^(book|novel)\s+/i, '').trim());
     }
 
-    // 23. GNEWS LIVE NEWS
+    // 25. GNEWS LIVE NEWS
     if (cleanQuery.startsWith("news about ")) return fetchNewsAPI(query.substring(11).trim());
     if (cleanQuery === "top news" || cleanQuery === "news") return fetchNewsAPI("");
 
-    // 24. OMDB MOVIES
-    if (cleanQuery.startsWith("movie ") || cleanQuery.startsWith("film ")) {
-        return fetchOMDBMedia(cleanQuery.replace(/^(movie|film)\s+/i, '').trim());
-    }
-
-    // 25. FOOD CONCIERGE
+    // 26. FOOD CONCIERGE
     let isFoodIntent = Object.keys(LOCAL_FOOD_DB).some(cat => cleanQuery.includes(cat)) || 
                        cleanQuery.startsWith("order ") || cleanQuery.startsWith("find ");
 
@@ -2250,7 +2293,7 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 26. APP LAUNCHER
+    // 27. APP LAUNCHER
     if (query.toLowerCase().startsWith("open ")) {
         let rawTarget = query.substring(5).trim().toLowerCase().replace(/['"]+/g, '');
         if (!rawTarget) { output.innerText = "Please specify what you want to open."; return; }
@@ -2282,20 +2325,20 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 27. DIRECT URL NAVIGATION
+    // 28. DIRECT URL NAVIGATION
     if (/\.[a-z]{2,6}/i.test(query) || query.startsWith('http://') || query.startsWith('https://')) {
         let cleanUrl = query.startsWith('http') ? query : 'https://' + query;
         launchTargetUrl(cleanUrl);
         return;
     }
 
-    // 28. CRYPTO & MARKET QUOTES
+    // 29. CRYPTO & MARKET QUOTES
     if (cryptoMap[cleanQuery] || cleanQuery.startsWith("price of ")) {
         runMarketExecution(cleanQuery.startsWith("price of ") ? cleanQuery.substring(9).trim() : cleanQuery);
         return;
     }
 
-    // 29. ARITHMETIC, UNIT CONVERSIONS & LANGUAGE TRANSLATION
+    // 30. ARITHMETIC, UNIT CONVERSIONS & LANGUAGE TRANSLATION
     if (/^[0-9+\-*/().\s]+$/.test(query) || cleanQuery.includes(" to ")) {
         try {
             if (!cleanQuery.includes(" to ")) {
@@ -2634,6 +2677,18 @@ hubInput?.addEventListener('input', () => {
         }
     }
 
+    if ("tickets".startsWith(cleanInput) || "showtimes".startsWith(cleanInput)) {
+        customSuggestions.push("tickets Superman", "tickets Batman", "tickets Avengers");
+    }
+
+    if ("stream".startsWith(cleanInput) || "watch".startsWith(cleanInput)) {
+        customSuggestions.push("stream Inception", "stream Interstellar", "watch The Matrix");
+    }
+
+    if ("reserve".startsWith(cleanInput) || "reservation".startsWith(cleanInput)) {
+        customSuggestions.push("reserve steak Orlando", "reserve Italian Miami", "reserve sushi New York");
+    }
+
     if ("convert".startsWith(cleanInput)) {
         customSuggestions.push("convert 100 USD to EUR", "convert 50 GBP to JPY", "convert 1000 CAD to USD");
     }
@@ -2756,7 +2811,7 @@ hubInput?.addEventListener('input', () => {
         return; 
     }
 
-    let searchUrlQuery = trimmedQuery.replace(/map of |show map |weather in |time in |sunset in |sunset |sunrise in |sunrise |solar /i, "").trim();
+    let searchUrlQuery = trimmedQuery.replace(/map of |show map |weather in |time in |sunset in |sunset |sunrise in |sunrise |solar |reserve |reservation |tickets |ticket |stream |watch /i, "").trim();
     searchUrlQuery = searchUrlQuery.replace(/order me a |order a |order some |order | near me|find /i, "").trim();
     let baseGeoSearch = searchUrlQuery.split(',')[0].trim();
 
@@ -2773,8 +2828,8 @@ hubInput?.addEventListener('input', () => {
             .then(res => res.json()).then(data => data.query?.search?.map(item => item.title) || []).catch(() => []);
 
         let omdbSuggestionsFetch = Promise.resolve([]);
-        if (cleanInput.startsWith("movie ")) {
-            let mTerm = trimmedQuery.substring(6).trim();
+        if (cleanInput.startsWith("movie ") || cleanInput.startsWith("tickets ") || cleanInput.startsWith("stream ")) {
+            let mTerm = trimmedQuery.replace(/^(movie|tickets|stream)\s+/i, '').trim();
             if (mTerm.length >= 2) {
                 omdbSuggestionsFetch = fetch(`https://www.omdbapi.com/?s=${encodeURIComponent(mTerm)}&apikey=${OMDB_API_KEY}`, { signal })
                     .then(res => res.json())
