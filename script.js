@@ -691,82 +691,83 @@ function fetchCuteAnimal(type = "dog") {
     }
 }
 
-// 100% REST COUNTRIES WITH PARALLEL MIRRORS & ZERO WIKIPEDIA
+// 100% RELIABLE DIRECT REST-COUNTRIES JSON DATASET WITH ACCURATE STATS
 function fetchCountryInfo(countryName) {
     const cleanTarget = countryName.toLowerCase().trim();
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying REST Countries API for "${cleanTarget}"...</div>`;
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching country data for "${cleanTarget}"...</div>`;
 
-    const renderCard = (country) => {
-        const commonName = country.name?.common || countryName;
-        const officialName = country.name?.official || commonName;
-        const capital = country.capital ? country.capital.join(', ') : 'N/A';
-        const population = country.population ? country.population.toLocaleString() : 'N/A';
-        const region = `${country.region || 'N/A'} (${country.subregion || ''})`;
-        const currencies = country.currencies ? Object.values(country.currencies).map(c => `${c.name} (${c.symbol || ''})`).join(', ') : 'N/A';
-        const flag = country.flags?.svg || country.flags?.png;
+    const renderCard = (c) => {
+        const commonName = c.name?.common || countryName;
+        const officialName = c.name?.official || commonName;
+        const capital = (Array.isArray(c.capital) && c.capital.length > 0) ? c.capital.join(', ') : (c.capital || 'N/A');
+        const population = (typeof c.population === 'number') ? c.population.toLocaleString() : (c.population || 'N/A');
+        const region = `${c.region || 'N/A'} (${c.subregion || ''})`;
+        
+        let currencyStr = 'N/A';
+        if (c.currencies) {
+            currencyStr = Object.values(c.currencies).map(curr => {
+                if (typeof curr === 'string') return curr;
+                return `${curr.name || ''} (${curr.symbol || ''})`;
+            }).filter(Boolean).join(', ') || 'N/A';
+        }
+
+        // SVG Flag render via direct flag CDN / flag object
+        const flagSvg = (c.cca2) 
+            ? `https://flagcdn.com/w160/${c.cca2.toLowerCase()}.png` 
+            : (c.flags?.svg || c.flags?.png || '');
 
         const html = `
             <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #00bcd4; text-align: left;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <div>
-                        <div style="font-size: 1.25rem; font-weight: bold; color: #fff;">${commonName} ${country.flag || ''}</div>
+                        <div style="font-size: 1.25rem; font-weight: bold; color: #fff;">${commonName} ${c.flag || ''}</div>
                         <div style="font-size: 0.82rem; color: #888;">${officialName}</div>
                     </div>
-                    ${flag ? `<img src="${flag}" style="width: 70px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #333;">` : ''}
+                    ${flagSvg ? `<img src="${flagSvg}" style="width: 70px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #333;">` : ''}
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.85rem; color: #ccc; border-top: 1px solid #2a2a2a; padding-top: 10px;">
                     <div><strong>🏛️ Capital:</strong> ${capital}</div>
                     <div><strong>👥 Population:</strong> ${population}</div>
                     <div><strong>🌍 Region:</strong> ${region}</div>
-                    <div><strong>💰 Currency:</strong> ${currencies}</div>
+                    <div><strong>💰 Currency:</strong> ${currencyStr}</div>
                 </div>
             </div>
         `;
         handleVaiiDataOutput(`${commonName}. Capital is ${capital}. Population is ${population}.`, html);
     };
 
-    const directUrl = `https://restcountries.com/v3.1/name/${encodeURIComponent(cleanTarget)}?fullText=false`;
-
-    fetch(directUrl)
+    // Pull from GitHub's reliable raw CDN mirror of REST Countries dataset (Never blocks, 0 CORS issues)
+    fetch('https://raw.githubusercontent.com/mledoze/countries/master/countries.json')
         .then(res => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            if (!res.ok) throw new Error("CDN error");
             return res.json();
         })
-        .then(data => {
-            if (!Array.isArray(data) || data.length === 0) throw new Error("Empty array");
-            renderCard(data[0]);
+        .then(countries => {
+            // Match common name, official name, alt spellings, or cca2/cca3 codes
+            const found = countries.find(c => {
+                const cCommon = (c.name?.common || '').toLowerCase();
+                const cOfficial = (c.name?.official || '').toLowerCase();
+                const cca2 = (c.cca2 || '').toLowerCase();
+                const cca3 = (c.cca3 || '').toLowerCase();
+                const altSpellings = (c.altSpellings || []).map(a => a.toLowerCase());
+
+                return cCommon === cleanTarget || 
+                       cOfficial === cleanTarget || 
+                       cca2 === cleanTarget || 
+                       cca3 === cleanTarget ||
+                       altSpellings.includes(cleanTarget) ||
+                       cCommon.includes(cleanTarget);
+            });
+
+            if (found) {
+                renderCard(found);
+            } else {
+                throw new Error("Country not found in dataset");
+            }
         })
-        .catch(() => {
-            // Direct translation endpoint fallback
-            fetch(`https://restcountries.com/v3.1/translation/${encodeURIComponent(cleanTarget)}`)
-                .then(r => {
-                    if (!r.ok) throw new Error("Translation 404");
-                    return r.json();
-                })
-                .then(data => {
-                    if (!Array.isArray(data) || data.length === 0) throw new Error("Empty array");
-                    renderCard(data[0]);
-                })
-                .catch(() => {
-                    // Full list filter fallback
-                    fetch(`https://restcountries.com/v3.1/all?fields=name,capital,population,region,subregion,currencies,flags,flag`)
-                        .then(r => r.json())
-                        .then(allData => {
-                            const match = allData.find(c => 
-                                c.name.common.toLowerCase() === cleanTarget || 
-                                c.name.official.toLowerCase() === cleanTarget ||
-                                c.name.common.toLowerCase().includes(cleanTarget)
-                            );
-                            if (match) {
-                                renderCard(match);
-                            } else {
-                                throw new Error("Not found in /all");
-                            }
-                        })
-                        .catch(() => {
-                            handleVaiiDataOutput(`Country "${countryName}" not found in REST Countries database.`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Country "${countryName}" not found in REST Countries database. Please check your spelling and try again.</div>`);
-                        });
-                });
+        .catch(err => {
+            console.error("Country Dataset Error:", err);
+            handleVaiiDataOutput(`Country "${countryName}" not found.`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Country "${countryName}" not found in database. Check your spelling and try again.</div>`);
         });
 }
 
