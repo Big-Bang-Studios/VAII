@@ -689,94 +689,95 @@ function fetchSongTrack(songQuery) {
         .catch(() => handleVaiiDataOutput("Music lookup failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Music search failed. Network error.</div>`));
 }
 
-function fetchAnimeMAL(animeTitle) {
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying MyAnimeList anime data...</div>`;
-    const endpoint = `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(animeTitle)}&order_by=popularity&sort=asc&sfw=true&limit=1`;
+// ANILIST GRAPHQL ADAPTER (High rate limit, fast querying)
+function fetchAniListMedia(title, mediaType = "ANIME") {
+    const isAnime = (mediaType === "ANIME");
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying AniList ${isAnime ? 'anime' : 'manga'} data...</div>`;
 
-    fetch(endpoint)
-        .then(res => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.json();
-        })
-        .then(data => {
-            if (!data.data || data.data.length === 0) {
-                return fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(animeTitle)}&limit=1`)
-                    .then(r => r.json())
-                    .then(fallbackData => {
-                        if (!fallbackData.data || fallbackData.data.length === 0) {
-                            return handleVaiiDataOutput("No anime found for " + animeTitle, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No anime entry found for "${animeTitle}".</div>`);
+    const query = `
+        query ($search: String, $type: MediaType) {
+            Media (search: $search, type: $type, sort: POPULARITY_DESC) {
+                id
+                title {
+                    romaji
+                    english
+                }
+                coverImage {
+                    large
+                }
+                averageScore
+                episodes
+                chapters
+                status
+                genres
+                description(asHtml: false)
+                staff(perPage: 1) {
+                    nodes {
+                        name {
+                            full
                         }
-                        renderAnimeCard(fallbackData.data[0]);
-                    });
+                    }
+                }
             }
-            renderAnimeCard(data.data[0]);
-        })
-        .catch(err => {
-            console.error("Jikan Anime Error:", err);
-            handleVaiiDataOutput("Anime lookup failed. Rate limit or network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Anime lookup failed. API rate limit reached or network error. Please try again in a moment.</div>`);
-        });
+        }
+    `;
 
-    function renderAnimeCard(anime) {
-        const genres = (anime.genres || []).map(g => g.name).join(", ");
+    const variables = {
+        search: title,
+        type: mediaType
+    };
+
+    fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify({ query, variables })
+    })
+    .then(res => res.json())
+    .then(resData => {
+        const media = resData.data?.Media;
+        if (!media) {
+            return handleVaiiDataOutput(`No ${isAnime ? 'anime' : 'manga'} found for ${title}`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No ${isAnime ? 'anime' : 'manga'} entry found for "${title}".</div>`);
+        }
+
+        const displayTitle = media.title.english || media.title.romaji;
+        const genres = (media.genres || []).join(", ");
+        const score = media.averageScore ? (media.averageScore / 10).toFixed(1) : 'N/A';
+        const countInfo = isAnime 
+            ? `${media.episodes || '?'} eps` 
+            : `${media.chapters ? media.chapters + ' chapters' : 'Ongoing'}`;
+        const authorInfo = (!isAnime && media.staff?.nodes?.[0]?.name?.full)
+            ? `<div style="color: #bc223b; font-size: 0.82rem; font-weight: 500; margin-bottom: 4px;">✍️ By ${media.staff.nodes[0].name.full}</div>`
+            : '';
+
+        let cleanDesc = (media.description || 'No description provided.')
+            .replace(/<[^>]*>/g, '')
+            .replace(/\n\n/g, ' ')
+            .trim();
+
+        const borderColor = isAnime ? "#2e51a2" : "#bc223b";
+        const icon = isAnime ? "⛩️" : "📚";
+
         const html = `
-            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #2e51a2; text-align: left; display: flex; gap: 15px;">
-                ${anime.images?.jpg?.image_url ? `<img src="${anime.images.jpg.image_url}" style="width: 95px; border-radius: 8px; object-fit: cover; border: 1px solid #333;">` : ''}
+            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid ${borderColor}; text-align: left; display: flex; gap: 15px;">
+                ${media.coverImage?.large ? `<img src="${media.coverImage.large}" style="width: 95px; border-radius: 8px; object-fit: cover; border: 1px solid #333;">` : ''}
                 <div>
-                    <div style="font-size: 1.15rem; font-weight: bold; color: #fff; margin-bottom: 3px;">⛩️ ${anime.title}</div>
-                    <div style="color: #ffc107; font-size: 0.85rem; margin-bottom: 6px;">⭐ MAL Score: ${anime.score || 'N/A'} | ${anime.episodes || '?'} eps (${anime.status})</div>
-                    <div style="color: #aaa; font-size: 0.8rem; margin-bottom: 8px;">Genres: ${genres || 'N/A'}</div>
-                    <div style="color: #ccc; font-size: 0.86rem; line-height: 1.4; max-height: 110px; overflow-y: auto;">${anime.synopsis || 'No synopsis provided.'}</div>
-                </div>
-            </div>
-        `;
-        handleVaiiDataOutput(`${anime.title}, rating is ${anime.score || 'unrated'}. ${anime.synopsis || ''}`, html);
-    }
-}
-
-function fetchMangaMAL(mangaTitle) {
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying MyAnimeList manga data...</div>`;
-    const endpoint = `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(mangaTitle)}&order_by=popularity&sort=asc&sfw=true&limit=1`;
-
-    fetch(endpoint)
-        .then(res => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.json();
-        })
-        .then(data => {
-            if (!data.data || data.data.length === 0) {
-                return fetch(`https://api.jikan.moe/v4/manga?q=${encodeURIComponent(mangaTitle)}&limit=1`)
-                    .then(r => r.json())
-                    .then(fallbackData => {
-                        if (!fallbackData.data || fallbackData.data.length === 0) {
-                            return handleVaiiDataOutput("No manga found for " + mangaTitle, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No manga entry found for "${mangaTitle}".</div>`);
-                        }
-                        renderMangaCard(fallbackData.data[0]);
-                    });
-            }
-            renderMangaCard(data.data[0]);
-        })
-        .catch(err => {
-            console.error("Jikan Manga Error:", err);
-            handleVaiiDataOutput("Manga lookup failed. Rate limit or network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Manga lookup failed. API rate limit reached or network error. Please try again in a moment.</div>`);
-        });
-
-    function renderMangaCard(manga) {
-        const genres = (manga.genres || []).map(g => g.name).join(", ");
-        const authors = (manga.authors || []).map(a => a.name).join(", ");
-        const html = `
-            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #bc223b; text-align: left; display: flex; gap: 15px;">
-                ${manga.images?.jpg?.image_url ? `<img src="${manga.images.jpg.image_url}" style="width: 95px; border-radius: 8px; object-fit: cover; border: 1px solid #333;">` : ''}
-                <div>
-                    <div style="font-size: 1.15rem; font-weight: bold; color: #fff; margin-bottom: 3px;">📚 ${manga.title}</div>
-                    <div style="color: #ffc107; font-size: 0.85rem; margin-bottom: 4px;">⭐ MAL Score: ${manga.score || 'N/A'} | ${manga.chapters ? manga.chapters + ' chapters' : 'Ongoing'} (${manga.status})</div>
-                    <div style="color: #bc223b; font-size: 0.82rem; font-weight: 500; margin-bottom: 4px;">✍️ By ${authors || 'Unknown'}</div>
+                    <div style="font-size: 1.15rem; font-weight: bold; color: #fff; margin-bottom: 3px;">${icon} ${displayTitle}</div>
+                    <div style="color: #ffc107; font-size: 0.85rem; margin-bottom: 4px;">⭐ Score: ${score} / 10 | ${countInfo} (${media.status ? media.status.replace(/_/g, ' ') : 'Unknown'})</div>
+                    ${authorInfo}
                     <div style="color: #aaa; font-size: 0.78rem; margin-bottom: 8px;">Genres: ${genres || 'N/A'}</div>
-                    <div style="color: #ccc; font-size: 0.86rem; line-height: 1.4; max-height: 110px; overflow-y: auto;">${manga.synopsis || 'No synopsis provided.'}</div>
+                    <div style="color: #ccc; font-size: 0.86rem; line-height: 1.4; max-height: 110px; overflow-y: auto;">${cleanDesc}</div>
                 </div>
             </div>
         `;
-        handleVaiiDataOutput(`${manga.title}, manga score is ${manga.score || 'unrated'}. ${manga.synopsis || ''}`, html);
-    }
+        handleVaiiDataOutput(`${displayTitle}, score is ${score}. ${cleanDesc}`, html);
+    })
+    .catch(err => {
+        console.error("AniList API Error:", err);
+        handleVaiiDataOutput(`${isAnime ? 'Anime' : 'Manga'} lookup failed. Network error.`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">${isAnime ? 'Anime' : 'Manga'} lookup failed. Network error. Please try again.</div>`);
+    });
 }
 
 function fetchPokemonEntry(pokeName) {
@@ -1032,11 +1033,11 @@ function runInfoExecution(query) {
     }
 
     if (cleanQuery.startsWith("anime ")) {
-        return fetchAnimeMAL(cleanQuery.replace(/^anime\s+/i, '').trim());
+        return fetchAniListMedia(cleanQuery.replace(/^anime\s+/i, '').trim(), "ANIME");
     }
 
     if (cleanQuery.startsWith("manga ")) {
-        return fetchMangaMAL(cleanQuery.replace(/^manga\s+/i, '').trim());
+        return fetchAniListMedia(cleanQuery.replace(/^manga\s+/i, '').trim(), "MANGA");
     }
 
     if (cleanQuery.startsWith("pokemon ") || cleanQuery.startsWith("pokedex ")) {
