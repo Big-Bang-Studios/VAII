@@ -235,11 +235,12 @@ const ALL_FOOD_SUGGESTIONS = [];
 
 Object.keys(LOCAL_FOOD_DB).forEach(cat => {
     ALL_FOOD_SUGGESTIONS.push(`Order ${cat}`);
+    ALL_FOOD_SUGGESTIONS.push(`Reserve ${cat}`);
 });
 
 Object.values(LOCAL_FOOD_DB).flat().forEach(b => {
     ALL_FOOD_SUGGESTIONS.push(`Order from ${b.name}`);
-    ALL_FOOD_SUGGESTIONS.push(`Order ${b.item.toLowerCase()} from ${b.name}`);
+    ALL_FOOD_SUGGESTIONS.push(`Reserve table at ${b.name}`);
 });
 
 // ==========================================
@@ -309,6 +310,7 @@ const defaultAssistantSuggestions = [
     "Tickets Superman",
     "Stream Inception",
     "Reserve steak Orlando",
+    "Order pizza",
     "ISS",
     "Sunset Tokyo",
     "Zip 90210",
@@ -712,7 +714,7 @@ function fetchOMDBMedia(title) {
                         ${data.Poster !== "N/A" ? `<img src="${data.Poster}" style="width: 90px; border-radius: 6px; object-fit: cover;">` : ''}
                         <div>
                             <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 4px;">🎬 ${data.Title} (${data.Year})</div>
-                            <div style="color: #ffc107; font-size: 0.85rem; margin-bottom: 6px;">⭐ IMDB: ${data.imdbRating} | ${data.Genre}</div>
+                            <div style="color: #ffc107; font-size: 0.85rem; margin-bottom: 8px;">⭐ IMDB: ${data.imdbRating} | ${data.Genre}</div>
                             <div style="color: #ccc; font-size: 0.88rem; line-height: 1.4;">${data.Plot}</div>
                         </div>
                     </div>
@@ -726,34 +728,176 @@ function fetchOMDBMedia(title) {
         }).catch(() => handleVaiiDataOutput("OMDB routing failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">OMDB routing failed. Network error.</div>`));
 }
 
-// OPENTABLE RESERVATIONS DISPATCHER
-function executeOpenTableReservation(queryText) {
-    const cleanSearch = queryText.trim();
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Dispatching OpenTable reservation link...</div>`;
+// UNIFIED FOOD DELIVERY & OPENTABLE RESERVATIONS DISPATCHER
+function executeLocalFoodSearch(queryText) {
+    routingWarning.style.display = "none";
     
-    const openTableUrl = `https://www.opentable.com/s?term=${encodeURIComponent(cleanSearch)}`;
-    const googleReserveUrl = `https://www.google.com/search?q=reserve+table+at+${encodeURIComponent(cleanSearch)}`;
+    let originalQuery = queryText.trim();
+    let cleanQuery = originalQuery.toLowerCase();
+    let explicitLocation = "";
+    
+    const locInMatch = originalQuery.match(/\s+in\s+(.+)$/i);
+    const locNearMatch = originalQuery.match(/\s+near\s+(.+)$/i);
+    
+    if (locInMatch) {
+        explicitLocation = locInMatch[1].trim();
+        cleanQuery = originalQuery.substring(0, locInMatch.index).toLowerCase().trim();
+    } else if (locNearMatch) {
+        explicitLocation = locNearMatch[1].trim();
+        cleanQuery = originalQuery.substring(0, locNearMatch.index).toLowerCase().trim();
+    }
 
-    const html = `
-        <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #da3743; text-align: left;">
-            <div style="font-size: 0.75rem; color: #da3743; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🍽️ Dining Reservation Dispatcher</div>
-            <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 6px;">${cleanSearch}</div>
-            <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 12px;">Lock in your table and time slot instantly through verified dining channels.</div>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <a href="${openTableUrl}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #da3743; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                    <span>Reserve on OpenTable</span><span>➔</span>
-                </a>
-                <a href="${googleReserveUrl}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #444; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                    <span>Google Dining Search</span><span>↗</span>
-                </a>
-            </div>
+    cleanQuery = cleanQuery.replace(/^(reserve table at|reserve a table at|reserve table|reserve|reservation for|reservation|order me a|order a|order some|order|find)\s+/i, '').trim();
+
+    let dbMatch = null;
+    let searchItemName = cleanQuery;
+    let searchBrandName = "";
+
+    let category = Object.keys(LOCAL_FOOD_DB).find(key => cleanQuery.includes(key));
+    if (category) {
+        const options = LOCAL_FOOD_DB[category];
+        dbMatch = options[Math.floor(Math.random() * options.length)];
+        searchBrandName = dbMatch.name;
+        searchItemName = dbMatch.item;
+    } else {
+        for (let cat in LOCAL_FOOD_DB) {
+            let brand = LOCAL_FOOD_DB[cat].find(b => {
+                let normName = b.name.toLowerCase().replace(/['\s]/g, '');
+                let normQuery = cleanQuery.replace(/['\s]/g, '');
+                return normQuery.includes(normName) || normName.includes(normQuery);
+            });
+            if (brand) {
+                dbMatch = brand;
+                searchBrandName = dbMatch.name;
+                searchItemName = dbMatch.item;
+                break;
+            }
+        }
+    }
+
+    if (!searchBrandName) {
+        searchBrandName = cleanQuery; 
+    }
+
+    let placesSearchQuery = searchBrandName;
+    if (explicitLocation) {
+        placesSearchQuery += ` in ${explicitLocation}`;
+    }
+
+    output.innerHTML = `
+        <div class="generation-status">
+            <div class="loader-spinner"></div>
+            <span style="color: #eee; font-size: 0.9rem;">Processing dining & reservation request for "${searchBrandName}"...</span>
         </div>
     `;
-    handleVaiiDataOutput(`Here are your reservation links for ${cleanSearch}.`, html);
+
+    const renderFallbackCard = (brandName, suggestionText, fallbackLoc) => {
+        const locString = fallbackLoc ? ` ${fallbackLoc}` : "";
+        const cleanFallbackString = (brandName + locString).replace(/[^a-zA-Z0-9 ,]/g, '');
+        const encFallback = encodeURIComponent(cleanFallbackString);
+        
+        const ddLink = `https://www.doordash.com/search/store/${encFallback}/`;
+        const goLink = `https://www.google.com/search?q=Order+delivery+from+${encFallback}`;
+        const otLink = `https://www.opentable.com/s?term=${encFallback}`;
+
+        const htmlOutput = `
+            <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff9800; text-align: left; margin-bottom: 15px;">
+                <div style="font-size: 0.8rem; color: #ff9800; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🍽️ Dining & Food Concierge</div>
+                <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 6px;">${brandName}</div>
+                <div style="color: #ccc; font-size: 0.9rem; margin-bottom: 14px;">💡 Suggested: <strong>${suggestionText || queryText}</strong> ${fallbackLoc ? 'near ' + fallbackLoc : ''}</div>
+                
+                <div style="font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">Delivery & Table Reservation Dispatch</div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <a href="${otLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #da3743; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
+                        <span>🍽️ Reserve Table on OpenTable</span><span>➔</span>
+                    </a>
+                    <a href="${ddLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #FF3008; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
+                        <span>🚗 Order Delivery on DoorDash</span><span>➔</span>
+                    </a>
+                    <a href="${goLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #4285F4; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
+                        <span>🌐 Google Local Order</span><span>➔</span>
+                    </a>
+                </div>
+            </div>
+        `;
+        handleVaiiDataOutput(`Here are your options for ${brandName}.`, htmlOutput);
+    };
+
+    const processPlacesSearch = (lat, lon) => {
+        if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
+            return renderFallbackCard(searchBrandName, searchItemName, explicitLocation);
+        }
+
+        const request = { query: placesSearchQuery };
+        if (lat && lon) {
+            request.location = new google.maps.LatLng(lat, lon);
+            request.radius = '16000';
+        }
+
+        const service = new google.maps.places.PlacesService(document.createElement('div'));
+        
+        service.textSearch(request, (results, status) => {
+            if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
+                results.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+                const bestPlace = results[0];
+                
+                const placeName = bestPlace.name;
+                const rating = bestPlace.rating || "N/A";
+                const address = bestPlace.formatted_address || "";
+                
+                const cleanAddressSearch = (placeName + " " + address).replace(/[^a-zA-Z0-9 ,]/g, '');
+                const encQuery = encodeURIComponent(cleanAddressSearch);
+                
+                const googleOrderLink = `https://www.google.com/search?q=Order+delivery+from+${encQuery}`;
+                const doorDashLink = `https://www.doordash.com/search/store/${encQuery}/`;
+                const openTableLink = `https://www.opentable.com/s?term=${encodeURIComponent(placeName + " " + (explicitLocation || address))}`;
+                const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeName + " " + address)}`;
+
+                let suggestionHTML = dbMatch ? `<div style="color: #ccc; font-size: 0.95rem; margin-bottom: 4px;">💡 Suggested: <strong>${searchItemName}</strong></div>` : "";
+
+                const htmlOutput = `
+                    <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff9800; text-align: left; margin-bottom: 15px;">
+                        <div style="font-size: 0.8rem; color: #ff9800; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🍽️ GPS Verified Dining</div>
+                        <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 6px;">${placeName}</div>
+                        ${suggestionHTML}
+                        <div style="color: #ccc; font-size: 0.95rem; margin-bottom: 4px;">⭐ Rating: ${rating} / 5.0</div>
+                        <a href="${mapLink}" target="_blank" style="color: #ff9800; text-decoration: none; font-size: 0.85rem; display: block; margin-bottom: 14px;">📍 ${address} ↗</a>
+                        
+                        <div style="font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">Delivery & Table Reservation Dispatch</div>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <a href="${openTableLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #da3743; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
+                                <span>🍽️ Reserve Table on OpenTable</span><span>➔</span>
+                            </a>
+                            <a href="${doorDashLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #FF3008; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
+                                <span>🚗 Order Delivery on DoorDash</span><span>➔</span>
+                            </a>
+                            <a href="${googleOrderLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #4285F4; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
+                                <span>🌐 Google Local Order</span><span>➔</span>
+                            </a>
+                        </div>
+                    </div>
+                `;
+                handleVaiiDataOutput(`I found ${placeName}. Rating is ${rating} stars.`, htmlOutput);
+            } else {
+                return renderFallbackCard(searchBrandName, searchItemName, explicitLocation);
+            }
+        });
+    };
+
+    if (explicitLocation) {
+        processPlacesSearch(null, null);
+    } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => { processPlacesSearch(position.coords.latitude, position.coords.longitude); },
+            () => { processPlacesSearch(null, null); }
+        );
+    } else {
+        processPlacesSearch(null, null);
+    }
 }
 
 // ==========================================
-// 4. CHAT ENGINE (GEMINI FALLBACK LOOP)
+// 5. CHAT ENGINE (GEMINI FALLBACK LOOP)
 // ==========================================
 async function executeGeminiDirectChat(userInput) {
     if (chatHistory.length === 0) {
@@ -894,156 +1038,6 @@ async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningM
     } catch (e) {
         console.error("Dynamic title loop exception:", e);
     }
-}
-
-// ==========================================
-// 5. LOCATION, MAPS & SOLAR CLIMATE CARD
-// ==========================================
-function resolveAndRenderLocation(searchLocationQuery, greetingHTML = "") {
-    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Locating coordinates for "${searchLocationQuery}"...</div>`;
-    let baseQuery = searchLocationQuery.split(',')[0].trim();
-
-    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(baseQuery)}&count=5&language=en&format=json`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.results && data.results.length > 0) {
-                let bestLoc = data.results[0];
-                if (searchLocationQuery.includes(",")) {
-                    const secondary = searchLocationQuery.split(',')[1].toLowerCase().trim();
-                    const matched = data.results.find(l => 
-                        (l.admin1 && l.admin1.toLowerCase().includes(secondary)) || 
-                        (l.country && l.country.toLowerCase().includes(secondary))
-                    );
-                    if (matched) bestLoc = matched;
-                }
-
-                let displayName = `${bestLoc.name}`;
-                if (bestLoc.admin1 && bestLoc.admin1 !== bestLoc.name) displayName += `, ${bestLoc.admin1}`;
-                if (bestLoc.country) displayName += ` (${bestLoc.country})`;
-
-                renderUnifiedLocationCard(bestLoc.latitude, bestLoc.longitude, bestLoc.timezone || 'auto', displayName, greetingHTML);
-            } else {
-                handleVaiiDataOutput("Could not extract metrics for " + searchLocationQuery, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not extract location metrics for "${searchLocationQuery}".</div>`);
-            }
-        })
-        .catch(err => {
-            console.error("Open-Meteo Geocoding Error:", err);
-            handleVaiiDataOutput("Location processing engine connection failure.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Location processing engine connection failure.</div>`);
-        });
-}
-
-function renderUnifiedLocationCard(lat, lon, zone, displayName, greetingHTML = "") {
-    output.innerHTML = greetingHTML + `<div class="generation-status"><div class="loader-spinner"></div> Loading telemetry for "${displayName}"...</div>`;
-    
-    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&daily=sunrise,sunset&timezone=auto`;
-
-    fetch(weatherUrl)
-        .then(res => res.json())
-        .then(weatherData => {
-            if (!weatherData || !weatherData.current_weather) {
-                throw new Error("Missing weather metrics");
-            }
-
-            const tempCelsius = weatherData.current_weather.temperature;
-            const tempFahrenheit = Math.round((tempCelsius * 9/5) + 32);
-            const windSpeed = weatherData.current_weather.windspeed;
-            
-            let effectiveTz = weatherData.timezone;
-            if (!effectiveTz || effectiveTz === 'auto') {
-                effectiveTz = (zone && zone !== 'auto') ? zone : null;
-            }
-
-            let timeString = "N/A";
-            let dateString = "N/A";
-            try {
-                const timeOpts = { hour: '2-digit', minute: '2-digit' };
-                const dateOpts = { weekday: 'long', month: 'short', day: 'numeric' };
-                if (effectiveTz) {
-                    timeOpts.timeZone = effectiveTz;
-                    dateOpts.timeZone = effectiveTz;
-                }
-                timeString = new Date().toLocaleTimeString("en-US", timeOpts);
-                dateString = new Date().toLocaleDateString("en-US", dateOpts);
-            } catch(e) {
-                timeString = new Date().toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
-                dateString = new Date().toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric' });
-            }
-
-            let solarHtml = "";
-            if (weatherData.daily && weatherData.daily.sunrise && weatherData.daily.sunset) {
-                try {
-                    const rawSunrise = weatherData.daily.sunrise[0];
-                    const rawSunset = weatherData.daily.sunset[0];
-
-                    const fmtSolar = (dtString) => {
-                        if (!dtString) return "N/A";
-                        const d = new Date(dtString);
-                        const opts = { hour: '2-digit', minute: '2-digit' };
-                        if (effectiveTz) opts.timeZone = effectiveTz;
-                        return d.toLocaleTimeString("en-US", opts);
-                    };
-
-                    const sunriseTime = fmtSolar(rawSunrise);
-                    const sunsetTime = fmtSolar(rawSunset);
-
-                    const d1 = new Date(rawSunrise);
-                    const d2 = new Date(rawSunset);
-                    const diffHours = ((d2 - d1) / (1000 * 60 * 60)).toFixed(1);
-
-                    solarHtml = `
-                        <div style="background: linear-gradient(135deg, #2b1700 0%, #1e1e1e 100%); border: 1px solid #ff9800; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
-                            <div style="font-size: 0.75rem; color: #ffb74d; text-transform: uppercase; font-weight: bold; margin-bottom: 6px;">☀️ Solar & Daylight Telemetry</div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.82rem; color: #ddd;">
-                                <div>🌅 <strong>Sunrise:</strong> ${sunriseTime}</div>
-                                <div>🌇 <strong>Sunset:</strong> ${sunsetTime}</div>
-                                <div>⏱️ <strong>Daylight:</strong> ${diffHours > 0 ? diffHours + ' hrs' : 'N/A'}</div>
-                                <div>🌐 <strong>Zone:</strong> ${effectiveTz || 'UTC'}</div>
-                            </div>
-                        </div>
-                    `;
-                } catch(e) {}
-            }
-            
-            const htmlOutput = greetingHTML + `
-                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #4da3ff; text-align: left; margin-bottom: 15px;">
-                    <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 12px;">📍 ${displayName}</div>
-                    <div style="display: flex; gap: 20px; margin-bottom: 15px; border-bottom: 1px solid #2a2a2a; padding-bottom: 12px;">
-                        <div style="flex: 1;">
-                            <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Current Climate</span><br>
-                            <span style="font-size: 1.1rem; font-weight: bold; color: #28a745;">🌡️ ${tempFahrenheit}°F</span> <span style="color:#666; font-size:0.9rem;">(${tempCelsius}°C)</span><br>
-                            <span style="color: #ccc; font-size: 0.85rem;">💨 Wind: ${windSpeed} km/h</span>
-                        </div>
-                        <div style="flex: 1; border-left: 1px solid #2a2a2a; padding-left: 15px;">
-                            <span style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Localized Clock</span><br>
-                            <span style="font-size: 1.1rem; font-weight: bold; color: #ffc107;">🕒 ${timeString}</span><br>
-                            <span style="color: #ccc; font-size: 0.85rem;">📅 ${dateString}</span>
-                        </div>
-                    </div>
-                    ${solarHtml}
-                    <span style="color: #888; font-size: 0.8rem; text-transform: uppercase; display: block; margin-bottom: 6px;">Interactive Mapping</span>
-                    <div id="vaii-merged-map-canvas" style="width:100%; height:220px; border-radius:8px; background:#252525; border: 1px solid #333;"></div>
-                </div>
-            `;
-            
-            handleVaiiDataOutput(`Location data for ${displayName}. It is currently ${tempFahrenheit} degrees Fahrenheit.`, htmlOutput, () => {
-                if (typeof google !== 'undefined' && google.maps) {
-                    const mapCoordinates = { lat: parseFloat(lat), lng: parseFloat(lon) };
-                    const loadedMapInstance = new google.maps.Map(document.getElementById('vaii-merged-map-canvas'), {
-                        center: mapCoordinates, zoom: 12, disableDefaultUI: false,
-                        styles: [
-                            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] }
-                        ]
-                    });
-                    new google.maps.Marker({ position: mapCoordinates, map: loadedMapInstance, title: displayName });
-                }
-            });
-        })
-        .catch(err => {
-            console.error("Open-Meteo Weather Error:", err);
-            handleVaiiDataOutput("Error pulling metrics for spatial location.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Error pulling metrics for spatial location.</div>`);
-        });
 }
 
 // ==========================================
@@ -1207,7 +1201,10 @@ function fetchRandomDuck() {
         "https://images.unsplash.com/photo-1555852095-64e7428df0fa?auto=format&fit=crop&w=800&q=80",
         "https://images.unsplash.com/photo-1459682687441-7761439a709d?auto=format&fit=crop&w=800&q=80",
         "https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1598439210625-5067c578f3f6?auto=format&fit=crop&w=800&q=80"
+        "https://images.unsplash.com/photo-1598439210625-5067c578f3f6?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1589254065878-42c9da997008?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1563889362352-b0492c224f61?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1618233421255-09a25b1f02c4?auto=format&fit=crop&w=800&q=80"
     ];
 
     const randomDuck = duckPool[Math.floor(Math.random() * duckPool.length)];
@@ -1775,7 +1772,7 @@ function fetchOpenLibraryBook(bookTitle) {
                 <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #e1ad01; text-align: left; display: flex; gap: 15px;">
                     ${coverUrl ? `<img src="${coverUrl}" style="width: 85px; border-radius: 6px; object-fit: cover; border: 1px solid #333;">` : ''}
                     <div>
-                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 4px;">📖 ${book.title}</div>
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff;">📖 ${book.title}</div>
                         <div style="color: #e1ad01; font-size: 0.9rem; margin-bottom: 6px;">✍️ By ${author}</div>
                         <div style="color: #aaa; font-size: 0.82rem; line-height: 1.4;">
                             📅 First Published: ${book.first_publish_year || 'Unknown'}<br>
@@ -2129,14 +2126,19 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 2. OPENTABLE RESTAURANT RESERVATIONS
-    if (cleanQuery.startsWith("reserve ") || cleanQuery.startsWith("reservation ")) {
-        return executeOpenTableReservation(query.replace(/^(reserve|reservation)\s+/i, '').trim());
-    }
-
-    // 3. CINEMATIC MEDIA, FANDANGO TICKETS & STREAMING ROUTING
+    // 2. CINEMATIC MEDIA, FANDANGO TICKETS & STREAMING ROUTING
     if (cleanQuery.startsWith("movie ") || cleanQuery.startsWith("film ") || cleanQuery.startsWith("tickets ") || cleanQuery.startsWith("ticket ") || cleanQuery.startsWith("stream ") || cleanQuery.startsWith("watch ")) {
         return fetchOMDBMedia(query.replace(/^(movie|film|tickets|ticket|stream|watch)\s+/i, '').trim());
+    }
+
+    // 3. UNIFIED DINING & TABLE RESERVATIONS (Order / Reserve / Restaurant)
+    let isFoodIntent = Object.keys(LOCAL_FOOD_DB).some(cat => cleanQuery.includes(cat)) || 
+                       cleanQuery.startsWith("order ") || cleanQuery.startsWith("find ") ||
+                       cleanQuery.startsWith("reserve ") || cleanQuery.startsWith("reservation ");
+
+    if (isFoodIntent) {
+        executeLocalFoodSearch(query);
+        return;
     }
 
     // 4. STRICT CURRENCY CONVERSION
@@ -2278,22 +2280,7 @@ function runInfoExecution(query) {
     if (cleanQuery.startsWith("news about ")) return fetchNewsAPI(query.substring(11).trim());
     if (cleanQuery === "top news" || cleanQuery === "news") return fetchNewsAPI("");
 
-    // 26. FOOD CONCIERGE
-    let isFoodIntent = Object.keys(LOCAL_FOOD_DB).some(cat => cleanQuery.includes(cat)) || 
-                       cleanQuery.startsWith("order ") || cleanQuery.startsWith("find ");
-
-    if (isFoodIntent) {
-        let foodItem = query.replace(/order me a /i, "")
-            .replace(/order a /i, "")
-            .replace(/order some /i, "")
-            .replace(/order /i, "")
-            .replace(/find /i, "")
-            .trim();
-        executeLocalFoodSearch(foodItem);
-        return;
-    }
-
-    // 27. APP LAUNCHER
+    // 26. APP LAUNCHER
     if (query.toLowerCase().startsWith("open ")) {
         let rawTarget = query.substring(5).trim().toLowerCase().replace(/['"]+/g, '');
         if (!rawTarget) { output.innerText = "Please specify what you want to open."; return; }
@@ -2325,20 +2312,20 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 28. DIRECT URL NAVIGATION
+    // 27. DIRECT URL NAVIGATION
     if (/\.[a-z]{2,6}/i.test(query) || query.startsWith('http://') || query.startsWith('https://')) {
         let cleanUrl = query.startsWith('http') ? query : 'https://' + query;
         launchTargetUrl(cleanUrl);
         return;
     }
 
-    // 29. CRYPTO & MARKET QUOTES
+    // 28. CRYPTO & MARKET QUOTES
     if (cryptoMap[cleanQuery] || cleanQuery.startsWith("price of ")) {
         runMarketExecution(cleanQuery.startsWith("price of ") ? cleanQuery.substring(9).trim() : cleanQuery);
         return;
     }
 
-    // 30. ARITHMETIC, UNIT CONVERSIONS & LANGUAGE TRANSLATION
+    // 29. ARITHMETIC, UNIT CONVERSIONS & LANGUAGE TRANSLATION
     if (/^[0-9+\-*/().\s]+$/.test(query) || cleanQuery.includes(" to ")) {
         try {
             if (!cleanQuery.includes(" to ")) {
@@ -2521,7 +2508,7 @@ function compileFinalSourceIndexBox(query, wikiData) {
 }
 
 // ==========================================
-// 9. EVENT LISTENERS
+// 7. EVENT LISTENERS
 // ==========================================
 document.querySelectorAll('input[name="vaii-mode"]').forEach(r => r.addEventListener('change', updateWelcomeMessageText));
 
@@ -2668,8 +2655,8 @@ hubInput?.addEventListener('input', () => {
     let customSuggestions = [];
     let cleanInput = trimmedQuery.toLowerCase();
     
-    if (/^(o|or|ord|orde|order|f|fi|fin|find)/i.test(cleanInput)) {
-        let searchTarget = cleanInput.replace(/^(order|find)\s+/i, '').trim();
+    if (/^(o|or|ord|orde|order|f|fi|fin|find|r|re|res|rese|reser|reserv|reserve)/i.test(cleanInput)) {
+        let searchTarget = cleanInput.replace(/^(order|find|reserve|reservation)\s+/i, '').trim();
         if (searchTarget.length > 0) {
             customSuggestions = ALL_FOOD_SUGGESTIONS.filter(s => s.toLowerCase().includes(searchTarget)).slice(0, 8);
         } else {
