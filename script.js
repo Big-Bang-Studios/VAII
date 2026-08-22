@@ -693,7 +693,15 @@ function fetchCuteAnimal(type = "dog") {
 
 function fetchCountryInfo(countryName) {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Looking up country data for "${countryName}"...</div>`;
+    
+    // Use fallback to /translation/ endpoint for flexible name queries
     fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}`)
+        .then(res => {
+            if (!res.ok) {
+                return fetch(`https://restcountries.com/v3.1/translation/${encodeURIComponent(countryName)}`);
+            }
+            return res;
+        })
         .then(res => {
             if (!res.ok) throw new Error("Country not found");
             return res.json();
