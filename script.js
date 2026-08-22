@@ -1,7 +1,12 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
-    getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword, onAuthStateChanged, signOut 
+    getAuth, 
+    GoogleAuthProvider, 
+    signInWithPopup, 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, 
+    onAuthStateChanged, 
+    signOut 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 // ==========================================
@@ -16,6 +21,7 @@ const firebaseConfig = {
     appId: "1:367548633672:web:44da44d1761085424b3e7d",
     measurementId: "G-0XBYP585WQ"
 };
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
@@ -27,19 +33,49 @@ const GNEWS_API_KEY = "a461968b" + "01ba9829" + "5729c637" + "0ec31d8d";
 
 function getActiveGeminiKey() {
     const customKey = localStorage.getItem('vaii_custom_api_key');
-    return (customKey && customKey.trim() !== '') ? customKey.trim() : GEMINI_VISION_KEY;
+    if (customKey && customKey.trim() !== '') {
+        return customKey.trim();
+    }
+    return GEMINI_VISION_KEY;
 }
 
 const BASELINE_FALLBACK_TREE = [
-    { name: "Gemini 3.7", id: "gemini-3.7-flash" },
-    { name: "Gemini 3.6", id: "gemini-3.6-flash" },
-    { name: "Gemini 3.5", id: "gemini-3.5-flash" },
-    { name: "Gemini 3.1", id: "gemini-3.1-flash" },
-    { name: "Gemini 3", id: "gemini-3-flash" },
-    { name: "Gemini 2.5", id: "gemini-2.5-flash" },
-    { name: "Gemini 2", id: "gemini-2-flash" },
-    { name: "Gemma 4 31B", id: "gemma-4-31b" },
-    { name: "Gemma 4 26B", id: "gemma-4-26b" }
+    { 
+        name: "Gemini 3.7", 
+        id: "gemini-3.7-flash" 
+    },
+    { 
+        name: "Gemini 3.6", 
+        id: "gemini-3.6-flash" 
+    },
+    { 
+        name: "Gemini 3.5", 
+        id: "gemini-3.5-flash" 
+    },
+    { 
+        name: "Gemini 3.1", 
+        id: "gemini-3.1-flash" 
+    },
+    { 
+        name: "Gemini 3", 
+        id: "gemini-3-flash" 
+    },
+    { 
+        name: "Gemini 2.5", 
+        id: "gemini-2.5-flash" 
+    },
+    { 
+        name: "Gemini 2", 
+        id: "gemini-2-flash" 
+    },
+    { 
+        name: "Gemma 4 31B", 
+        id: "gemma-4-31b" 
+    },
+    { 
+        name: "Gemma 4 26B", 
+        id: "gemma-4-26b" 
+    }
 ];
 
 const LOCAL_FOOD_DB = {
@@ -223,7 +259,11 @@ const LOCAL_FOOD_DB = {
 };
 
 const ALL_FOOD_SUGGESTIONS = [];
-Object.keys(LOCAL_FOOD_DB).forEach(cat => ALL_FOOD_SUGGESTIONS.push(`Order ${cat}`));
+
+Object.keys(LOCAL_FOOD_DB).forEach(cat => {
+    ALL_FOOD_SUGGESTIONS.push(`Order ${cat}`);
+});
+
 Object.values(LOCAL_FOOD_DB).flat().forEach(b => {
     ALL_FOOD_SUGGESTIONS.push(`Order from ${b.name}`);
     ALL_FOOD_SUGGESTIONS.push(`Order ${b.item.toLowerCase()} from ${b.name}`);
@@ -290,11 +330,28 @@ const welcomeVaiiText = `Welcome to VAII Native! Enter a search query, app routi
 const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent conversational space. Start typing below to begin a continuous chat thread...`;
 
 const defaultAssistantSuggestions = [
-    "Open Gemini", "193 lbs to kg", "Open YouTube", "BTC", "Time in Tokyo", 
-    "Dog", "Cat", "Country Japan", "Country Canada", "Drink Margarita", "My IP",
-    "Trivia", "Free Games", "Joke",
-    "Song Bohemian Rhapsody", "Pokemon Charizard", "Anime Attack on Titan", "Manga Berserk", "Book The Hobbit",
-    "Davenport, Florida", "Florida, United States", "Draw a neon cyberpunk switch console artwork"
+    "Open Gemini", 
+    "193 lbs to kg", 
+    "Open YouTube", 
+    "BTC", 
+    "Time in Tokyo", 
+    "Dog", 
+    "Cat", 
+    "Country Japan", 
+    "Country Canada", 
+    "Drink Margarita", 
+    "My IP",
+    "Trivia", 
+    "Free Games", 
+    "Joke",
+    "Song Bohemian Rhapsody", 
+    "Pokemon Charizard", 
+    "Anime Attack on Titan", 
+    "Manga Berserk", 
+    "Book The Hobbit",
+    "Davenport, Florida", 
+    "Florida, United States", 
+    "Draw a neon cyberpunk switch console artwork"
 ];
 
 window.initVaiiMap = function() {
@@ -305,7 +362,12 @@ window.initVaiiMap = function() {
 // 3. UTILS & RENDERERS
 // ==========================================
 function closeAllDrawers() {
-    [helpGuide, changelogDrawer, historyDrawer, prefsDrawer].forEach(d => { if(d) d.style.display = "none"; });
+    const drawers = [helpGuide, changelogDrawer, historyDrawer, prefsDrawer];
+    drawers.forEach(d => { 
+        if (d) {
+            d.style.display = "none";
+        }
+    });
 }
 
 function renderMarkdown(text) {
@@ -377,7 +439,11 @@ function saveCurrentSessionState(customGeneratedTitle = null) {
         if (chatHistory[2] && chatHistory[2].role === 'user') {
             fallbackTitle = chatHistory[2].parts[0].text.substring(0, 25) + "...";
         }
-        currentSession = { id: currentSessionId, title: customGeneratedTitle || fallbackTitle, history: chatHistory };
+        currentSession = { 
+            id: currentSessionId, 
+            title: customGeneratedTitle || fallbackTitle, 
+            history: chatHistory 
+        };
         sessions.unshift(currentSession);
     } else if (currentSession) {
         currentSession.history = chatHistory;
@@ -499,16 +565,19 @@ function updateDatalist(cities = [], wikiTitles = [], wikitubiaTitles = [], comb
         option.value = item;
         datalist.appendChild(option);
     });
+
     wikiTitles.forEach(title => {
         const option = document.createElement('option');
         option.value = title;
         datalist.appendChild(option);
     });
+
     wikitubiaTitles.forEach(title => {
         const option = document.createElement('option');
         option.value = title;
         datalist.appendChild(option);
     });
+
     cities.forEach(location => {
         const option = document.createElement('option');
         let parts = [];
@@ -572,10 +641,12 @@ function renderNotesManager() {
         return;
     }
     
-    let html = `<div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ffc107; text-align: left;">
-        <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 10px;">📝 My Notes</div>
-        <div style="display: flex; flex-direction: column; gap: 8px;" id="notes-container"></div>
-    </div>`;
+    let html = `
+        <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ffc107; text-align: left;">
+            <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 10px;">📝 My Notes</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;" id="notes-container"></div>
+        </div>
+    `;
     
     handleVaiiDataOutput("Here are your saved notes.", html, () => {
         const container = document.getElementById('notes-container');
@@ -627,10 +698,12 @@ function fetchNewsAPI(topic) {
             
             let html = `<div style="text-align: left; margin-bottom: 10px; font-weight: bold; color: #aaa; text-transform: uppercase;">📰 Live News ${cleanTopic ? 'on ' + cleanTopic : 'Headlines'}</div>`;
             data.articles.slice(0, 3).forEach(art => {
-                html += `<a href="${art.url}" target="_blank" style="display: block; background: #1a1a1a; padding: 12px; border-left: 3px solid #17a2b8; text-decoration: none; color: #fff; margin-bottom: 10px; border-radius: 8px;">
-                    <div style="font-weight: bold; margin-bottom: 5px;">${art.title}</div>
-                    <div style="font-size: 0.8rem; color: #888;">${art.source ? art.source.name : 'GNews'}</div>
-                </a>`;
+                html += `
+                    <a href="${art.url}" target="_blank" style="display: block; background: #1a1a1a; padding: 12px; border-left: 3px solid #17a2b8; text-decoration: none; color: #fff; margin-bottom: 10px; border-radius: 8px;">
+                        <div style="font-weight: bold; margin-bottom: 5px;">${art.title}</div>
+                        <div style="font-size: 0.8rem; color: #888;">${art.source ? art.source.name : 'GNews'}</div>
+                    </a>
+                `;
             });
             handleVaiiDataOutput("Here are the latest news headlines.", html);
         })
@@ -691,16 +764,16 @@ function fetchCuteAnimal(type = "dog") {
     }
 }
 
-// 100% RELIABLE DIRECT REST-COUNTRIES JSON DATASET WITH ACCURATE STATS
+// 100% RELIABLE REST-COUNTRIES MIRROR WITH POPULATION INTEGRATION
 function fetchCountryInfo(countryName) {
     const cleanTarget = countryName.toLowerCase().trim();
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching country data for "${cleanTarget}"...</div>`;
 
-    const renderCard = (c) => {
+    const renderCard = (c, popValue) => {
         const commonName = c.name?.common || countryName;
         const officialName = c.name?.official || commonName;
         const capital = (Array.isArray(c.capital) && c.capital.length > 0) ? c.capital.join(', ') : (c.capital || 'N/A');
-        const population = (typeof c.population === 'number') ? c.population.toLocaleString() : (c.population || 'N/A');
+        const population = popValue ? Number(popValue).toLocaleString() : 'N/A';
         const region = `${c.region || 'N/A'} (${c.subregion || ''})`;
         
         let currencyStr = 'N/A';
@@ -711,7 +784,6 @@ function fetchCountryInfo(countryName) {
             }).filter(Boolean).join(', ') || 'N/A';
         }
 
-        // SVG Flag render via direct flag CDN / flag object
         const flagSvg = (c.cca2) 
             ? `https://flagcdn.com/w160/${c.cca2.toLowerCase()}.png` 
             : (c.flags?.svg || c.flags?.png || '');
@@ -736,14 +808,12 @@ function fetchCountryInfo(countryName) {
         handleVaiiDataOutput(`${commonName}. Capital is ${capital}. Population is ${population}.`, html);
     };
 
-    // Pull from GitHub's reliable raw CDN mirror of REST Countries dataset (Never blocks, 0 CORS issues)
     fetch('https://raw.githubusercontent.com/mledoze/countries/master/countries.json')
         .then(res => {
             if (!res.ok) throw new Error("CDN error");
             return res.json();
         })
         .then(countries => {
-            // Match common name, official name, alt spellings, or cca2/cca3 codes
             const found = countries.find(c => {
                 const cCommon = (c.name?.common || '').toLowerCase();
                 const cOfficial = (c.name?.official || '').toLowerCase();
@@ -759,10 +829,18 @@ function fetchCountryInfo(countryName) {
                        cCommon.includes(cleanTarget);
             });
 
-            if (found) {
-                renderCard(found);
+            if (!found) throw new Error("Country not found in dataset");
+
+            if (found.cca2) {
+                fetch(`https://api.worldbank.org/v2/country/${found.cca2}/indicator/SP.POP.TOTL?format=json&mrnev=1`)
+                    .then(r => r.json())
+                    .then(wbData => {
+                        const pop = wbData?.[1]?.[0]?.value || found.population || null;
+                        renderCard(found, pop);
+                    })
+                    .catch(() => renderCard(found, found.population || null));
             } else {
-                throw new Error("Country not found in dataset");
+                renderCard(found, found.population || null);
             }
         })
         .catch(err => {
