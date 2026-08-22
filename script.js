@@ -858,6 +858,26 @@ async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningM
 // ==========================================
 // 5. UTILITIES (FOREX, QR, ISS, DUCK, COLLEGE, POSTAL, ETC.)
 // ==========================================
+const CURRENCY_SYMBOL_MAP = {
+    '$': 'USD',
+    '€': 'EUR',
+    '£': 'GBP',
+    '¥': 'JPY'
+};
+
+const VALID_ISO_CURRENCIES = new Set([
+    'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'HKD', 'NZD',
+    'SEK', 'KRW', 'SGD', 'NOK', 'MXN', 'INR', 'RUB', 'ZAR', 'TRY', 'BRL',
+    'TWD', 'DKK', 'PLN', 'THB', 'IDR', 'HUF', 'CZK', 'ILS', 'CLP', 'PHP',
+    'AED', 'COP', 'SAR', 'MYR', 'RON', 'VND', 'ARS', 'IQD'
+]);
+
+function normalizeCurrencyCode(token) {
+    if (!token) return 'USD';
+    const clean = token.toUpperCase().trim();
+    return CURRENCY_SYMBOL_MAP[clean] || clean;
+}
+
 function fetchForexConversion(amount, fromCurr, toCurr) {
     const from = normalizeCurrencyCode(fromCurr);
     const to = normalizeCurrencyCode(toCurr);
@@ -1540,7 +1560,7 @@ function fetchOpenLibraryBook(bookTitle) {
                 <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #e1ad01; text-align: left; display: flex; gap: 15px;">
                     ${coverUrl ? `<img src="${coverUrl}" style="width: 85px; border-radius: 6px; object-fit: cover; border: 1px solid #333;">` : ''}
                     <div>
-                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 4px;">📖 ${book.title}</div>
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #fff;">📖 ${book.title}</div>
                         <div style="color: #e1ad01; font-size: 0.9rem; margin-bottom: 6px;">✍️ By ${author}</div>
                         <div style="color: #aaa; font-size: 0.82rem; line-height: 1.4;">
                             📅 First Published: ${book.first_publish_year || 'Unknown'}<br>
@@ -1689,7 +1709,7 @@ function fetchDadJoke() {
 }
 
 // ==========================================
-// 6. MASTER ROUTING PIPELINE (VAII NATIVE)
+// 8. MASTER ROUTING PIPELINE (VAII NATIVE)
 // ==========================================
 function runInfoExecution(query) {
     const cleanQuery = query.toLowerCase().trim();
