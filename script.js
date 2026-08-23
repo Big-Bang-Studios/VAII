@@ -320,6 +320,7 @@ let autoSpeak = false;
 
 let chatHistory = [];
 let currentSessionId = null;
+let activeTimerInterval = null;
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -328,6 +329,12 @@ const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent
 
 const defaultAssistantSuggestions = [
     "Open Gemini", 
+    "Play Blinding Lights",
+    "Mars Rover",
+    "YT Veritasium",
+    "Timer 5m",
+    "Stopwatch",
+    "Repo facebook/react",
     "Convert 100 USD to EUR",
     "QR https://vaii-two.vercel.app",
     "Tickets Superman",
@@ -413,6 +420,28 @@ function speakText(text) {
     window.speechSynthesis.cancel(); 
     const utterance = new SpeechSynthesisUtterance(text);
     window.speechSynthesis.speak(utterance);
+}
+
+function playTimerChime() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.35);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + i * 0.12);
+            osc.stop(ctx.currentTime + i * 0.12 + 0.35);
+        });
+    } catch(e) {
+        console.warn("AudioContext error:", e);
+    }
 }
 
 function updateWelcomeMessageText() {
@@ -832,6 +861,318 @@ function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML =
         .catch(err => {
             console.error("Telemetry fetch failed:", err);
             handleVaiiDataOutput("Telemetry retrieval failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not load telemetry feed for ${placeName}.</div>`);
+        });
+}
+
+// ------------------------------------------
+// NEW INTEGRATION 1: LIVE SPOTIFY & MUSIC STREAM EMBED
+// ------------------------------------------
+function fetchLiveStreamPlayer(songQuery) {
+    const cleanTrack = songQuery.trim();
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Loading stream matrices for "${cleanTrack}"...</div>`;
+
+    fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(cleanTrack)}&entity=song&limit=1`)
+        .then(res => res.json())
+        .then(data => {
+            const track = data.results?.[0];
+            const title = track ? track.trackName : cleanTrack;
+            const artist = track ? track.artistName : "Various Artists";
+            const artwork = track?.artworkUrl100 || "";
+            const encTrack = encodeURIComponent(`${title} ${artist}`);
+
+            const spotifyEmbedUrl = `https://open.spotify.com/embed/track/${track ? track.trackId : ''}?utm_source=generator&theme=0`;
+            const ytMusicUrl = `https://music.youtube.com/search?q=${encTrack}`;
+            const spotifySearchUrl = `https://open.spotify.com/search/${encTrack}`;
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #1db954; text-align: left;">
+                    <div style="display: flex; gap: 14px; align-items: center; margin-bottom: 12px;">
+                        ${artwork ? `<img src="${artwork}" style="width: 70px; height: 70px; border-radius: 8px; object-fit: cover; border: 1px solid #333;">` : '<div style="font-size: 2.2rem;">🎵</div>'}
+                        <div style="flex: 1;">
+                            <div style="font-size: 0.72rem; color: #1db954; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🎧 Live Music Streaming Hub</div>
+                            <div style="font-size: 1.2rem; font-weight: bold; color: #fff;">${title}</div>
+                            <div style="color: #aaa; font-size: 0.85rem;">${artist}</div>
+                        </div>
+                    </div>
+
+                    ${track?.previewUrl ? `
+                        <div style="margin-bottom: 12px; background: #252525; padding: 8px 10px; border-radius: 6px;">
+                            <span style="font-size: 0.72rem; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px;">Instant 30s Audio Stream:</span>
+                            <audio controls style="width: 100%; height: 34px;" src="${track.previewUrl}"></audio>
+                        </div>
+                    ` : ''}
+
+                    <div style="font-size: 0.72rem; color: #888; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">Direct Player Launchers:</div>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <a href="${spotifySearchUrl}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #1db954; border-radius: 6px; padding: 8px 12px; color: #000; text-decoration: none; font-weight: bold; font-size: 0.85rem;">
+                            <span>🟢 Play full track on Spotify</span><span>➔</span>
+                        </a>
+                        <a href="${ytMusicUrl}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #ff0000; border-radius: 6px; padding: 8px 12px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.85rem;">
+                            <span>▶️ Play on YouTube Music</span><span>➔</span>
+                        </a>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`Streaming player loaded for ${title} by ${artist}.`, html);
+        })
+        .catch(() => {
+            const encTrack = encodeURIComponent(cleanTrack);
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #1db954; text-align: left;">
+                    <div style="font-size: 1.15rem; font-weight: bold; color: #fff; margin-bottom: 10px;">🎵 Stream "${cleanTrack}"</div>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <a href="https://open.spotify.com/search/${encTrack}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #1db954; border-radius: 6px; padding: 8px 12px; color: #000; text-decoration: none; font-weight: bold; font-size: 0.85rem;">
+                            <span>🟢 Search Spotify</span><span>➔</span>
+                        </a>
+                        <a href="https://music.youtube.com/search?q=${encTrack}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #ff0000; border-radius: 6px; padding: 8px 12px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.85rem;">
+                            <span>▶️ Search YouTube Music</span><span>➔</span>
+                        </a>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`Loaded streaming options for ${cleanTrack}.`, html);
+        });
+}
+
+// ------------------------------------------
+// NEW INTEGRATION 2: NASA MARS ROVER TELEMETRY
+// ------------------------------------------
+function fetchMarsRoverTelemetry(roverName = "curiosity") {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Downloading NASA Mars Rover telemetry...</div>`;
+    const targetRover = roverName.toLowerCase().includes("perseverance") ? "perseverance" : "curiosity";
+
+    fetch(`https://api.nasa.gov/mars-photos/api/v1/rovers/${targetRover}/latest_photos?api_key=DEMO_KEY`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.latest_photos || data.latest_photos.length === 0) throw new Error("No rover photos");
+            const photo = data.latest_photos[0];
+            const rover = photo.rover;
+            const imgSrc = photo.img_src.replace("http://", "https://");
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff5722; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div style="font-size: 0.72rem; color: #ff5722; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 NASA Mars Surface Telemetry</div>
+                        <span style="background: #252525; border: 1px solid #333; color: #00e676; font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 4px;">${rover.status.toUpperCase()}</span>
+                    </div>
+                    <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 2px;">Rover: ${rover.name}</div>
+                    <div style="font-size: 0.78rem; color: #aaa; margin-bottom: 10px;">Camera: <strong>${photo.camera.full_name}</strong> (${photo.camera.name})</div>
+
+                    <img src="${imgSrc}" style="width: 100%; max-height: 250px; object-fit: cover; border-radius: 8px; border: 1px solid #333;" alt="Mars Surface">
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border-top: 1px solid #2a2a2a; padding-top: 10px; margin-top: 10px; font-size: 0.82rem; color: #ccc;">
+                        <div><strong>📅 Earth Date:</strong> ${photo.earth_date}</div>
+                        <div><strong>☀️ Martian Sol:</strong> ${photo.sol}</div>
+                        <div><strong>🚀 Launch:</strong> ${rover.launch_date}</div>
+                        <div><strong>🛬 Landing:</strong> ${rover.landing_date}</div>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(`Mars Rover ${rover.name} image captured on Sol ${photo.sol} via ${photo.camera.name}.`, html);
+        })
+        .catch(() => {
+            handleVaiiDataOutput("Could not retrieve Mars Rover telemetry.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">NASA Mars Rover telemetry connection timed out.</div>`);
+        });
+}
+
+// ------------------------------------------
+// NEW INTEGRATION 3: YOUTUBE VIDEO & CHANNEL HUB
+// ------------------------------------------
+function fetchYouTubeVideoHub(query) {
+    const cleanQuery = query.trim();
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying YouTube Video Hub...</div>`;
+
+    if (!GOOGLE_API_KEY) {
+        return handleVaiiDataOutput("Google API Key missing for YouTube integration.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Google API key required for YouTube features.</div>`);
+    }
+
+    fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(cleanQuery)}&key=${GOOGLE_API_KEY}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.items || data.items.length === 0) {
+                return handleVaiiDataOutput(`No YouTube videos found for "${cleanQuery}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No YouTube videos found matching "${cleanQuery}".</div>`);
+            }
+
+            const video = data.items[0];
+            const videoId = video.id.videoId;
+            const snippet = video.snippet;
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff0000; text-align: left;">
+                    <div style="font-size: 0.72rem; color: #ff4444; text-transform: uppercase; font-weight: bold; margin-bottom: 4px; letter-spacing: 0.5px;">📺 YouTube Video Player</div>
+                    <div style="font-size: 1.15rem; font-weight: bold; color: #fff; margin-bottom: 4px; line-height: 1.3;">${snippet.title}</div>
+                    <div style="font-size: 0.8rem; color: #aaa; margin-bottom: 10px;">By <strong>${snippet.channelTitle}</strong> • ${new Date(snippet.publishedAt).toLocaleDateString()}</div>
+                    
+                    <div style="position: relative; width: 100%; padding-bottom: 56.25%; height: 0; margin-bottom: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #333;">
+                        <iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" src="https://www.youtube-nocookie.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                    </div>
+
+                    <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" style="display: block; text-align: center; background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 6px; text-decoration: none; font-size: 0.82rem; font-weight: bold;">Watch on YouTube App ↗</a>
+                </div>
+            `;
+            handleVaiiDataOutput(`Found ${snippet.title} by ${snippet.channelTitle}.`, html);
+        })
+        .catch(err => {
+            console.error("YouTube search error:", err);
+            handleVaiiDataOutput("YouTube API error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">YouTube lookup failed. Check network or API quota.</div>`);
+        });
+}
+
+// ------------------------------------------
+// NEW INTEGRATION 4: IN-CARD TIMER & STOPWATCH
+// ------------------------------------------
+function renderTimerStopwatchCard(rawQuery) {
+    if (activeTimerInterval) clearInterval(activeTimerInterval);
+    const clean = rawQuery.toLowerCase().trim();
+    const isStopwatch = clean.includes("stopwatch") || clean === "sw";
+
+    let totalSeconds = 0;
+    if (!isStopwatch) {
+        const match = clean.match(/(?:timer\s+)?(?:(\d+)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?\s*(?:(\d+)\s*s(?:ec(?:onds?)?)?)?/i);
+        const hours = parseInt(match?.[1] || 0);
+        const mins = parseInt(match?.[2] || 0);
+        const secs = parseInt(match?.[3] || 0);
+        totalSeconds = (hours * 3600) + (mins * 60) + secs;
+        if (totalSeconds === 0) totalSeconds = 300; // Default 5 minutes
+    }
+
+    const formatDisplay = (sec) => {
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = sec % 60;
+        if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
+
+    let remaining = isStopwatch ? 0 : totalSeconds;
+    const initialTime = totalSeconds;
+
+    const html = `
+        <div style="background: #1a1a1a; padding: 18px; border-radius: 12px; border-left: 4px solid #ff9800; text-align: center;">
+            <div style="font-size: 0.72rem; color: #ff9800; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; text-align: left; margin-bottom: 8px;">
+                ⏱️ ${isStopwatch ? 'Interactive Stopwatch' : 'Active Countdown Timer'}
+            </div>
+            
+            <div id="vaii-timer-display" style="font-size: 3.2rem; font-weight: 800; font-family: monospace; color: #fff; margin: 10px 0;">
+                ${formatDisplay(remaining)}
+            </div>
+
+            <div id="vaii-timer-status" style="font-size: 0.85rem; color: #aaa; margin-bottom: 14px;">
+                ${isStopwatch ? 'Stopwatch running...' : `Timer set for ${formatDisplay(initialTime)}`}
+            </div>
+
+            <div style="display: flex; gap: 8px; justify-content: center;">
+                <button id="vaii-timer-pause-btn" style="flex: 1; background: #333; color: #fff; border: 1px solid #555; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer;">Pause</button>
+                <button id="vaii-timer-reset-btn" style="flex: 1; background: #dc3545; color: #fff; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer;">Reset</button>
+            </div>
+        </div>
+    `;
+
+    handleVaiiDataOutput(isStopwatch ? "Stopwatch started." : `Timer started for ${formatDisplay(initialTime)}.`, html, () => {
+        const display = document.getElementById('vaii-timer-display');
+        const status = document.getElementById('vaii-timer-status');
+        const pauseBtn = document.getElementById('vaii-timer-pause-btn');
+        const resetBtn = document.getElementById('vaii-timer-reset-btn');
+        let isPaused = false;
+
+        activeTimerInterval = setInterval(() => {
+            if (isPaused) return;
+
+            if (isStopwatch) {
+                remaining++;
+                if (display) display.innerText = formatDisplay(remaining);
+            } else {
+                if (remaining > 0) {
+                    remaining--;
+                    if (display) display.innerText = formatDisplay(remaining);
+                } else {
+                    clearInterval(activeTimerInterval);
+                    if (display) {
+                        display.innerText = "00:00";
+                        display.style.color = "#ff4d4d";
+                    }
+                    if (status) {
+                        status.innerText = "⏰ Time is up!";
+                        status.style.color = "#ff4d4d";
+                        status.style.fontWeight = "bold";
+                    }
+                    playTimerChime();
+                    speakText("Time is up!");
+                }
+            }
+        }, 1000);
+
+        pauseBtn?.addEventListener('click', () => {
+            isPaused = !isPaused;
+            pauseBtn.innerText = isPaused ? "Resume" : "Pause";
+            pauseBtn.style.background = isPaused ? "#28a745" : "#333";
+            if (status) status.innerText = isPaused ? "Paused" : (isStopwatch ? "Running..." : "Counting down...");
+        });
+
+        resetBtn?.addEventListener('click', () => {
+            clearInterval(activeTimerInterval);
+            remaining = isStopwatch ? 0 : initialTime;
+            isPaused = true;
+            pauseBtn.innerText = "Start";
+            pauseBtn.style.background = "#28a745";
+            if (display) {
+                display.innerText = formatDisplay(remaining);
+                display.style.color = "#fff";
+            }
+            if (status) status.innerText = "Reset to start.";
+        });
+    });
+}
+
+// ------------------------------------------
+// NEW INTEGRATION 5: GITHUB REPO INSPECTOR
+// ------------------------------------------
+function fetchGitHubRepoInfo(repoQuery) {
+    let clean = repoQuery.replace(/^(repo|github)\s+/i, '').trim();
+    if (!clean.includes('/')) {
+        return handleVaiiDataOutput("Please provide user/repo format.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">Please specify a GitHub repository in <code>owner/repo</code> format (e.g. <code>repo facebook/react</code>).</div>`);
+    }
+
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Inspecting GitHub repository "${clean}"...</div>`;
+
+    fetch(`https://api.github.com/repos/${clean}`)
+        .then(res => {
+            if (!res.ok) throw new Error("Repo not found");
+            return res.json();
+        })
+        .then(repo => {
+            const stars = Number(repo.stargazers_count).toLocaleString();
+            const forks = Number(repo.forks_count).toLocaleString();
+            const issues = Number(repo.open_issues_count).toLocaleString();
+            const license = repo.license?.spdx_id || "None";
+            const updated = new Date(repo.updated_at).toLocaleDateString();
+
+            const html = `
+                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #fff; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <div style="font-size: 0.72rem; color: #aaa; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🐙 GitHub Repository Inspector</div>
+                        <span style="background: #252525; border: 1px solid #444; color: #4da3ff; font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 4px;">${repo.language || 'Code'}</span>
+                    </div>
+                    
+                    <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 4px;">${repo.full_name}</div>
+                    <div style="color: #ccc; font-size: 0.85rem; line-height: 1.4; margin-bottom: 12px;">${repo.description || 'No description provided.'}</div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #252525; padding: 10px; border-radius: 8px; margin-bottom: 12px; font-size: 0.85rem;">
+                        <div>⭐ <strong>Stars:</strong> ${stars}</div>
+                        <div>🍴 <strong>Forks:</strong> ${forks}</div>
+                        <div>⚠️ <strong>Issues:</strong> ${issues}</div>
+                        <div>⚖️ <strong>License:</strong> ${license}</div>
+                    </div>
+
+                    <a href="${repo.html_url}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #333; border: 1px solid #555; color: #fff; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: bold;">
+                        <span>View Repository on GitHub</span><span>➔</span>
+                    </a>
+                </div>
+            `;
+            handleVaiiDataOutput(`GitHub repository ${repo.full_name} has ${stars} stars and ${forks} forks.`, html);
+        })
+        .catch(() => {
+            handleVaiiDataOutput(`Repository "${clean}" not found.`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">GitHub repository "${clean}" not found. Verify spelling and owner.</div>`);
         });
 }
 
@@ -2312,12 +2653,37 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 2. CINEMATIC MEDIA, FANDANGO TICKETS & STREAMING ROUTING
+    // 2. LIVE MUSIC STREAMING EMBED CARD
+    if (cleanQuery.startsWith("play ") || cleanQuery.startsWith("stream song ")) {
+        return fetchLiveStreamPlayer(query.replace(/^(play|stream song)\s+/i, '').trim());
+    }
+
+    // 3. NASA MARS ROVER TELEMETRY
+    if (cleanQuery === "mars" || cleanQuery === "rover" || cleanQuery.startsWith("mars ") || cleanQuery.startsWith("rover ") || cleanQuery === "curiosity" || cleanQuery === "perseverance") {
+        return fetchMarsRoverTelemetry(cleanQuery);
+    }
+
+    // 4. YOUTUBE VIDEO HUB
+    if (cleanQuery.startsWith("yt ") || cleanQuery.startsWith("youtube ")) {
+        return fetchYouTubeVideoHub(query.replace(/^(yt|youtube)\s+/i, '').trim());
+    }
+
+    // 5. IN-CARD TIMER & STOPWATCH
+    if (cleanQuery.startsWith("timer") || cleanQuery === "stopwatch" || cleanQuery === "sw") {
+        return renderTimerStopwatchCard(query);
+    }
+
+    // 6. GITHUB REPOSITORY INSPECTOR
+    if (cleanQuery.startsWith("repo ") || cleanQuery.startsWith("github ")) {
+        return fetchGitHubRepoInfo(query);
+    }
+
+    // 7. CINEMATIC MEDIA, FANDANGO TICKETS & STREAMING ROUTING
     if (cleanQuery.startsWith("movie ") || cleanQuery.startsWith("film ") || cleanQuery.startsWith("tickets ") || cleanQuery.startsWith("ticket ") || cleanQuery.startsWith("stream ") || cleanQuery.startsWith("watch ")) {
         return fetchOMDBMedia(query.replace(/^(movie|film|tickets|ticket|stream|watch)\s+/i, '').trim());
     }
 
-    // 3. UNIFIED DINING & TABLE RESERVATIONS
+    // 8. UNIFIED DINING & TABLE RESERVATIONS
     const exactFoodCategoryMatch = Object.keys(LOCAL_FOOD_DB).some(cat => {
         const regex = new RegExp(`\\b${cat}\\b`, 'i');
         return regex.test(cleanQuery);
@@ -2331,7 +2697,7 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 4. STRICT CURRENCY CONVERSION
+    // 9. STRICT CURRENCY CONVERSION
     const forexPattern1 = /^(?:convert\s+)?([0-9.]+)?\s*([a-zA-Z]{3}|[$€£¥])\s+(?:to|in|into)\s+([a-zA-Z]{3}|[$€£¥])$/i;
     const forexPattern2 = /^(?:convert\s+)?([$€£¥])\s*([0-9.]+)\s+(?:to|in|into)\s+([a-zA-Z]{3}|[$€£¥])$/i;
 
@@ -2360,52 +2726,52 @@ function runInfoExecution(query) {
         }
     }
 
-    // 5. QR CODE GENERATOR
+    // 10. QR CODE GENERATOR
     if (cleanQuery.startsWith("qr ") || cleanQuery.startsWith("qrcode ")) {
         return generateQRCode(query.replace(/^(qr|qrcode)\s+/i, '').trim());
     }
 
-    // 6. ISS TELEMETRY
+    // 11. ISS TELEMETRY
     if (cleanQuery === "iss" || cleanQuery === "orbit" || cleanQuery === "where is the iss" || cleanQuery === "space station") {
         return fetchISSTelemetry();
     }
 
-    // 7. DUCKS (INSTANT)
+    // 12. DUCKS (INSTANT)
     if (cleanQuery === "duck" || cleanQuery === "ducks" || cleanQuery === "random duck") {
         return fetchRandomDuck();
     }
 
-    // 8. POSTAL CODE GEOCODER
+    // 13. POSTAL CODE GEOCODER
     if (cleanQuery.startsWith("zip ") || cleanQuery.startsWith("postal ")) {
         return fetchPostalCodeInfo(cleanQuery.replace(/^(zip|postal)\s+/i, '').trim());
     }
 
-    // 9. COLLEGE & UNIVERSITY SEARCH
+    // 14. COLLEGE & UNIVERSITY SEARCH
     if (cleanQuery.startsWith("college ") || cleanQuery.startsWith("university ")) {
         return fetchUniversityDirectory(cleanQuery.replace(/^(college|university)\s+/i, '').trim());
     }
 
-    // 10. NASA APOD
+    // 15. NASA APOD
     if (cleanQuery === "space" || cleanQuery === "nasa" || cleanQuery === "apod" || cleanQuery === "astronomy") {
         return fetchNasaAPOD();
     }
 
-    // 11. ADVICE SLIP
+    // 16. ADVICE SLIP
     if (cleanQuery === "advice" || cleanQuery === "give me advice" || cleanQuery === "quote") {
         return fetchAdviceSlip();
     }
 
-    // 12. AGIFY NAME DEMOGRAPHICS
+    // 17. AGIFY NAME DEMOGRAPHICS
     if (cleanQuery.startsWith("age ")) {
         return fetchAgifyPrediction(cleanQuery.replace(/^age\s+/i, '').trim());
     }
 
-    // 13. DICTIONARY DEFINITIONS & PHONETICS
+    // 18. DICTIONARY DEFINITIONS & PHONETICS
     if (cleanQuery.startsWith("define ")) {
         return fetchDictionaryDefinition(cleanQuery.replace(/^define\s+/i, '').trim());
     }
 
-    // 14. PET PICTURES
+    // 19. PET PICTURES
     if (cleanQuery === "dog" || cleanQuery === "random dog" || cleanQuery === "dogs") {
         return fetchCuteAnimal("dog");
     }
@@ -2413,42 +2779,42 @@ function runInfoExecution(query) {
         return fetchCuteAnimal("cat");
     }
 
-    // 15. COUNTRY & FLAGS
+    // 20. COUNTRY & FLAGS
     if (cleanQuery.startsWith("country ") || cleanQuery.startsWith("flag of ")) {
         return fetchCountryInfo(cleanQuery.replace(/^(country|flag of)\s+/i, '').trim());
     }
 
-    // 16. COCKTAILS & DRINKS
+    // 21. COCKTAILS & DRINKS
     if (cleanQuery.startsWith("drink ") || cleanQuery === "random drink" || cleanQuery === "cocktail") {
         return fetchDrinkRecipe(cleanQuery.replace(/^drink\s+/i, '').trim());
     }
 
-    // 17. PUBLIC IP TELEMETRY
+    // 22. PUBLIC IP TELEMETRY
     if (cleanQuery === "my ip" || cleanQuery === "ip" || cleanQuery === "ip lookup" || cleanQuery === "what is my ip") {
         return fetchClientIPLookup();
     }
 
-    // 18. TRIVIA QUIZ
+    // 23. TRIVIA QUIZ
     if (cleanQuery === "trivia" || cleanQuery === "quiz" || cleanQuery.startsWith("trivia ") || cleanQuery.startsWith("quiz ")) {
         return fetchTriviaQuestion();
     }
 
-    // 19. GAME DEALS
+    // 24. GAME DEALS
     if (cleanQuery === "free games" || cleanQuery === "deals" || cleanQuery === "giveaways" || cleanQuery.startsWith("free game")) {
         return fetchGameDeals();
     }
 
-    // 20. JOKES
+    // 25. JOKES
     if (cleanQuery === "joke" || cleanQuery === "tell me a joke" || cleanQuery === "make me laugh" || cleanQuery.startsWith("joke ")) {
         return fetchDadJoke();
     }
 
-    // 21. ITUNES MUSIC PREVIEWS
+    // 26. ITUNES MUSIC PREVIEWS
     if (cleanQuery.startsWith("song ") || cleanQuery.startsWith("music ") || cleanQuery.startsWith("track ")) {
         return fetchSongTrack(cleanQuery.replace(/^(song|music|track)\s+/i, '').trim());
     }
 
-    // 22. ANILIST ANIME & MANGA
+    // 27. ANILIST ANIME & MANGA
     if (cleanQuery.startsWith("anime ")) {
         return fetchAniListMedia(cleanQuery.replace(/^anime\s+/i, '').trim(), "ANIME");
     }
@@ -2456,21 +2822,21 @@ function runInfoExecution(query) {
         return fetchAniListMedia(cleanQuery.replace(/^manga\s+/i, '').trim(), "MANGA");
     }
 
-    // 23. POKEDEX
+    // 28. POKEDEX
     if (cleanQuery.startsWith("pokemon ") || cleanQuery.startsWith("pokedex ")) {
         return fetchPokemonEntry(cleanQuery.replace(/^(pokemon|pokedex)\s+/i, '').trim());
     }
 
-    // 24. OPEN LIBRARY BOOKS
+    // 29. OPEN LIBRARY BOOKS
     if (cleanQuery.startsWith("book ") || cleanQuery.startsWith("novel ")) {
         return fetchOpenLibraryBook(cleanQuery.replace(/^(book|novel)\s+/i, '').trim());
     }
 
-    // 25. GNEWS LIVE NEWS
+    // 30. GNEWS LIVE NEWS
     if (cleanQuery.startsWith("news about ")) return fetchNewsAPI(query.substring(11).trim());
     if (cleanQuery === "top news" || cleanQuery === "news") return fetchNewsAPI("");
 
-    // 26. APP LAUNCHER
+    // 31. APP LAUNCHER
     if (query.toLowerCase().startsWith("open ")) {
         let rawTarget = query.substring(5).trim().toLowerCase().replace(/['"]+/g, '');
         if (!rawTarget) { output.innerText = "Please specify what you want to open."; return; }
@@ -2502,20 +2868,20 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 27. DIRECT URL NAVIGATION
+    // 32. DIRECT URL NAVIGATION
     if (/\.[a-z]{2,6}/i.test(query) || query.startsWith('http://') || query.startsWith('https://')) {
         let cleanUrl = query.startsWith('http') ? query : 'https://' + query;
         launchTargetUrl(cleanUrl);
         return;
     }
 
-    // 28. CRYPTO & MARKET QUOTES
+    // 33. CRYPTO & MARKET QUOTES
     if (cryptoMap[cleanQuery] || cleanQuery.startsWith("price of ")) {
         runMarketExecution(cleanQuery.startsWith("price of ") ? cleanQuery.substring(9).trim() : cleanQuery);
         return;
     }
 
-    // 29. ARITHMETIC, UNIT CONVERSIONS & LANGUAGE TRANSLATION
+    // 34. ARITHMETIC, UNIT CONVERSIONS & LANGUAGE TRANSLATION
     if (/^[0-9+\-*/().\s]+$/.test(query) || cleanQuery.includes(" to ")) {
         try {
             if (!cleanQuery.includes(" to ")) {
@@ -2854,6 +3220,26 @@ hubInput?.addEventListener('input', () => {
         }
     }
 
+    if ("play".startsWith(cleanInput)) {
+        customSuggestions.push("play Blinding Lights", "play Bohemian Rhapsody", "play Starboy");
+    }
+
+    if ("mars".startsWith(cleanInput) || "rover".startsWith(cleanInput) || "curiosity".startsWith(cleanInput)) {
+        customSuggestions.push("mars", "rover", "curiosity", "perseverance");
+    }
+
+    if ("yt".startsWith(cleanInput) || "youtube".startsWith(cleanInput)) {
+        customSuggestions.push("yt Veritasium", "yt Kurzgesagt", "youtube Lofi Hip Hop");
+    }
+
+    if ("timer".startsWith(cleanInput) || "stopwatch".startsWith(cleanInput)) {
+        customSuggestions.push("timer 5m", "timer 1m30s", "timer 30s", "stopwatch");
+    }
+
+    if ("repo".startsWith(cleanInput) || "github".startsWith(cleanInput)) {
+        customSuggestions.push("repo facebook/react", "repo vercel/next.js", "github torvalds/linux");
+    }
+
     if ("tickets".startsWith(cleanInput) || "showtimes".startsWith(cleanInput)) {
         customSuggestions.push("tickets Superman", "tickets Batman", "tickets Avengers");
     }
@@ -2988,7 +3374,7 @@ hubInput?.addEventListener('input', () => {
         return; 
     }
 
-    let searchUrlQuery = trimmedQuery.replace(/map of |show map |weather in |time in |sunset in |sunset |sunrise in |sunrise |solar |reserve |reservation |tickets |ticket |stream |watch /i, "").trim();
+    let searchUrlQuery = trimmedQuery.replace(/map of |show map |weather in |time in |sunset in |sunset |sunrise in |sunrise |solar |reserve |reservation |tickets |ticket |stream |watch |play |yt |youtube |repo |github /i, "").trim();
     searchUrlQuery = searchUrlQuery.replace(/order me a |order a |order some |order | near me|find /i, "").trim();
     let baseGeoSearch = searchUrlQuery.split(',')[0].trim();
 
@@ -3016,12 +3402,12 @@ hubInput?.addEventListener('input', () => {
         }
 
         let itunesSuggestionsFetch = Promise.resolve([]);
-        if (cleanInput.startsWith("song ")) {
-            let sTerm = trimmedQuery.substring(5).trim();
+        if (cleanInput.startsWith("song ") || cleanInput.startsWith("play ")) {
+            let sTerm = trimmedQuery.replace(/^(song|play)\s+/i, '').trim();
             if (sTerm.length >= 2) {
                 itunesSuggestionsFetch = fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(sTerm)}&entity=song&limit=4`, { signal })
                     .then(res => res.json())
-                    .then(data => data.results ? data.results.map(r => `song ${r.trackName} - ${r.artistName}`) : [])
+                    .then(data => data.results ? data.results.map(r => `play ${r.trackName} - ${r.artistName}`) : [])
                     .catch(() => []);
             }
         }
@@ -3043,78 +3429,4 @@ hubInput?.addEventListener('input', () => {
             updateDatalist(cities, wikiTitles, wikitubiaTitles, combinedCustom);
         }).catch(() => {});
     }, 300);
-});
-
-// SAFE PROTECTED EXECUTE HANDLER
-executeActionBtn?.addEventListener('click', () => {
-    const query = (hubInput?.value || "").trim();
-    const modeEl = document.querySelector('input[name="vaii-mode"]:checked');
-    const mode = modeEl ? modeEl.value : "native";
-    
-    if (!query && !activeImageBase64) return;
-    
-    if (hubInput) hubInput.value = "";
-    if (routingWarning) routingWarning.style.display = "none";
-    
-    if (activeImageBase64) {
-        executeVisionAnalysis(query || "Describe this image content in clear detail.");
-        return;
-    }
-
-    if (mode === "gemini") {
-        executeGeminiDirectChat(query);
-    } else {
-        if (query.toLowerCase().startsWith("draw ")) {
-            executeImageGeneration(query.substring(5).trim());
-        } else {
-            runInfoExecution(query);
-        }
-    }
-});
-
-hubInput?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') executeActionBtn?.click();
-});
-
-googleSigninBtn?.addEventListener('click', () => {
-    authError.style.display = "none";
-    signInWithPopup(auth, googleProvider)
-        .catch(err => showAuthError(err));
-});
-
-authToggle?.addEventListener('click', () => {
-    const isLoginMode = (authSubmitBtn.innerText === "Log In");
-    authError.style.display = "none";
-    authTitle.innerText = isLoginMode ? "✨ Create Account" : "🔒 Account Sign In";
-    authSubmitBtn.innerText = isLoginMode ? "Register User" : "Log In";
-    authToggle.innerText = isLoginMode ? "Already have an account? Sign In" : "Need an account? Register instead";
-});
-
-authSubmitBtn?.addEventListener('click', () => {
-    const email = authEmail.value.trim();
-    const password = authPassword.value;
-    const isLoginMode = (authSubmitBtn.innerText === "Log In");
-    authError.style.display = "none";
-    if (!email || !password) return showAuthError("Please fill out all credentials.");
-    
-    if (isLoginMode) signInWithEmailAndPassword(auth, email, password).catch(err => showAuthError(err));
-    else createUserWithEmailAndPassword(auth, email, password).catch(err => showAuthError(err));
-});
-
-logoutActionBtn?.addEventListener('click', () => signOut(auth).catch(err => console.error(err)));
-
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        authContainer.style.display = "none";
-        mainApp.style.display = "block";
-        initializeFreshChatSession();
-        clearActiveImage();
-        renderHistoryListItems();
-        if (prefsInstructionsInput) prefsInstructionsInput.value = localStorage.getItem('vaii_gemini_instructions') || '';
-        if (prefsApiKeyInput) prefsApiKeyInput.value = localStorage.getItem('vaii_custom_api_key') || '';
-        updateDatalist([], [], [], []);
-    } else {
-        authContainer.style.display = "block";
-        mainApp.style.display = "none";
-    }
-});
+Sorry, something went wrong. Please try your request again.
