@@ -934,65 +934,100 @@ function fetchLiveStreamPlayer(songQuery) {
 
 function fetchMarsRoverTelemetry(roverName = "curiosity") {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Downloading NASA Mars Rover telemetry...</div>`;
-    const isPerseverance = roverName.toLowerCase().includes("perseverance") || roverName.toLowerCase().includes("percy");
-    const targetRover = isPerseverance ? "perseverance" : "curiosity";
+    
+    const cleanRoverInput = (roverName || "").toLowerCase();
+    const isPerseverance = cleanRoverInput.includes("perseverance") || cleanRoverInput.includes("percy");
+    const isOpportunity = cleanRoverInput.includes("opportunity") || cleanRoverInput.includes("oppy");
+    const isSpirit = cleanRoverInput.includes("spirit");
+    
+    let targetRover = "curiosity";
+    if (isPerseverance) targetRover = "perseverance";
+    else if (isOpportunity) targetRover = "opportunity";
+    else if (isSpirit) targetRover = "spirit";
 
     const ROVER_SPECS = {
         curiosity: {
             name: "Curiosity (MSL)",
             landingDateStr: "2012-08-06T05:17:57Z",
             launchDateStr: "2011-11-26",
-            landingDateDisplay: "2012-08-06",
+            landingDateDisplay: "August 6, 2012",
             landingSite: "Gale Crater",
             cameraName: "Mast Camera (Mastcam)",
             status: "OPERATIONAL",
+            statusColor: "#00e676",
             surfacePhotos: [
                 "https://mars.nasa.gov/system/resources/detail_files/26658_PIA25042-web.jpg",
                 "https://mars.nasa.gov/system/resources/detail_files/25852_PIA24487-web.jpg",
-                "https://mars.nasa.gov/system/resources/detail_files/25010_PIA23623-web.jpg",
-                "https://mars.nasa.gov/msl-raw-images/msss/01000/mcam/1000MR0044631300503690E01_DXXX.jpg"
+                "https://mars.nasa.gov/system/resources/detail_files/25010_PIA23623-web.jpg"
             ]
         },
         perseverance: {
             name: "Perseverance (Mars 2020)",
             landingDateStr: "2021-02-18T20:55:00Z",
             launchDateStr: "2020-07-30",
-            landingDateDisplay: "2021-02-18",
+            landingDateDisplay: "February 18, 2021",
             landingSite: "Jezero Crater",
             cameraName: "Mastcam-Z Color Camera",
             status: "OPERATIONAL",
+            statusColor: "#00e676",
             surfacePhotos: [
                 "https://mars.nasa.gov/system/resources/detail_files/25694_PIA24424-web.jpg",
                 "https://mars.nasa.gov/system/resources/detail_files/25732_PIA24443-web.jpg",
                 "https://mars.nasa.gov/system/resources/detail_files/25785_PIA24467-web.jpg"
+            ]
+        },
+        opportunity: {
+            name: "Opportunity (MER-B)",
+            landingDateStr: "2004-01-25T05:05:00Z",
+            launchDateStr: "2003-07-07",
+            landingDateDisplay: "January 25, 2004",
+            landingSite: "Meridiani Planum",
+            cameraName: "Panoramic Camera (Pancam)",
+            status: "COMPLETE",
+            statusColor: "#aaa",
+            surfacePhotos: [
+                "https://mars.nasa.gov/system/resources/detail_files/7432_PIA18081-full2.jpg"
+            ]
+        },
+        spirit: {
+            name: "Spirit (MER-A)",
+            landingDateStr: "2004-01-04T04:35:00Z",
+            launchDateStr: "2003-06-10",
+            landingDateDisplay: "January 4, 2004",
+            landingSite: "Gusev Crater",
+            cameraName: "Panoramic Camera (Pancam)",
+            status: "COMPLETE",
+            statusColor: "#aaa",
+            surfacePhotos: [
+                "https://mars.nasa.gov/system/resources/detail_files/5966_PIA05500-full2.jpg"
             ]
         }
     };
 
     const currentSpec = ROVER_SPECS[targetRover];
 
-    // Accurate Sol Math (1 Sol = 88775.244 seconds)
+    // Accurate Sol Math: 1 Martian Sol = 88,775.244 seconds
     const nowMs = Date.now();
     const landingMs = new Date(currentSpec.landingDateStr).getTime();
     const elapsedSeconds = Math.max(0, (nowMs - landingMs) / 1000);
-    const calculatedSol = Math.floor(elapsedSeconds / 88775.244);
+    const calculatedSol = (currentSpec.status === "OPERATIONAL") 
+        ? Math.floor(elapsedSeconds / 88775.244) 
+        : (targetRover === "opportunity" ? 5111 : 2210);
     const currentEarthDate = new Date().toISOString().split("T")[0];
 
-    const primaryUrl = `https://api.nasa.gov/mars-photos/api/v1/rovers/${targetRover}/latest_photos?api_key=DEMO_KEY`;
-
     const renderCard = (photoUrl, cameraLabel, solNumber, earthDate) => {
-        const safeImg = (photoUrl || "").replace(/^http:\/\//i, "https://");
+        const safeImg = (photoUrl || currentSpec.surfacePhotos[0]).replace(/^http:\/\//i, "https://");
         const html = `
             <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff5722; text-align: left;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <div style="font-size: 0.72rem; color: #ff5722; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 NASA Mars Surface Telemetry</div>
-                    <span style="background: #252525; border: 1px solid #333; color: #00e676; font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 4px;">${currentSpec.status}</span>
+                    <span style="background: #252525; border: 1px solid #333; color: ${currentSpec.statusColor}; font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 4px;">${currentSpec.status}</span>
                 </div>
                 <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 2px;">Rover: ${currentSpec.name}</div>
                 <div style="font-size: 0.78rem; color: #aaa; margin-bottom: 4px;">📍 Landing Site: <strong>${currentSpec.landingSite}</strong></div>
-                <div style="font-size: 0.78rem; color: #ff9800; margin-bottom: 10px;">📷 Camera: <strong>${cameraLabel}</strong></div>
+                <div style="font-size: 0.78rem; color: #ff9800; margin-bottom: 10px;">📷 Camera: <strong>${cameraLabel || currentSpec.cameraName}</strong></div>
 
-                <img src="${safeImg}" style="width: 100%; max-height: 250px; object-fit: cover; border-radius: 8px; border: 1px solid #333;" alt="Mars Surface Panorama" onerror="this.src='${currentSpec.surfacePhotos[0]}'">
+                <img src="${safeImg}" style="width: 100%; max-height: 260px; object-fit: cover; border-radius: 8px; border: 1px solid #333; display: block;" alt="Mars Surface Panorama" onerror="this.src='${currentSpec.surfacePhotos[0]}'">
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border-top: 1px solid #2a2a2a; padding-top: 10px; margin-top: 10px; font-size: 0.82rem; color: #ccc;">
                     <div><strong>📅 Earth Date:</strong> ${earthDate}</div>
@@ -1000,27 +1035,33 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
                     <div><strong>🚀 Launch:</strong> ${currentSpec.launchDateStr}</div>
                     <div><strong>🛬 Landing:</strong> ${currentSpec.landingDateDisplay}</div>
                 </div>
+
+                <a href="https://mars.nasa.gov/msl/home/" target="_blank" style="display: inline-block; margin-top: 10px; color: #ff9800; text-decoration: none; font-size: 0.8rem; font-weight: bold;">Explore NASA Mars Missions ↗</a>
             </div>
         `;
-        handleVaiiDataOutput(`Mars Rover ${currentSpec.name} surface telemetry on Sol ${solNumber} at ${currentSpec.landingSite}.`, html);
+        handleVaiiDataOutput(`Mars Rover ${currentSpec.name} telemetry on Sol ${solNumber} at ${currentSpec.landingSite}.`, html);
     };
+
+    const primaryUrl = `https://api.nasa.gov/mars-photos/api/v1/rovers/${targetRover}/latest_photos?api_key=DEMO_KEY`;
 
     fetch(primaryUrl)
         .then(res => {
-            if (!res.ok) throw new Error("API error");
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return res.json();
         })
         .then(data => {
             if (data.latest_photos && data.latest_photos.length > 0) {
                 const photo = data.latest_photos[0];
-                renderCard(photo.img_src, photo.camera.full_name, photo.sol || calculatedSol, photo.earth_date || currentEarthDate);
+                const camLabel = photo.camera?.full_name || photo.camera?.name || currentSpec.cameraName;
+                renderCard(photo.img_src, camLabel, photo.sol || calculatedSol, photo.earth_date || currentEarthDate);
             } else {
-                throw new Error("No photos");
+                throw new Error("No photo array returned");
             }
         })
-        .catch(() => {
-            const randomPhoto = currentSpec.surfacePhotos[Math.floor(Math.random() * currentSpec.surfacePhotos.length)];
-            renderCard(randomPhoto, currentSpec.cameraName, calculatedSol, currentEarthDate);
+        .catch(err => {
+            console.warn("NASA API fallback active:", err);
+            const fallbackPhoto = currentSpec.surfacePhotos[Math.floor(Math.random() * currentSpec.surfacePhotos.length)];
+            renderCard(fallbackPhoto, currentSpec.cameraName, calculatedSol, currentEarthDate);
         });
 }
 
