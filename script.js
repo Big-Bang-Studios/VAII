@@ -3,6 +3,7 @@ import {
     getAuth, 
     GoogleAuthProvider, 
     signInWithPopup, 
+    signInWithRedirect,
     signInWithEmailAndPassword, 
     createUserWithEmailAndPassword, 
     onAuthStateChanged, 
@@ -629,6 +630,7 @@ function updateDatalist(cities = [], wikiTitles = [], wikitubiaTitles = [], comb
 }
 
 function handleVaiiDataOutput(rawTextContent, defaultHtmlOutput, runMapCallback = null) {
+    if (!output) return;
     output.setAttribute('data-spoken', rawTextContent || "");
     output.innerHTML = defaultHtmlOutput;
     
@@ -706,7 +708,7 @@ function renderNotesManager() {
 function resolveAndRenderLocation(locationQuery, greetingHTML = "") {
     const cleanLocation = locationQuery.trim();
     if (!cleanLocation) {
-        output.innerText = "Please specify a location.";
+        if (output) output.innerText = "Please specify a location.";
         return;
     }
 
@@ -864,9 +866,6 @@ function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML =
         });
 }
 
-// ------------------------------------------
-// NEW INTEGRATION 1: LIVE SPOTIFY & MUSIC STREAM EMBED
-// ------------------------------------------
 function fetchLiveStreamPlayer(songQuery) {
     const cleanTrack = songQuery.trim();
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Loading stream matrices for "${cleanTrack}"...</div>`;
@@ -880,7 +879,6 @@ function fetchLiveStreamPlayer(songQuery) {
             const artwork = track?.artworkUrl100 || "";
             const encTrack = encodeURIComponent(`${title} ${artist}`);
 
-            const spotifyEmbedUrl = `https://open.spotify.com/embed/track/${track ? track.trackId : ''}?utm_source=generator&theme=0`;
             const ytMusicUrl = `https://music.youtube.com/search?q=${encTrack}`;
             const spotifySearchUrl = `https://open.spotify.com/search/${encTrack}`;
 
@@ -934,9 +932,6 @@ function fetchLiveStreamPlayer(songQuery) {
         });
 }
 
-// ------------------------------------------
-// NEW INTEGRATION 2: NASA MARS ROVER TELEMETRY
-// ------------------------------------------
 function fetchMarsRoverTelemetry(roverName = "curiosity") {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Downloading NASA Mars Rover telemetry...</div>`;
     const targetRover = roverName.toLowerCase().includes("perseverance") ? "perseverance" : "curiosity";
@@ -975,9 +970,6 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
         });
 }
 
-// ------------------------------------------
-// NEW INTEGRATION 3: YOUTUBE VIDEO & CHANNEL HUB
-// ------------------------------------------
 function fetchYouTubeVideoHub(query) {
     const cleanQuery = query.trim();
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying YouTube Video Hub...</div>`;
@@ -1018,9 +1010,6 @@ function fetchYouTubeVideoHub(query) {
         });
 }
 
-// ------------------------------------------
-// NEW INTEGRATION 4: IN-CARD TIMER & STOPWATCH
-// ------------------------------------------
 function renderTimerStopwatchCard(rawQuery) {
     if (activeTimerInterval) clearInterval(activeTimerInterval);
     const clean = rawQuery.toLowerCase().trim();
@@ -1033,7 +1022,7 @@ function renderTimerStopwatchCard(rawQuery) {
         const mins = parseInt(match?.[2] || 0);
         const secs = parseInt(match?.[3] || 0);
         totalSeconds = (hours * 3600) + (mins * 60) + secs;
-        if (totalSeconds === 0) totalSeconds = 300; // Default 5 minutes
+        if (totalSeconds === 0) totalSeconds = 300; 
     }
 
     const formatDisplay = (sec) => {
@@ -1124,9 +1113,6 @@ function renderTimerStopwatchCard(rawQuery) {
     });
 }
 
-// ------------------------------------------
-// NEW INTEGRATION 5: GITHUB REPO INSPECTOR
-// ------------------------------------------
 function fetchGitHubRepoInfo(repoQuery) {
     let clean = repoQuery.replace(/^(repo|github)\s+/i, '').trim();
     if (!clean.includes('/')) {
@@ -1145,7 +1131,6 @@ function fetchGitHubRepoInfo(repoQuery) {
             const forks = Number(repo.forks_count).toLocaleString();
             const issues = Number(repo.open_issues_count).toLocaleString();
             const license = repo.license?.spdx_id || "None";
-            const updated = new Date(repo.updated_at).toLocaleDateString();
 
             const html = `
                 <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #fff; text-align: left;">
@@ -1253,7 +1238,7 @@ function fetchOMDBMedia(title) {
 }
 
 function executeLocalFoodSearch(queryText) {
-    routingWarning.style.display = "none";
+    if (routingWarning) routingWarning.style.display = "none";
     
     let originalQuery = queryText.trim();
     let cleanQuery = originalQuery.toLowerCase();
@@ -1565,29 +1550,6 @@ async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningM
     } catch (e) {
         console.error("Dynamic title loop exception:", e);
     }
-}
-
-// ==========================================
-// 6. UTILITIES (FOREX, QR, ISS, DUCK, COLLEGE, POSTAL, ETC.)
-// ==========================================
-const CURRENCY_SYMBOL_MAP = {
-    '$': 'USD',
-    '€': 'EUR',
-    '£': 'GBP',
-    '¥': 'JPY'
-};
-
-const VALID_ISO_CURRENCIES = new Set([
-    'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'HKD', 'NZD',
-    'SEK', 'KRW', 'SGD', 'NOK', 'MXN', 'INR', 'RUB', 'ZAR', 'TRY', 'BRL',
-    'TWD', 'DKK', 'PLN', 'THB', 'IDR', 'HUF', 'CZK', 'ILS', 'CLP', 'PHP',
-    'AED', 'COP', 'SAR', 'MYR', 'RON', 'VND', 'ARS', 'IQD'
-]);
-
-function normalizeCurrencyCode(token) {
-    if (!token) return 'USD';
-    const clean = token.toUpperCase().trim();
-    return CURRENCY_SYMBOL_MAP[clean] || clean;
 }
 
 function fetchForexConversion(amount, fromCurr, toCurr) {
@@ -2530,7 +2492,7 @@ function runMarketExecution(ticker) {
 
 function executeImageGeneration(imagePrompt) {
     if (ttsBtn) ttsBtn.style.display = 'flex';
-    routingWarning.style.display = "none"; 
+    if (routingWarning) routingWarning.style.display = "none"; 
     output.innerHTML = `
         <div style="color: #888; font-style: italic; margin-bottom: 12px; font-size: 0.9rem; line-height: 1.4;">🎨 Generating artwork for "${imagePrompt}"...</div>
         <div class="generation-status" id="image-loader">
@@ -2555,7 +2517,7 @@ function executeImageGeneration(imagePrompt) {
 }
 
 function launchTargetUrl(url) {
-    routingWarning.style.display = "block"; 
+    if (routingWarning) routingWarning.style.display = "block"; 
     const htmlOutput = `
         <div class="news-header-msg" style="color: #888; font-style: italic; margin-bottom: 4px; font-size: 0.9rem; line-height: 1.4;">Navigating to external web link...</div>
         <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left; margin-bottom: 15px;">
@@ -2610,8 +2572,8 @@ function runInfoExecution(query) {
     }
     if (cleanQuery === "show notes" || cleanQuery === "my notes") return renderNotesManager();
 
-    // 1. PRIORITY LOCATION/WEATHER/MAP MATCHERS (City, State / Tokyo, Japan / Davenport, Florida)
-    const options = Array.from(datalist.options);
+    // 1. PRIORITY LOCATION/WEATHER/MAP MATCHERS
+    const options = Array.from(datalist?.options || []);
     const matchedOption = options.find(opt => opt.value.toLowerCase() === cleanQuery);
     if (matchedOption && matchedOption.getAttribute('data-lat')) {
         renderUnifiedLocationCard(matchedOption.getAttribute('data-lat'), matchedOption.getAttribute('data-lon'), matchedOption.getAttribute('data-tz'), matchedOption.value, greetingHTML);
@@ -2839,7 +2801,7 @@ function runInfoExecution(query) {
     // 31. APP LAUNCHER
     if (query.toLowerCase().startsWith("open ")) {
         let rawTarget = query.substring(5).trim().toLowerCase().replace(/['"]+/g, '');
-        if (!rawTarget) { output.innerText = "Please specify what you want to open."; return; }
+        if (!rawTarget) { if (output) output.innerText = "Please specify what you want to open."; return; }
         output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Resolving address for "${rawTarget}"...</div>`;
         
         const randomizedRoutes = {
@@ -2930,7 +2892,7 @@ function runInfoExecution(query) {
         }
     }
 
-    routingWarning.style.display = "none";
+    if (routingWarning) routingWarning.style.display = "none";
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching knowledge base for "${query}"...</div>`;
     proceedWithWikiPipeline();
 
@@ -3098,7 +3060,7 @@ prefsCloseBtn?.addEventListener('click', () => {
 prefsSaveBtn?.addEventListener('click', () => {
     if (prefsInstructionsInput) localStorage.setItem('vaii_gemini_instructions', prefsInstructionsInput.value.trim());
     if (prefsApiKeyInput) localStorage.setItem('vaii_custom_api_key', prefsApiKeyInput.value.trim());
-    prefsDrawer.style.display = "none";
+    if (prefsDrawer) prefsDrawer.style.display = "none";
     initializeFreshChatSession();
 });
 
@@ -3135,20 +3097,22 @@ if (SpeechRecognition) {
     micBtn?.addEventListener('click', () => {
         recognition.start();
         micBtn.classList.add('listening');
-        hubInput.placeholder = "Listening...";
+        if (hubInput) hubInput.placeholder = "Listening...";
     });
     
     recognition.onresult = (e) => {
-        micBtn.classList.remove('listening');
-        hubInput.value = e.results[0][0].transcript;
-        hubInput.placeholder = "Type a command...";
+        if (micBtn) micBtn.classList.remove('listening');
+        if (hubInput) {
+            hubInput.value = e.results[0][0].transcript;
+            hubInput.placeholder = "Type a command...";
+        }
         autoSpeak = true;
-        executeActionBtn.click();
+        executeActionBtn?.click();
     };
     
     recognition.onerror = () => {
-        micBtn.classList.remove('listening');
-        hubInput.placeholder = "Type a command...";
+        if (micBtn) micBtn.classList.remove('listening');
+        if (hubInput) hubInput.placeholder = "Type a command...";
     };
 } else {
     if (micBtn) micBtn.style.display = 'none';
@@ -3162,10 +3126,10 @@ ttsBtn?.addEventListener('click', () => {
             if (lastMsg.role === "model") speakText(lastMsg.parts[0].text.replace(/[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim());
         }
     } else {
-        const spokenData = output.getAttribute('data-spoken');
+        const spokenData = output ? output.getAttribute('data-spoken') : null;
         if (spokenData) {
             speakText(spokenData);
-        } else {
+        } else if (output) {
             const currentOutput = output.innerHTML;
             if (currentOutput && currentOutput.trim() !== "") {
                 let txt = stripHtml(currentOutput).replace(/[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/Assistant:|👤 You|✨ Gemini Ecosystem/gi, '').trim();
@@ -3191,10 +3155,10 @@ imageFileInput?.addEventListener('change', (e) => {
         activeImageMimeType = mimeData.split(':')[1].split(';')[0];
         activeImageBase64 = base64Data;
 
-        imagePreviewThumbnail.src = dataUrl;
-        imagePreviewFilename.innerText = file.name;
-        imagePreviewContainer.style.display = "flex";
-        cameraTriggerBtn.classList.add('active');
+        if (imagePreviewThumbnail) imagePreviewThumbnail.src = dataUrl;
+        if (imagePreviewFilename) imagePreviewFilename.innerText = file.name;
+        if (imagePreviewContainer) imagePreviewContainer.style.display = "flex";
+        if (cameraTriggerBtn) cameraTriggerBtn.classList.add('active');
     };
     reader.readAsDataURL(file);
 });
@@ -3429,4 +3393,90 @@ hubInput?.addEventListener('input', () => {
             updateDatalist(cities, wikiTitles, wikitubiaTitles, combinedCustom);
         }).catch(() => {});
     }, 300);
-Sorry, something went wrong. Please try your request again.
+});
+
+// SAFE PROTECTED EXECUTE HANDLER
+executeActionBtn?.addEventListener('click', () => {
+    const query = (hubInput?.value || "").trim();
+    const modeEl = document.querySelector('input[name="vaii-mode"]:checked');
+    const mode = modeEl ? modeEl.value : "native";
+    
+    if (!query && !activeImageBase64) return;
+    
+    if (hubInput) hubInput.value = "";
+    if (routingWarning) routingWarning.style.display = "none";
+    
+    if (activeImageBase64) {
+        executeVisionAnalysis(query || "Describe this image content in clear detail.");
+        return;
+    }
+
+    if (mode === "gemini") {
+        executeGeminiDirectChat(query);
+    } else {
+        if (query.toLowerCase().startsWith("draw ")) {
+            executeImageGeneration(query.substring(5).trim());
+        } else {
+            runInfoExecution(query);
+        }
+    }
+});
+
+hubInput?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') executeActionBtn?.click();
+});
+
+// ==========================================
+// 10. AUTH EVENT HANDLERS
+// ==========================================
+googleSigninBtn?.addEventListener('click', () => {
+    if (authError) authError.style.display = "none";
+    signInWithPopup(auth, googleProvider)
+        .catch(err => {
+            if (err.code === "auth/popup-blocked") {
+                signInWithRedirect(auth, googleProvider);
+            } else {
+                showAuthError(err);
+            }
+        });
+});
+
+authToggle?.addEventListener('click', () => {
+    const isLoginMode = (authSubmitBtn.innerText === "Log In");
+    if (authError) authError.style.display = "none";
+    if (authTitle) authTitle.innerText = isLoginMode ? "✨ Create Account" : "🔒 Account Sign In";
+    if (authSubmitBtn) authSubmitBtn.innerText = isLoginMode ? "Register User" : "Log In";
+    if (authToggle) authToggle.innerText = isLoginMode ? "Already have an account? Sign In" : "Need an account? Register instead";
+});
+
+authSubmitBtn?.addEventListener('click', () => {
+    const email = authEmail ? authEmail.value.trim() : "";
+    const password = authPassword ? authPassword.value : "";
+    const isLoginMode = (authSubmitBtn.innerText === "Log In");
+    if (authError) authError.style.display = "none";
+    if (!email || !password) return showAuthError("Please fill out all credentials.");
+    
+    if (isLoginMode) {
+        signInWithEmailAndPassword(auth, email, password).catch(err => showAuthError(err));
+    } else {
+        createUserWithEmailAndPassword(auth, email, password).catch(err => showAuthError(err));
+    }
+});
+
+logoutActionBtn?.addEventListener('click', () => signOut(auth).catch(err => console.error(err)));
+
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        if (authContainer) authContainer.style.display = "none";
+        if (mainApp) mainApp.style.display = "block";
+        initializeFreshChatSession();
+        clearActiveImage();
+        renderHistoryListItems();
+        if (prefsInstructionsInput) prefsInstructionsInput.value = localStorage.getItem('vaii_gemini_instructions') || '';
+        if (prefsApiKeyInput) prefsApiKeyInput.value = localStorage.getItem('vaii_custom_api_key') || '';
+        updateDatalist([], [], [], []);
+    } else {
+        if (authContainer) authContainer.style.display = "block";
+        if (mainApp) mainApp.style.display = "none";
+    }
+});
