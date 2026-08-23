@@ -3,7 +3,7 @@ import {
     getAuth, 
     GoogleAuthProvider, 
     signInWithPopup, 
-    signInWithRedirect,
+    signInWithRedirect, 
     signInWithEmailAndPassword, 
     createUserWithEmailAndPassword, 
     onAuthStateChanged, 
@@ -934,68 +934,93 @@ function fetchLiveStreamPlayer(songQuery) {
 
 function fetchMarsRoverTelemetry(roverName = "curiosity") {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Downloading NASA Mars Rover telemetry...</div>`;
-    const targetRover = roverName.toLowerCase().includes("perseverance") ? "perseverance" : "curiosity";
+    const isPerseverance = roverName.toLowerCase().includes("perseverance") || roverName.toLowerCase().includes("percy");
+    const targetRover = isPerseverance ? "perseverance" : "curiosity";
+
+    const ROVER_SPECS = {
+        curiosity: {
+            name: "Curiosity (MSL)",
+            landingDateStr: "2012-08-06T05:17:57Z",
+            launchDateStr: "2011-11-26",
+            landingDateDisplay: "2012-08-06",
+            landingSite: "Gale Crater",
+            cameraName: "Mast Camera (Mastcam)",
+            status: "OPERATIONAL",
+            surfacePhotos: [
+                "https://mars.nasa.gov/system/resources/detail_files/26658_PIA25042-web.jpg",
+                "https://mars.nasa.gov/system/resources/detail_files/25852_PIA24487-web.jpg",
+                "https://mars.nasa.gov/system/resources/detail_files/25010_PIA23623-web.jpg",
+                "https://mars.nasa.gov/msl-raw-images/msss/01000/mcam/1000MR0044631300503690E01_DXXX.jpg"
+            ]
+        },
+        perseverance: {
+            name: "Perseverance (Mars 2020)",
+            landingDateStr: "2021-02-18T20:55:00Z",
+            launchDateStr: "2020-07-30",
+            landingDateDisplay: "2021-02-18",
+            landingSite: "Jezero Crater",
+            cameraName: "Mastcam-Z Color Camera",
+            status: "OPERATIONAL",
+            surfacePhotos: [
+                "https://mars.nasa.gov/system/resources/detail_files/25694_PIA24424-web.jpg",
+                "https://mars.nasa.gov/system/resources/detail_files/25732_PIA24443-web.jpg",
+                "https://mars.nasa.gov/system/resources/detail_files/25785_PIA24467-web.jpg"
+            ]
+        }
+    };
+
+    const currentSpec = ROVER_SPECS[targetRover];
+
+    // Accurate Sol Math (1 Sol = 88775.244 seconds)
+    const nowMs = Date.now();
+    const landingMs = new Date(currentSpec.landingDateStr).getTime();
+    const elapsedSeconds = Math.max(0, (nowMs - landingMs) / 1000);
+    const calculatedSol = Math.floor(elapsedSeconds / 88775.244);
+    const currentEarthDate = new Date().toISOString().split("T")[0];
 
     const primaryUrl = `https://api.nasa.gov/mars-photos/api/v1/rovers/${targetRover}/latest_photos?api_key=DEMO_KEY`;
-    const fallbackUrl = `https://api.nasa.gov/mars-photos/api/v1/rovers/${targetRover}/photos?sol=1000&page=1&api_key=DEMO_KEY`;
 
-    const renderRoverCard = (photo) => {
-        const rover = photo.rover;
-        const imgSrc = (photo.img_src || "").replace(/^http:\/\//i, "https://");
-
+    const renderCard = (photoUrl, cameraLabel, solNumber, earthDate) => {
+        const safeImg = (photoUrl || "").replace(/^http:\/\//i, "https://");
         const html = `
             <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff5722; text-align: left;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <div style="font-size: 0.72rem; color: #ff5722; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 NASA Mars Surface Telemetry</div>
-                    <span style="background: #252525; border: 1px solid #333; color: #00e676; font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 4px;">${(rover.status || 'ACTIVE').toUpperCase()}</span>
+                    <span style="background: #252525; border: 1px solid #333; color: #00e676; font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 4px;">${currentSpec.status}</span>
                 </div>
-                <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 2px;">Rover: ${rover.name}</div>
-                <div style="font-size: 0.78rem; color: #aaa; margin-bottom: 10px;">Camera: <strong>${photo.camera?.full_name || 'Navigation Camera'}</strong> (${photo.camera?.name || 'NAVCAM'})</div>
+                <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 2px;">Rover: ${currentSpec.name}</div>
+                <div style="font-size: 0.78rem; color: #aaa; margin-bottom: 4px;">📍 Landing Site: <strong>${currentSpec.landingSite}</strong></div>
+                <div style="font-size: 0.78rem; color: #ff9800; margin-bottom: 10px;">📷 Camera: <strong>${cameraLabel}</strong></div>
 
-                <img src="${imgSrc}" style="width: 100%; max-height: 250px; object-fit: cover; border-radius: 8px; border: 1px solid #333;" alt="Mars Surface" onerror="this.src='https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&w=800&q=80'">
+                <img src="${safeImg}" style="width: 100%; max-height: 250px; object-fit: cover; border-radius: 8px; border: 1px solid #333;" alt="Mars Surface Panorama" onerror="this.src='${currentSpec.surfacePhotos[0]}'">
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border-top: 1px solid #2a2a2a; padding-top: 10px; margin-top: 10px; font-size: 0.82rem; color: #ccc;">
-                    <div><strong>📅 Earth Date:</strong> ${photo.earth_date || 'Recent'}</div>
-                    <div><strong>☀️ Martian Sol:</strong> ${photo.sol || '1000+'}</div>
-                    <div><strong>🚀 Launch:</strong> ${rover.launch_date || '2011-11-26'}</div>
-                    <div><strong>🛬 Landing:</strong> ${rover.landing_date || '2012-08-06'}</div>
+                    <div><strong>📅 Earth Date:</strong> ${earthDate}</div>
+                    <div><strong>☀️ Mission Sol:</strong> Sol ${solNumber}</div>
+                    <div><strong>🚀 Launch:</strong> ${currentSpec.launchDateStr}</div>
+                    <div><strong>🛬 Landing:</strong> ${currentSpec.landingDateDisplay}</div>
                 </div>
             </div>
         `;
-        handleVaiiDataOutput(`Mars Rover ${rover.name} image captured on Sol ${photo.sol}.`, html);
+        handleVaiiDataOutput(`Mars Rover ${currentSpec.name} surface telemetry on Sol ${solNumber} at ${currentSpec.landingSite}.`, html);
     };
 
     fetch(primaryUrl)
         .then(res => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            if (!res.ok) throw new Error("API error");
             return res.json();
         })
         .then(data => {
             if (data.latest_photos && data.latest_photos.length > 0) {
-                renderRoverCard(data.latest_photos[0]);
+                const photo = data.latest_photos[0];
+                renderCard(photo.img_src, photo.camera.full_name, photo.sol || calculatedSol, photo.earth_date || currentEarthDate);
             } else {
-                throw new Error("Empty latest_photos");
+                throw new Error("No photos");
             }
         })
         .catch(() => {
-            fetch(fallbackUrl)
-                .then(r => r.json())
-                .then(fallbackData => {
-                    if (fallbackData.photos && fallbackData.photos.length > 0) {
-                        renderRoverCard(fallbackData.photos[0]);
-                    } else {
-                        throw new Error("No archive photos");
-                    }
-                })
-                .catch(() => {
-                    renderRoverCard({
-                        rover: { name: targetRover === "curiosity" ? "Curiosity" : "Perseverance", status: "active", launch_date: "2020-07-30", landing_date: "2021-02-18" },
-                        camera: { full_name: "Mast Camera Color", name: "MAST" },
-                        img_src: "https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&w=800&q=80",
-                        earth_date: "Telemetry Sync",
-                        sol: "Active"
-                    });
-                });
+            const randomPhoto = currentSpec.surfacePhotos[Math.floor(Math.random() * currentSpec.surfacePhotos.length)];
+            renderCard(randomPhoto, currentSpec.cameraName, calculatedSol, currentEarthDate);
         });
 }
 
@@ -1031,7 +1056,7 @@ function renderTimerStopwatchCard(rawQuery) {
                 ⏱️ ${isStopwatch ? 'Interactive Stopwatch' : 'Active Countdown Timer'}
             </div>
             
-            <div id="vaii-timer-display" style="font-size: 3.2rem; font-weight: 800; font-family: monospace; color: #fff; margin: 10px 0;">
+            <div id="vaii-timer-display" style="font-size: 3.2rem; font-weight: 800; font-family: monospace; color: #fff; margin-min: 10px 0;">
                 ${formatDisplay(remaining)}
             </div>
 
@@ -1539,6 +1564,29 @@ async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningM
     } catch (e) {
         console.error("Dynamic title loop exception:", e);
     }
+}
+
+// ==========================================
+// 6. UTILITIES (FOREX, QR, ISS, DUCK, COLLEGE, POSTAL, ETC.)
+// ==========================================
+const CURRENCY_SYMBOL_MAP = {
+    '$': 'USD',
+    '€': 'EUR',
+    '£': 'GBP',
+    '¥': 'JPY'
+};
+
+const VALID_ISO_CURRENCIES = new Set([
+    'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'HKD', 'NZD',
+    'SEK', 'KRW', 'SGD', 'NOK', 'MXN', 'INR', 'RUB', 'ZAR', 'TRY', 'BRL',
+    'TWD', 'DKK', 'PLN', 'THB', 'IDR', 'HUF', 'CZK', 'ILS', 'CLP', 'PHP',
+    'AED', 'COP', 'SAR', 'MYR', 'RON', 'VND', 'ARS', 'IQD'
+]);
+
+function normalizeCurrencyCode(token) {
+    if (!token) return 'USD';
+    const clean = token.toUpperCase().trim();
+    return CURRENCY_SYMBOL_MAP[clean] || clean;
 }
 
 function fetchForexConversion(amount, fromCurr, toCurr) {
@@ -2610,7 +2658,7 @@ function runInfoExecution(query) {
     }
 
     // 3. NASA MARS ROVER TELEMETRY
-    if (cleanQuery === "mars" || cleanQuery === "rover" || cleanQuery.startsWith("mars ") || cleanQuery.startsWith("rover ") || cleanQuery === "curiosity" || cleanQuery === "perseverance") {
+    if (cleanQuery === "mars" || cleanQuery === "rover" || cleanQuery.startsWith("mars ") || cleanQuery.startsWith("rover ") || cleanQuery === "curiosity" || cleanQuery === "perseverance" || cleanQuery === "percy") {
         return fetchMarsRoverTelemetry(cleanQuery);
     }
 
