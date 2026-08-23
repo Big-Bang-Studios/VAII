@@ -51,6 +51,29 @@ const BASELINE_FALLBACK_TREE = [
     { name: "Gemma 4 26B", id: "gemma-4-26b" }
 ];
 
+const WMO_WEATHER_CODES = {
+    0: { desc: "Clear Sky", icon: "☀️" },
+    1: { desc: "Mainly Clear", icon: "🌤️" },
+    2: { desc: "Partly Cloudy", icon: "⛅" },
+    3: { desc: "Overcast", icon: "☁️" },
+    45: { desc: "Foggy", icon: "🌫️" },
+    48: { desc: "Depositing Rime Fog", icon: "🌫️" },
+    51: { desc: "Light Drizzle", icon: "🌦️" },
+    53: { desc: "Moderate Drizzle", icon: "🌦️" },
+    55: { desc: "Dense Drizzle", icon: "🌧️" },
+    61: { desc: "Slight Rain", icon: "🌦️" },
+    63: { desc: "Moderate Rain", icon: "🌧️" },
+    65: { desc: "Heavy Rain", icon: "🌧️" },
+    71: { desc: "Slight Snow", icon: "🌨️" },
+    73: { desc: "Moderate Snow", icon: "🌨️" },
+    75: { desc: "Heavy Snow", icon: "❄️" },
+    80: { desc: "Slight Rain Showers", icon: "🌦️" },
+    81: { desc: "Moderate Showers", icon: "🌧️" },
+    82: { desc: "Violent Rain Showers", icon: "⛈️" },
+    95: { desc: "Thunderstorm", icon: "⛈️" },
+    96: { desc: "Thunderstorm with Hail", icon: "⛈️" }
+};
+
 const LOCAL_FOOD_DB = {
     "burger": [
         { name: "Wendy's", item: "Baconator with fries" },
@@ -651,6 +674,167 @@ function renderNotesManager() {
     });
 }
 
+function resolveAndRenderLocation(locationQuery, greetingHTML = "") {
+    const cleanLocation = locationQuery.trim();
+    if (!cleanLocation) {
+        output.innerText = "Please specify a location.";
+        return;
+    }
+
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Locating and fetching telemetry for "${cleanLocation}"...</div>`;
+
+    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cleanLocation)}&count=1&language=en&format=json`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.results || data.results.length === 0) {
+                return handleVaiiDataOutput(`Could not find location "${cleanLocation}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No location records found matching "${cleanLocation}".</div>`);
+            }
+
+            const match = data.results[0];
+            let formattedName = match.name;
+            if (match.admin1 && match.admin1 !== match.name) formattedName += `, ${match.admin1}`;
+            if (match.country) formattedName += ` (${match.country})`;
+
+            renderUnifiedLocationCard(match.latitude, match.longitude, match.timezone || 'auto', formattedName, greetingHTML);
+        })
+        .catch(err => {
+            console.error("Geocoding failed:", err);
+            handleVaiiDataOutput("Geocoding network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Failed to geocode location. Network error.</div>`);
+        });
+}
+
+function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML = "") {
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Loading telemetry for ${placeName}...</div>`;
+
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=sunrise,sunset&timezone=${encodeURIComponent(timezone || 'auto')}&temperature_unit=fahrenheit&wind_speed_unit=mph`;
+
+    fetch(weatherUrl)
+        .then(res => res.json())
+        .then(data => {
+            const current = data.current || {};
+            const daily = data.daily || {};
+            const tz = data.timezone || timezone || "UTC";
+
+            const temp = Math.round(current.temperature_2m ?? 0);
+            const feelsLike = Math.round(current.apparent_temperature ?? temp);
+            const humidity = current.relative_humidity_2m ?? "--";
+            const windSpeed = Math.round(current.wind_speed_10m ?? 0);
+            const wCode = current.weather_code ?? 0;
+            const weatherInfo = WMO_WEATHER_CODES[wCode] || { desc: "Clear", icon: "☀️" };
+
+            let localTimeStr = "--:--";
+            try {
+                localTimeStr = new Intl.DateTimeFormat('en-US', {
+                    timeZone: tz,
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                }).format(new Date());
+            } catch (e) {
+                localTimeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            }
+
+            const formatSolarTime = (isoString) => {
+                if (!isoString) return "--:--";
+                const parts = isoString.split('T')[1]?.split(':');
+                if (!parts) return "--:--";
+                let hours = parseInt(parts[0], 10);
+                const minutes = parts[1];
+                const ampm = hours >= 12 ? 'PM' : 'AM';
+                hours = hours % 12 || 12;
+                return `${hours}:${minutes} ${ampm}`;
+            };
+
+            const sunriseTime = formatSolarTime(daily.sunrise?.[0]);
+            const sunsetTime = formatSolarTime(daily.sunset?.[0]);
+
+            const cardHTML = `
+                ${greetingHTML}
+                <div style="background: #1a1a1a; padding: 18px; border-radius: 12px; border-left: 4px solid #00bcd4; text-align: left; margin-bottom: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.35);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; border-bottom: 1px solid #2a2a2a; padding-bottom: 10px;">
+                        <div>
+                            <div style="font-size: 0.72rem; color: #00bcd4; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">📍 Unified Location Telemetry</div>
+                            <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-top: 2px;">${placeName}</div>
+                            <div style="font-size: 0.78rem; color: #777;">Timezone: ${tz} (${parseFloat(lat).toFixed(2)}°, ${parseFloat(lon).toFixed(2)}°)</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.7rem; color: #888; text-transform: uppercase; font-weight: bold;">Local Time</div>
+                            <div style="font-size: 1.25rem; font-weight: bold; color: #00e676;">🕒 ${localTimeStr}</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #222; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 2.2rem; line-height: 1;">${weatherInfo.icon}</span>
+                            <div>
+                                <div style="font-size: 1.6rem; font-weight: bold; color: #fff; line-height: 1.1;">${temp}°F</div>
+                                <div style="font-size: 0.85rem; color: #aaa;">${weatherInfo.desc}</div>
+                            </div>
+                        </div>
+                        <div style="text-align: right; font-size: 0.82rem; color: #bbb; line-height: 1.4;">
+                            <div>Feels like: <strong>${feelsLike}°F</strong></div>
+                            <div>Humidity: <strong>${humidity}%</strong></div>
+                            <div>Wind: <strong>${windSpeed} mph</strong></div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+                        <div style="background: #252525; padding: 10px 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 1.4rem;">🌅</span>
+                            <div>
+                                <div style="font-size: 0.72rem; color: #aaa; text-transform: uppercase; font-weight: bold;">Sunrise</div>
+                                <div style="font-size: 0.95rem; font-weight: bold; color: #ffeb3b;">${sunriseTime}</div>
+                            </div>
+                        </div>
+                        <div style="background: #252525; padding: 10px 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 1.4rem;">🌇</span>
+                            <div>
+                                <div style="font-size: 0.72rem; color: #aaa; text-transform: uppercase; font-weight: bold;">Sunset</div>
+                                <div style="font-size: 0.95rem; font-weight: bold; color: #ff9800;">${sunsetTime}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="font-size: 0.72rem; color: #888; text-transform: uppercase; font-weight: bold; margin-bottom: 6px;">🗺️ Interactive Map</div>
+                    <div id="vaii-location-map-canvas" style="width: 100%; height: 210px; border-radius: 8px; background: #252525; border: 1px solid #333; overflow: hidden;"></div>
+                </div>
+            `;
+
+            const spokenSummary = `It is currently ${localTimeStr} in ${placeName}. The temperature is ${temp} degrees Fahrenheit with ${weatherInfo.desc}. Sunrise is at ${sunriseTime} and sunset is at ${sunsetTime}.`;
+
+            handleVaiiDataOutput(spokenSummary, cardHTML, () => {
+                const mapCanvas = document.getElementById('vaii-location-map-canvas');
+                if (!mapCanvas) return;
+
+                const pos = { lat: parseFloat(lat), lng: parseFloat(lon) };
+
+                if (typeof google !== 'undefined' && google.maps && google.maps.Map) {
+                    const locMap = new google.maps.Map(mapCanvas, {
+                        center: pos,
+                        zoom: 12,
+                        disableDefaultUI: false,
+                        styles: [
+                            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+                            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+                            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] }
+                        ]
+                    });
+                    new google.maps.Marker({
+                        position: pos,
+                        map: locMap,
+                        title: placeName
+                    });
+                } else {
+                    mapCanvas.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0;" src="https://www.google.com/maps/embed/v1/place?key=${GOOGLE_API_KEY}&q=${lat},${lon}&zoom=12" allowfullscreen></iframe>`;
+                }
+            });
+        })
+        .catch(err => {
+            console.error("Telemetry fetch failed:", err);
+            handleVaiiDataOutput("Telemetry retrieval failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not load telemetry feed for ${placeName}.</div>`);
+        });
+}
+
 function fetchNewsAPI(topic) {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching live news...</div>`;
     
@@ -696,7 +880,6 @@ function fetchNewsAPI(topic) {
         });
 }
 
-// CINEMATIC MEDIA WITH FANDANGO SHOWTIMES & STREAMING/RENTAL DISPATCH
 function fetchOMDBMedia(title) {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying media database...</div>`;
     fetch(`https://www.omdbapi.com/?t=${encodeURIComponent(title)}&apikey=${OMDB_API_KEY}`)
@@ -728,7 +911,6 @@ function fetchOMDBMedia(title) {
         }).catch(() => handleVaiiDataOutput("OMDB routing failed. Network error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">OMDB routing failed. Network error.</div>`));
 }
 
-// UNIFIED FOOD DELIVERY & OPENTABLE RESERVATIONS DISPATCHER
 function executeLocalFoodSearch(queryText) {
     routingWarning.style.display = "none";
     
