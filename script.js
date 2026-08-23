@@ -332,7 +332,7 @@ const defaultAssistantSuggestions = [
     "Open Gemini", 
     "Play Blinding Lights",
     "Mars Rover",
-    "YT Veritasium",
+    "Veritasium",
     "Timer 5m",
     "Stopwatch",
     "Repo facebook/react",
@@ -967,46 +967,6 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
         })
         .catch(() => {
             handleVaiiDataOutput("Could not retrieve Mars Rover telemetry.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">NASA Mars Rover telemetry connection timed out.</div>`);
-        });
-}
-
-function fetchYouTubeVideoHub(query) {
-    const cleanQuery = query.trim();
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying YouTube Video Hub...</div>`;
-
-    if (!GOOGLE_API_KEY) {
-        return handleVaiiDataOutput("Google API Key missing for YouTube integration.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Google API key required for YouTube features.</div>`);
-    }
-
-    fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(cleanQuery)}&key=${GOOGLE_API_KEY}`)
-        .then(res => res.json())
-        .then(data => {
-            if (!data.items || data.items.length === 0) {
-                return handleVaiiDataOutput(`No YouTube videos found for "${cleanQuery}".`, `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">No YouTube videos found matching "${cleanQuery}".</div>`);
-            }
-
-            const video = data.items[0];
-            const videoId = video.id.videoId;
-            const snippet = video.snippet;
-
-            const html = `
-                <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff0000; text-align: left;">
-                    <div style="font-size: 0.72rem; color: #ff4444; text-transform: uppercase; font-weight: bold; margin-bottom: 4px; letter-spacing: 0.5px;">📺 YouTube Video Player</div>
-                    <div style="font-size: 1.15rem; font-weight: bold; color: #fff; margin-bottom: 4px; line-height: 1.3;">${snippet.title}</div>
-                    <div style="font-size: 0.8rem; color: #aaa; margin-bottom: 10px;">By <strong>${snippet.channelTitle}</strong> • ${new Date(snippet.publishedAt).toLocaleDateString()}</div>
-                    
-                    <div style="position: relative; width: 100%; padding-bottom: 56.25%; height: 0; margin-bottom: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #333;">
-                        <iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" src="https://www.youtube-nocookie.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                    </div>
-
-                    <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" style="display: block; text-align: center; background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 6px; text-decoration: none; font-size: 0.82rem; font-weight: bold;">Watch on YouTube App ↗</a>
-                </div>
-            `;
-            handleVaiiDataOutput(`Found ${snippet.title} by ${snippet.channelTitle}.`, html);
-        })
-        .catch(err => {
-            console.error("YouTube search error:", err);
-            handleVaiiDataOutput("YouTube API error.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">YouTube lookup failed. Check network or API quota.</div>`);
         });
 }
 
@@ -2625,27 +2585,22 @@ function runInfoExecution(query) {
         return fetchMarsRoverTelemetry(cleanQuery);
     }
 
-    // 4. YOUTUBE VIDEO HUB
-    if (cleanQuery.startsWith("yt ") || cleanQuery.startsWith("youtube ")) {
-        return fetchYouTubeVideoHub(query.replace(/^(yt|youtube)\s+/i, '').trim());
-    }
-
-    // 5. IN-CARD TIMER & STOPWATCH
+    // 4. IN-CARD TIMER & STOPWATCH
     if (cleanQuery.startsWith("timer") || cleanQuery === "stopwatch" || cleanQuery === "sw") {
         return renderTimerStopwatchCard(query);
     }
 
-    // 6. GITHUB REPOSITORY INSPECTOR
+    // 5. GITHUB REPOSITORY INSPECTOR
     if (cleanQuery.startsWith("repo ") || cleanQuery.startsWith("github ")) {
         return fetchGitHubRepoInfo(query);
     }
 
-    // 7. CINEMATIC MEDIA, FANDANGO TICKETS & STREAMING ROUTING
+    // 6. CINEMATIC MEDIA, FANDANGO TICKETS & STREAMING ROUTING
     if (cleanQuery.startsWith("movie ") || cleanQuery.startsWith("film ") || cleanQuery.startsWith("tickets ") || cleanQuery.startsWith("ticket ") || cleanQuery.startsWith("stream ") || cleanQuery.startsWith("watch ")) {
         return fetchOMDBMedia(query.replace(/^(movie|film|tickets|ticket|stream|watch)\s+/i, '').trim());
     }
 
-    // 8. UNIFIED DINING & TABLE RESERVATIONS
+    // 7. UNIFIED DINING & TABLE RESERVATIONS
     const exactFoodCategoryMatch = Object.keys(LOCAL_FOOD_DB).some(cat => {
         const regex = new RegExp(`\\b${cat}\\b`, 'i');
         return regex.test(cleanQuery);
@@ -2659,7 +2614,7 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 9. STRICT CURRENCY CONVERSION
+    // 8. STRICT CURRENCY CONVERSION
     const forexPattern1 = /^(?:convert\s+)?([0-9.]+)?\s*([a-zA-Z]{3}|[$€£¥])\s+(?:to|in|into)\s+([a-zA-Z]{3}|[$€£¥])$/i;
     const forexPattern2 = /^(?:convert\s+)?([$€£¥])\s*([0-9.]+)\s+(?:to|in|into)\s+([a-zA-Z]{3}|[$€£¥])$/i;
 
@@ -2688,52 +2643,52 @@ function runInfoExecution(query) {
         }
     }
 
-    // 10. QR CODE GENERATOR
+    // 9. QR CODE GENERATOR
     if (cleanQuery.startsWith("qr ") || cleanQuery.startsWith("qrcode ")) {
         return generateQRCode(query.replace(/^(qr|qrcode)\s+/i, '').trim());
     }
 
-    // 11. ISS TELEMETRY
+    // 10. ISS TELEMETRY
     if (cleanQuery === "iss" || cleanQuery === "orbit" || cleanQuery === "where is the iss" || cleanQuery === "space station") {
         return fetchISSTelemetry();
     }
 
-    // 12. DUCKS (INSTANT)
+    // 11. DUCKS (INSTANT)
     if (cleanQuery === "duck" || cleanQuery === "ducks" || cleanQuery === "random duck") {
         return fetchRandomDuck();
     }
 
-    // 13. POSTAL CODE GEOCODER
+    // 12. POSTAL CODE GEOCODER
     if (cleanQuery.startsWith("zip ") || cleanQuery.startsWith("postal ")) {
         return fetchPostalCodeInfo(cleanQuery.replace(/^(zip|postal)\s+/i, '').trim());
     }
 
-    // 14. COLLEGE & UNIVERSITY SEARCH
+    // 13. COLLEGE & UNIVERSITY SEARCH
     if (cleanQuery.startsWith("college ") || cleanQuery.startsWith("university ")) {
         return fetchUniversityDirectory(cleanQuery.replace(/^(college|university)\s+/i, '').trim());
     }
 
-    // 15. NASA APOD
+    // 14. NASA APOD
     if (cleanQuery === "space" || cleanQuery === "nasa" || cleanQuery === "apod" || cleanQuery === "astronomy") {
         return fetchNasaAPOD();
     }
 
-    // 16. ADVICE SLIP
+    // 15. ADVICE SLIP
     if (cleanQuery === "advice" || cleanQuery === "give me advice" || cleanQuery === "quote") {
         return fetchAdviceSlip();
     }
 
-    // 17. AGIFY NAME DEMOGRAPHICS
+    // 16. AGIFY NAME DEMOGRAPHICS
     if (cleanQuery.startsWith("age ")) {
         return fetchAgifyPrediction(cleanQuery.replace(/^age\s+/i, '').trim());
     }
 
-    // 18. DICTIONARY DEFINITIONS & PHONETICS
+    // 17. DICTIONARY DEFINITIONS & PHONETICS
     if (cleanQuery.startsWith("define ")) {
         return fetchDictionaryDefinition(cleanQuery.replace(/^define\s+/i, '').trim());
     }
 
-    // 19. PET PICTURES
+    // 18. PET PICTURES
     if (cleanQuery === "dog" || cleanQuery === "random dog" || cleanQuery === "dogs") {
         return fetchCuteAnimal("dog");
     }
@@ -2741,42 +2696,42 @@ function runInfoExecution(query) {
         return fetchCuteAnimal("cat");
     }
 
-    // 20. COUNTRY & FLAGS
+    // 19. COUNTRY & FLAGS
     if (cleanQuery.startsWith("country ") || cleanQuery.startsWith("flag of ")) {
         return fetchCountryInfo(cleanQuery.replace(/^(country|flag of)\s+/i, '').trim());
     }
 
-    // 21. COCKTAILS & DRINKS
+    // 20. COCKTAILS & DRINKS
     if (cleanQuery.startsWith("drink ") || cleanQuery === "random drink" || cleanQuery === "cocktail") {
         return fetchDrinkRecipe(cleanQuery.replace(/^drink\s+/i, '').trim());
     }
 
-    // 22. PUBLIC IP TELEMETRY
+    // 21. PUBLIC IP TELEMETRY
     if (cleanQuery === "my ip" || cleanQuery === "ip" || cleanQuery === "ip lookup" || cleanQuery === "what is my ip") {
         return fetchClientIPLookup();
     }
 
-    // 23. TRIVIA QUIZ
+    // 22. TRIVIA QUIZ
     if (cleanQuery === "trivia" || cleanQuery === "quiz" || cleanQuery.startsWith("trivia ") || cleanQuery.startsWith("quiz ")) {
         return fetchTriviaQuestion();
     }
 
-    // 24. GAME DEALS
+    // 23. GAME DEALS
     if (cleanQuery === "free games" || cleanQuery === "deals" || cleanQuery === "giveaways" || cleanQuery.startsWith("free game")) {
         return fetchGameDeals();
     }
 
-    // 25. JOKES
+    // 24. JOKES
     if (cleanQuery === "joke" || cleanQuery === "tell me a joke" || cleanQuery === "make me laugh" || cleanQuery.startsWith("joke ")) {
         return fetchDadJoke();
     }
 
-    // 26. ITUNES MUSIC PREVIEWS
+    // 25. ITUNES MUSIC PREVIEWS
     if (cleanQuery.startsWith("song ") || cleanQuery.startsWith("music ") || cleanQuery.startsWith("track ")) {
         return fetchSongTrack(cleanQuery.replace(/^(song|music|track)\s+/i, '').trim());
     }
 
-    // 27. ANILIST ANIME & MANGA
+    // 26. ANILIST ANIME & MANGA
     if (cleanQuery.startsWith("anime ")) {
         return fetchAniListMedia(cleanQuery.replace(/^anime\s+/i, '').trim(), "ANIME");
     }
@@ -2784,21 +2739,21 @@ function runInfoExecution(query) {
         return fetchAniListMedia(cleanQuery.replace(/^manga\s+/i, '').trim(), "MANGA");
     }
 
-    // 28. POKEDEX
+    // 27. POKEDEX
     if (cleanQuery.startsWith("pokemon ") || cleanQuery.startsWith("pokedex ")) {
         return fetchPokemonEntry(cleanQuery.replace(/^(pokemon|pokedex)\s+/i, '').trim());
     }
 
-    // 29. OPEN LIBRARY BOOKS
+    // 28. OPEN LIBRARY BOOKS
     if (cleanQuery.startsWith("book ") || cleanQuery.startsWith("novel ")) {
         return fetchOpenLibraryBook(cleanQuery.replace(/^(book|novel)\s+/i, '').trim());
     }
 
-    // 30. GNEWS LIVE NEWS
+    // 29. GNEWS LIVE NEWS
     if (cleanQuery.startsWith("news about ")) return fetchNewsAPI(query.substring(11).trim());
     if (cleanQuery === "top news" || cleanQuery === "news") return fetchNewsAPI("");
 
-    // 31. APP LAUNCHER
+    // 30. APP LAUNCHER
     if (query.toLowerCase().startsWith("open ")) {
         let rawTarget = query.substring(5).trim().toLowerCase().replace(/['"]+/g, '');
         if (!rawTarget) { if (output) output.innerText = "Please specify what you want to open."; return; }
@@ -2830,20 +2785,20 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 32. DIRECT URL NAVIGATION
+    // 31. DIRECT URL NAVIGATION
     if (/\.[a-z]{2,6}/i.test(query) || query.startsWith('http://') || query.startsWith('https://')) {
         let cleanUrl = query.startsWith('http') ? query : 'https://' + query;
         launchTargetUrl(cleanUrl);
         return;
     }
 
-    // 33. CRYPTO & MARKET QUOTES
+    // 32. CRYPTO & MARKET QUOTES
     if (cryptoMap[cleanQuery] || cleanQuery.startsWith("price of ")) {
         runMarketExecution(cleanQuery.startsWith("price of ") ? cleanQuery.substring(9).trim() : cleanQuery);
         return;
     }
 
-    // 34. ARITHMETIC, UNIT CONVERSIONS & LANGUAGE TRANSLATION
+    // 33. ARITHMETIC, UNIT CONVERSIONS & LANGUAGE TRANSLATION
     if (/^[0-9+\-*/().\s]+$/.test(query) || cleanQuery.includes(" to ")) {
         try {
             if (!cleanQuery.includes(" to ")) {
@@ -2893,24 +2848,26 @@ function runInfoExecution(query) {
     }
 
     if (routingWarning) routingWarning.style.display = "none";
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching knowledge base for "${query}"...</div>`;
-    proceedWithWikiPipeline();
+    
+    let cleanSearchQuery = query.replace(/^(yt|youtube)\s+/i, '').trim();
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching knowledge base for "${cleanSearchQuery}"...</div>`;
+    proceedWithWikiPipeline(cleanSearchQuery);
 
-    function proceedWithWikiPipeline() {
-        if (!query.includes(" ")) {
-            fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(query.toLowerCase())}`)
+    function proceedWithWikiPipeline(searchTerm) {
+        if (!searchTerm.includes(" ")) {
+            fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(searchTerm.toLowerCase())}`)
                 .then(res => res.json())
                 .then(dictData => {
                     const key = Object.keys(dictData)[0];
                     const rawDefinition = cleanWiktionaryDefinition(dictData[key][0].definitions[0].definition);
-                    let wikiData = { wiktionary: { title: query, text: rawDefinition, pos: dictData[key][0].partOfSpeech || "noun" } };
+                    let wikiData = { wiktionary: { title: searchTerm, text: rawDefinition, pos: dictData[key][0].partOfSpeech || "noun" } };
                     if (greetingHTML) wikiData.greeting = greetingHTML;
-                    runUnifiedWikiPipeline(query, wikiData);
+                    runUnifiedWikiPipeline(searchTerm, wikiData);
                 }).catch(() => {
-                    runUnifiedWikiPipeline(query, { greeting: greetingHTML });
+                    runUnifiedWikiPipeline(searchTerm, { greeting: greetingHTML });
                 });
         } else {
-            runUnifiedWikiPipeline(query, { greeting: greetingHTML });
+            runUnifiedWikiPipeline(searchTerm, { greeting: greetingHTML });
         }
     }
 }
@@ -2921,17 +2878,39 @@ function runUnifiedWikiPipeline(query, wikiData) {
             .then(res => res.json())
             .then(searchData => {
                 if (searchData.items?.length > 0) {
-                    return fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${searchData.items[0].id.channelId}&key=${GOOGLE_API_KEY}`)
-                        .then(res => res.json())
-                        .then(channelData => {
-                            if (channelData.items?.length > 0) {
-                                const item = channelData.items[0];
-                                wikiData.youtube = { 
-                                    title: item.snippet.title, 
-                                    text: item.snippet.description, 
-                                    subs: parseInt(item.statistics.subscriberCount).toLocaleString(), 
-                                    views: parseInt(item.statistics.viewCount).toLocaleString(), 
-                                    customUrl: item.snippet.customUrl || "" 
+                    const channelId = searchData.items[0].id.channelId;
+                    return Promise.all([
+                        fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${channelId}&key=${GOOGLE_API_KEY}`).then(r => r.json()),
+                        fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&type=video&order=date&maxResults=1&key=${GOOGLE_API_KEY}`).then(r => r.json())
+                    ]).then(([channelData, videoData]) => {
+                        if (channelData.items?.length > 0) {
+                            const item = channelData.items[0];
+                            const latestVid = videoData.items?.[0];
+                            wikiData.youtube = { 
+                                title: item.snippet.title, 
+                                text: item.snippet.description, 
+                                subs: parseInt(item.statistics.subscriberCount).toLocaleString(), 
+                                views: parseInt(item.statistics.viewCount).toLocaleString(), 
+                                customUrl: item.snippet.customUrl || "",
+                                videoId: latestVid?.id?.videoId || null,
+                                videoTitle: latestVid?.snippet?.title || null
+                            };
+                        }
+                    });
+                } else {
+                    return fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`)
+                        .then(r => r.json())
+                        .then(vidData => {
+                            if (vidData.items?.length > 0) {
+                                const v = vidData.items[0];
+                                wikiData.youtube = {
+                                    title: v.snippet.channelTitle,
+                                    text: v.snippet.description,
+                                    subs: null,
+                                    views: null,
+                                    customUrl: "",
+                                    videoId: v.id.videoId,
+                                    videoTitle: v.snippet.title
                                 };
                             }
                         });
@@ -2985,7 +2964,27 @@ function compileFinalSourceIndexBox(query, wikiData) {
         blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #28a745; text-align: left;"><strong>${wikiData.wiktionary.title}</strong> (${wikiData.wiktionary.pos}): ${wikiData.wiktionary.text}</div>`);
     }
     if (wikiData.youtube && wikiData.youtube.title) {
-        blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;"><strong>📺 ${wikiData.youtube.title}</strong><br><span style="font-size: 0.85rem; color: #aaa;">🔴 Subs: ${wikiData.youtube.subs} | Views: ${wikiData.youtube.views}</span><br><br><em>${wikiData.youtube.text}</em></div>`);
+        let statsLabel = (wikiData.youtube.subs && wikiData.youtube.views) 
+            ? `<span style="font-size: 0.85rem; color: #aaa;">🔴 Subs: ${wikiData.youtube.subs} | Views: ${wikiData.youtube.views}</span><br><br>`
+            : '';
+
+        let videoEmbedHtml = wikiData.youtube.videoId ? `
+            <div style="margin-top: 12px; margin-bottom: 8px;">
+                <div style="font-size: 0.78rem; color: #ff4444; font-weight: bold; margin-bottom: 4px;">▶️ Latest Video: ${wikiData.youtube.videoTitle || ''}</div>
+                <div style="position: relative; width: 100%; padding-bottom: 56.25%; height: 0; border-radius: 8px; overflow: hidden; border: 1px solid #333;">
+                    <iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" src="https://www.youtube-nocookie.com/embed/${wikiData.youtube.videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+            </div>
+        ` : '';
+
+        blocksHtml.push(`
+            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
+                <strong>📺 ${wikiData.youtube.title}</strong><br>
+                ${statsLabel}
+                <em>${wikiData.youtube.text}</em>
+                ${videoEmbedHtml}
+            </div>
+        `);
     }
     if (wikiData.wikipedia && wikiData.wikipedia.text) {
         blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left;"><strong>${wikiData.wikipedia.title}:</strong> ${wikiData.wikipedia.text}</div>`);
@@ -3014,8 +3013,8 @@ function compileFinalSourceIndexBox(query, wikiData) {
         totalHTML += `<a href="https://en.wiktionary.org/wiki/${encodeURIComponent(query)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">📰 Wiktionary</span><span>Open Source →</span></a>`;
     }
     if (wikiData.youtube && wikiData.youtube.title) {
-        const channelPath = wikiData.youtube.customUrl ? wikiData.youtube.customUrl : `@channel`;
-        totalHTML += `<a href="https://www.youtube.com/${channelPath}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #ff4444; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">🔴 YouTube Channel</span><span>Live Metrics →</span></a>`;
+        const channelPath = wikiData.youtube.customUrl ? wikiData.youtube.customUrl : (wikiData.youtube.videoId ? `watch?v=${wikiData.youtube.videoId}` : `@channel`);
+        totalHTML += `<a href="https://www.youtube.com/${channelPath}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #ff4444; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">🔴 YouTube Hub</span><span>${wikiData.youtube.videoId ? 'Watch Video →' : 'Live Metrics →'}</span></a>`;
     }
     if (wikiData.wikipedia && wikiData.wikipedia.text) {
         totalHTML += `<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(wikiData.wikipedia.title)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">📰 Wikipedia</span><span>Open Source →</span></a>`;
@@ -3190,10 +3189,6 @@ hubInput?.addEventListener('input', () => {
 
     if ("mars".startsWith(cleanInput) || "rover".startsWith(cleanInput) || "curiosity".startsWith(cleanInput)) {
         customSuggestions.push("mars", "rover", "curiosity", "perseverance");
-    }
-
-    if ("yt".startsWith(cleanInput) || "youtube".startsWith(cleanInput)) {
-        customSuggestions.push("yt Veritasium", "yt Kurzgesagt", "youtube Lofi Hip Hop");
     }
 
     if ("timer".startsWith(cleanInput) || "stopwatch".startsWith(cleanInput)) {
