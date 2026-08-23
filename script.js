@@ -956,9 +956,8 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "OPERATIONAL",
             statusColor: "#00e676",
             surfacePhotos: [
-                "https://mars.nasa.gov/system/resources/detail_files/26658_PIA25042-web.jpg",
-                "https://mars.nasa.gov/system/resources/detail_files/25852_PIA24487-web.jpg",
-                "https://mars.nasa.gov/system/resources/detail_files/25010_PIA23623-web.jpg"
+                "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/NASA_Mars_Rover_Curiosity_Self-Portrait_at_Martian_Sand_Dune.jpg/1280px-NASA_Mars_Rover_Curiosity_Self-Portrait_at_Martian_Sand_Dune.jpg",
+                "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Curiosity_Self-Portrait_at_%27Big_Sky%27.jpg/1280px-Curiosity_Self-Portrait_at_%27Big_Sky%27.jpg"
             ]
         },
         perseverance: {
@@ -971,9 +970,8 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "OPERATIONAL",
             statusColor: "#00e676",
             surfacePhotos: [
-                "https://mars.nasa.gov/system/resources/detail_files/25694_PIA24424-web.jpg",
-                "https://mars.nasa.gov/system/resources/detail_files/25732_PIA24443-web.jpg",
-                "https://mars.nasa.gov/system/resources/detail_files/25785_PIA24467-web.jpg"
+                "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Perseverance_Rover_on_Mars_at_Octavia_E._Butler_Landing.jpg/1280px-Perseverance_Rover_on_Mars_at_Octavia_E._Butler_Landing.jpg",
+                "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/PIA24487-MarsPerseveranceRover-Selfie-20210406.jpg/1280px-PIA24487-MarsPerseveranceRover-Selfie-20210406.jpg"
             ]
         },
         opportunity: {
@@ -986,7 +984,7 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "COMPLETE",
             statusColor: "#aaa",
             surfacePhotos: [
-                "https://mars.nasa.gov/system/resources/detail_files/7432_PIA18081-full2.jpg"
+                "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/Opportunity_self-portrait.jpg/1280px-Opportunity_self-portrait.jpg"
             ]
         },
         spirit: {
@@ -999,14 +997,14 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "COMPLETE",
             statusColor: "#aaa",
             surfacePhotos: [
-                "https://mars.nasa.gov/system/resources/detail_files/5966_PIA05500-full2.jpg"
+                "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Spirit_Mars_Rover_self-portrait.jpg/1280px-Spirit_Mars_Rover_self-portrait.jpg"
             ]
         }
     };
 
     const currentSpec = ROVER_SPECS[targetRover];
 
-    // Accurate Sol Math: 1 Martian Sol = 88,775.244 seconds
+    // Sol Math: 1 Martian Sol = 88,775.244 seconds
     const nowMs = Date.now();
     const landingMs = new Date(currentSpec.landingDateStr).getTime();
     const elapsedSeconds = Math.max(0, (nowMs - landingMs) / 1000);
@@ -1015,8 +1013,15 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
         : (targetRover === "opportunity" ? 5111 : 2210);
     const currentEarthDate = new Date().toISOString().split("T")[0];
 
+    const formatPhotoUrl = (url) => {
+        if (!url) return currentSpec.surfacePhotos[0];
+        return url.replace(/^http:\/\//i, "https://");
+    };
+
     const renderCard = (photoUrl, cameraLabel, solNumber, earthDate) => {
-        const safeImg = (photoUrl || currentSpec.surfacePhotos[0]).replace(/^http:\/\//i, "https://");
+        const safeImg = formatPhotoUrl(photoUrl);
+        const fallbackImg = currentSpec.surfacePhotos[0];
+
         const html = `
             <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff5722; text-align: left;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -1027,7 +1032,14 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
                 <div style="font-size: 0.78rem; color: #aaa; margin-bottom: 4px;">📍 Landing Site: <strong>${currentSpec.landingSite}</strong></div>
                 <div style="font-size: 0.78rem; color: #ff9800; margin-bottom: 10px;">📷 Camera: <strong>${cameraLabel || currentSpec.cameraName}</strong></div>
 
-                <img src="${safeImg}" style="width: 100%; max-height: 260px; object-fit: cover; border-radius: 8px; border: 1px solid #333; display: block;" alt="Mars Surface Panorama" onerror="this.src='${currentSpec.surfacePhotos[0]}'">
+                <div style="width: 100%; min-height: 200px; max-height: 300px; background: #252525; border-radius: 8px; overflow: hidden; border: 1px solid #333; display: flex; align-items: center; justify-content: center;">
+                    <img 
+                        src="${safeImg}" 
+                        style="width: 100%; max-height: 300px; object-fit: cover; display: block;" 
+                        alt="Mars Surface Panorama" 
+                        onerror="if(this.src !== '${fallbackImg}') { this.src = '${fallbackImg}'; } else { this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div style=\\'color:#888;font-size:0.85rem;padding:30px;text-align:center;\\'>🛰️ Telemetry link active (Image stream temporarily unreachable)</div>'; }"
+                    >
+                </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border-top: 1px solid #2a2a2a; padding-top: 10px; margin-top: 10px; font-size: 0.82rem; color: #ccc;">
                     <div><strong>📅 Earth Date:</strong> ${earthDate}</div>
@@ -1046,7 +1058,7 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
 
     fetch(primaryUrl)
         .then(res => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            if (!res.ok) throw new Error(`HTTP error ${res.status}`);
             return res.json();
         })
         .then(data => {
@@ -1055,11 +1067,10 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
                 const camLabel = photo.camera?.full_name || photo.camera?.name || currentSpec.cameraName;
                 renderCard(photo.img_src, camLabel, photo.sol || calculatedSol, photo.earth_date || currentEarthDate);
             } else {
-                throw new Error("No photo array returned");
+                throw new Error("Empty photos array");
             }
         })
-        .catch(err => {
-            console.warn("NASA API fallback active:", err);
+        .catch(() => {
             const fallbackPhoto = currentSpec.surfacePhotos[Math.floor(Math.random() * currentSpec.surfacePhotos.length)];
             renderCard(fallbackPhoto, currentSpec.cameraName, calculatedSol, currentEarthDate);
         });
