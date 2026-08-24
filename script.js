@@ -3155,7 +3155,8 @@ function compileFinalSourceIndexBox(query, wikiData) {
     }
     if (wikiData.youtube && wikiData.youtube.title) {
         const channelPath = wikiData.youtube.customUrl ? wikiData.youtube.customUrl : (wikiData.youtube.videoId ? `watch?v=${wikiData.youtube.videoId}` : `@channel`);
-        totalHTML += `<a href="https://www.youtube.com/${channelPath}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #ff4444; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">🔴 YouTube Hub</span><span>${wikiData.youtube.videoId ? 'Watch Video →' : 'Live Metrics →'}</span></a>`;
+        const ytActionLabel = wikiData.youtube.customUrl ? 'View Channel →' : (wikiData.youtube.videoId ? 'Watch Video →' : 'View Channel →');
+        totalHTML += `<a href="https://www.youtube.com/${channelPath}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #ff4444; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">🔴 YouTube Hub</span><span>${ytActionLabel}</span></a>`;
     }
     if (wikiData.wikipedia && wikiData.wikipedia.text) {
         totalHTML += `<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(wikiData.wikipedia.title)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">📰 Wikipedia</span><span>Open Source →</span></a>`;
