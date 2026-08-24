@@ -671,6 +671,7 @@ function clearActiveImage() {
     if (cameraTriggerBtn) cameraTriggerBtn.classList.remove('active');
 }
 
+// PERSISTENT SCRATCHPAD & REMOVE FROM LOCALSTORAGE
 function renderNotesManager() {
     let notes = JSON.parse(localStorage.getItem('vaii_notes') || '[]');
     if (notes.length === 0) {
@@ -680,7 +681,10 @@ function renderNotesManager() {
     
     let html = `
         <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ffc107; text-align: left;">
-            <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 10px;">📝 My Notes</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span style="font-weight: bold; font-size: 1.1rem; color: #fff;">📝 My Notes & Tasks</span>
+                <button id="clear-all-notes-btn" style="background: #dc3545; color: #fff; border: none; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer;">Clear All</button>
+            </div>
             <div style="display: flex; flex-direction: column; gap: 8px;" id="notes-container"></div>
         </div>
     `;
@@ -689,18 +693,23 @@ function renderNotesManager() {
         const container = document.getElementById('notes-container');
         notes.forEach((note, index) => {
             const div = document.createElement('div');
-            div.style = "display: flex; justify-content: space-between; background: #252525; padding: 8px 12px; border-radius: 6px;";
-            div.innerHTML = `<span style="font-size: 0.9rem;">${note}</span> <button data-index="${index}" class="delete-note-btn" style="background:none; border:none; color:#dc3545; cursor:pointer;">✕</button>`;
+            div.style = "display: flex; justify-content: space-between; align-items: center; background: #252525; padding: 8px 12px; border-radius: 6px;";
+            div.innerHTML = `<span style="font-size: 0.9rem; color: #eee;">${note}</span> <button data-index="${index}" class="delete-note-btn" style="background:none; border:none; color:#dc3545; cursor:pointer; font-weight:bold; font-size:0.95rem; padding: 0 4px;" title="Delete note">✕</button>`;
             container.appendChild(div);
         });
 
         document.querySelectorAll('.delete-note-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                let idx = e.target.getAttribute('data-index');
+                let idx = parseInt(e.target.getAttribute('data-index'), 10);
                 notes.splice(idx, 1);
                 localStorage.setItem('vaii_notes', JSON.stringify(notes));
                 renderNotesManager();
             });
+        });
+
+        document.getElementById('clear-all-notes-btn')?.addEventListener('click', () => {
+            localStorage.removeItem('vaii_notes');
+            renderNotesManager();
         });
     });
 }
@@ -1096,9 +1105,9 @@ function renderTimerStopwatchCard(rawQuery) {
     let totalSeconds = 0;
     if (!isStopwatch) {
         const match = clean.match(/(?:timer\s+)?(?:(\d+)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?\s*(?:(\d+)\s*s(?:ec(?:onds?)?)?)?/i);
-        const hours = parseInt(match?.[1] || 0);
-        const mins = parseInt(match?.[2] || 0);
-        const secs = parseInt(match?.[3] || 0);
+        const hours = parseInt(match?.[1] || 0, 10);
+        const mins = parseInt(match?.[2] || 0, 10);
+        const secs = parseInt(match?.[3] || 0, 10);
         totalSeconds = (hours * 3600) + (mins * 60) + secs;
         if (totalSeconds === 0) totalSeconds = 300; 
     }
@@ -2650,6 +2659,38 @@ function runInfoExecution(query) {
         `;
     }
 
+    // Slash Commands Handling
+    if (cleanQuery.startsWith("/weather ")) {
+        return resolveAndRenderLocation(query.substring(9).trim(), greetingHTML);
+    }
+    if (cleanQuery.startsWith("/play ")) {
+        return fetchLiveStreamPlayer(query.substring(6).trim());
+    }
+    if (cleanQuery.startsWith("/movie ")) {
+        return fetchOMDBMedia(query.substring(7).trim());
+    }
+    if (cleanQuery.startsWith("/draw ")) {
+        return executeImageGeneration(query.substring(6).trim());
+    }
+    if (cleanQuery.startsWith("/repo ") || cleanQuery.startsWith("/github ")) {
+        return fetchGitHubRepoInfo(query.replace(/^(\/repo|\/github)\s+/i, '').trim());
+    }
+    if (cleanQuery.startsWith("/qr ")) {
+        return generateQRCode(query.substring(4).trim());
+    }
+    if (cleanQuery.startsWith("/timer ")) {
+        return renderTimerStopwatchCard(query.substring(7).trim());
+    }
+    if (cleanQuery.startsWith("/note ")) {
+        let text = query.substring(6).trim();
+        if (text) {
+            let notes = JSON.parse(localStorage.getItem('vaii_notes') || '[]');
+            notes.unshift(text);
+            localStorage.setItem('vaii_notes', JSON.stringify(notes));
+            return renderNotesManager();
+        }
+    }
+
     if (cleanQuery.includes("calendar") || cleanQuery.includes("calender") || cleanQuery.includes("schedule") || cleanQuery === "agenda" || cleanQuery.includes("email") || cleanQuery.includes("gmail") || cleanQuery.includes("inbox")) {
         const htmlLayout = greetingHTML + `
             <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">
@@ -2665,7 +2706,7 @@ function runInfoExecution(query) {
         let text = query.substring(5).trim();
         if (text) {
             let notes = JSON.parse(localStorage.getItem('vaii_notes') || '[]');
-            notes.push(text);
+            notes.unshift(text);
             localStorage.setItem('vaii_notes', JSON.stringify(notes));
             handleVaiiDataOutput("Note securely saved to local storage.", `<div style="background: #1a1a1a; padding: 14px; border-left: 3px solid #28a745; text-align: left; border-radius: 8px;">✅ Note securely saved to local storage. Type <code>show notes</code> to view.</div>`);
         }
@@ -3039,8 +3080,8 @@ function runUnifiedWikiPipeline(query, wikiData) {
                             wikiData.youtube = { 
                                 title: item.snippet.title, 
                                 text: item.snippet.description, 
-                                subs: parseInt(item.statistics.subscriberCount).toLocaleString(), 
-                                views: parseInt(item.statistics.viewCount).toLocaleString(), 
+                                subs: parseInt(item.statistics.subscriberCount, 10).toLocaleString(), 
+                                views: parseInt(item.statistics.viewCount, 10).toLocaleString(), 
                                 customUrl: item.snippet.customUrl || "",
                                 videoId: latestVid?.id?.videoId || null,
                                 videoTitle: latestVid?.snippet?.title || null
@@ -3320,11 +3361,29 @@ imageClearBtn?.addEventListener('click', () => {
 hubInput?.addEventListener('input', () => {
     const query = hubInput.value; 
     const trimmedQuery = query.trim();
+
     if (routingWarning) routingWarning.style.display = trimmedQuery.toLowerCase().startsWith('open ') ? "block" : "none";
 
     let customSuggestions = [];
     let cleanInput = trimmedQuery.toLowerCase();
     
+    // Auto-suggest slash commands dynamically right inside the search datalist
+    if (cleanInput.startsWith('/')) {
+        const slashCommands = [
+            "/weather Orlando, FL",
+            "/play Blinding Lights",
+            "/movie Inception",
+            "/draw Cyberpunk cityscape",
+            "/repo facebook/react",
+            "/qr https://vaii-two.vercel.app",
+            "/timer 5m",
+            "/note Check server deployments"
+        ];
+        customSuggestions = slashCommands.filter(c => c.toLowerCase().startsWith(cleanInput));
+        updateDatalist([], [], [], customSuggestions);
+        return;
+    }
+
     if (/^(o|or|ord|orde|order|f|fi|fin|find|r|re|res|rese|reser|reserv|reserve)/i.test(cleanInput)) {
         let searchTarget = cleanInput.replace(/^(order|find|reserve|reservation)\s+/i, '').trim();
         if (searchTarget.length > 0) {
