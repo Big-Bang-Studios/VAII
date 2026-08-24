@@ -6,54 +6,6 @@
     <title>VAII - Virtual Assistant</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
     <style>
-        :root {
-            --bg-color: #121212;
-            --widget-bg: #1e1e1e;
-            --input-bg: #2a2a2a;
-            --border-color: #28a745;
-            --text-color: #ffffff;
-            --accent-color: #007bff;
-            --font-family: system-ui, -apple-system, sans-serif;
-        }
-
-        /* THEMES */
-        body.theme-cyberpunk {
-            --bg-color: #0d0221;
-            --widget-bg: #0f0826;
-            --input-bg: #1d0f3b;
-            --border-color: #00f0ff;
-            --text-color: #ff007f;
-            --accent-color: #ffe600;
-        }
-
-        body.theme-crt {
-            --bg-color: #051405;
-            --widget-bg: #0b240b;
-            --input-bg: #051a05;
-            --border-color: #00ff66;
-            --text-color: #33ff33;
-            --accent-color: #00ff66;
-            --font-family: 'Courier New', Courier, monospace;
-        }
-
-        body.theme-amoled {
-            --bg-color: #000000;
-            --widget-bg: #0a0a0a;
-            --input-bg: #141414;
-            --border-color: #333333;
-            --text-color: #ffffff;
-            --accent-color: #555555;
-        }
-
-        body.theme-oled-purple {
-            --bg-color: #080312;
-            --widget-bg: #120724;
-            --input-bg: #1d0e38;
-            --border-color: #a855f7;
-            --text-color: #f3e8ff;
-            --accent-color: #c084fc;
-        }
-
         * {
             box-sizing: border-box;
         }
@@ -66,11 +18,10 @@
             overflow: hidden !important;
             margin: 0;
             padding: 0;
-            background-color: var(--bg-color) !important;
-            color: var(--text-color) !important;
-            font-family: var(--font-family);
+            background-color: #121212 !important;
+            color: #ffffff !important;
+            font-family: system-ui, -apple-system, sans-serif;
             position: fixed;
-            transition: background 0.3s ease;
         }
 
         body {
@@ -82,7 +33,7 @@
 
         .app-container {
             width: 100%;
-            max-width: 440px;
+            max-width: 420px;
             height: 100%;
             max-height: 100vh;
             max-height: 100dvh;
@@ -92,26 +43,25 @@
             align-items: center;
             text-align: center;
             overflow: hidden !important;
-            position: relative;
         }
         
         header {
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             flex-shrink: 0;
         }
 
         header h1 {
-            margin: 0 0 2px 0;
-            font-size: 2.4rem;
+            margin: 0 0 4px 0;
+            font-size: 2.8rem;
             font-weight: 800;
             letter-spacing: 1px;
-            color: var(--text-color);
+            color: #ffffff;
         }
 
         header p {
             color: #888;
             margin: 0;
-            font-size: 0.82rem;
+            font-size: 0.88rem;
         }
         
         main {
@@ -129,27 +79,26 @@
             font-style: italic;
             line-height: 1.4;
             text-align: left;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             padding: 0 6px;
             display: none;
             flex-shrink: 0;
         }
         
         .widget {
-            background-color: var(--widget-bg);
-            padding: 16px;
+            background-color: #1e1e1e;
+            padding: 18px;
             border-radius: 16px;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
             text-align: left;
             display: flex;
             flex-direction: column;
             width: 100%;
-            max-height: calc(100vh - 100px);
-            max-height: calc(100dvh - 100px);
+            max-height: calc(100vh - 110px);
+            max-height: calc(100dvh - 110px);
             overflow-y: auto !important;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
-            position: relative;
         }
 
         #auth-title {
@@ -162,23 +111,23 @@
         }
         
         .widget-header {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 5px;
+            display: flex;
+            gap: 8px;
             width: 100%;
-            margin-bottom: 10px;
+            margin-bottom: 14px;
             flex-shrink: 0;
         }
 
         .nav-hub-btn {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 3px;
-            padding: 7px 2px;
-            border-radius: 6px;
+            gap: 5px;
+            padding: 9px 4px;
+            border-radius: 8px;
             font-weight: bold;
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             cursor: pointer;
             transition: transform 0.15s ease;
             text-align: center;
@@ -189,11 +138,23 @@
             transform: scale(0.96);
         }
 
-        .dash-style { background: #002b36; color: #2aa198; border-color: #2aa198; }
-        .notes-style { background: #2b1f00; color: #f59e0b; border-color: #f59e0b; }
-        .changelog-style { background: #2a2400; color: #ffc107; border-color: #ffc107; }
-        .history-style { background: #1f142e; color: #b185ff; border-color: #6f42c1; }
-        .help-style { background: #1a2634; color: #4da3ff; border-color: #4da3ff; }
+        .changelog-style {
+            background: #2a2400;
+            color: #ffc107;
+            border-color: #ffc107;
+        }
+
+        .history-style {
+            background: #1f142e;
+            color: #b185ff;
+            border-color: #6f42c1;
+        }
+
+        .help-style {
+            background: #1a2634;
+            color: #4da3ff;
+            border-color: #4da3ff;
+        }
         
         .help-drawer {
             display: none;
@@ -201,7 +162,7 @@
             border: 1px solid #3d3d3d;
             border-radius: 8px;
             padding: 14px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             font-size: 0.82rem;
             color: #ccc;
             line-height: 1.45;
@@ -220,103 +181,6 @@
 
         .help-drawer li {
             margin-bottom: 6px;
-        }
-
-        /* SMART TABS STRIP */
-        #workspace-tabs-bar {
-            display: none;
-            gap: 4px;
-            overflow-x: auto;
-            padding-bottom: 6px;
-            margin-bottom: 6px;
-            flex-shrink: 0;
-        }
-
-        .workspace-tab {
-            background: #222;
-            border: 1px solid #333;
-            color: #aaa;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 0.72rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            white-space: nowrap;
-        }
-
-        .workspace-tab.active {
-            background: #6f42c1;
-            color: #fff;
-            border-color: #9333ea;
-            font-weight: bold;
-        }
-
-        .tab-add-btn {
-            background: #333;
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            padding: 4px 8px;
-            font-size: 0.75rem;
-            cursor: pointer;
-        }
-
-        /* SLASH COMMAND PALETTE */
-        #command-palette {
-            display: none;
-            position: absolute;
-            bottom: 65px;
-            left: 16px;
-            right: 16px;
-            background: #1e1e1e;
-            border: 1px solid #444;
-            border-radius: 8px;
-            box-shadow: 0 -4px 16px rgba(0,0,0,0.6);
-            max-height: 160px;
-            overflow-y: auto;
-            z-index: 100;
-        }
-
-        .palette-item {
-            padding: 8px 12px;
-            font-size: 0.8rem;
-            color: #ddd;
-            cursor: pointer;
-            border-bottom: 1px solid #2a2a2a;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .palette-item:hover {
-            background: #28a745;
-            color: #fff;
-        }
-
-        /* FLOATING PIP MINI-PLAYER */
-        #pip-mini-player {
-            display: none;
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            width: 220px;
-            background: #181818;
-            border: 1px solid #3d3d3d;
-            border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-            z-index: 200;
-            padding: 8px;
-            text-align: left;
-        }
-
-        #pip-mini-player .pip-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.7rem;
-            color: #aaa;
-            margin-bottom: 4px;
         }
         
         .search-container {
@@ -338,17 +202,16 @@
             display: flex;
             gap: 8px;
             width: 100%;
-            margin-top: 6px;
+            margin-top: 8px;
             flex-shrink: 0;
-            position: relative;
         }
         
-        input, select {
+        input {
             width: 100%;
-            padding: 10px 12px;
+            padding: 12px;
             border-radius: 8px;
-            border: 2px solid var(--border-color);
-            background: var(--input-bg);
+            border: 2px solid #28a745;
+            background: #2a2a2a;
             color: white;
             font-size: 0.95rem;
             transition: border-color 0.2s ease;
@@ -362,8 +225,8 @@
         .enter-btn {
             background: #ffffff;
             color: #121212;
-            width: 44px;
-            height: 44px;
+            width: 46px;
+            height: 46px;
             border-radius: 8px;
             border: none;
             font-size: 1.2rem;
@@ -376,18 +239,23 @@
             transition: background 0.2s ease, transform 0.1s ease;
         }
 
-        .enter-btn:hover { background: #e0e0e0; }
-        .enter-btn:active { transform: scale(0.95); }
+        .enter-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .enter-btn:active {
+            transform: scale(0.95);
+        }
         
         .camera-btn {
-            background: var(--input-bg);
+            background: #2a2a2a;
             color: #888;
             border: 2px solid #444;
-            width: 40px;
-            height: 40px;
+            width: 44px;
+            height: 44px;
             flex-shrink: 0;
             border-radius: 8px;
-            font-size: 1rem;
+            font-size: 1.1rem;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -471,20 +339,20 @@
             transition: transform 0.1s ease;
         }
 
-        .auth-btn:active { transform: scale(0.98); }
+        .auth-btn:active {
+            transform: scale(0.98);
+        }
         
         .output-box {
-            margin-top: 10px;
-            margin-bottom: 10px;
-            padding: 12px;
+            margin-top: 12px;
+            margin-bottom: 12px;
+            padding: 14px;
             background: #252525;
             border-radius: 8px;
             font-size: 0.9rem;
             color: #eee;
             line-height: 1.5;
             width: 100%;
-            flex: 1;
-            overflow-y: auto;
         }
 
         .generation-status {
@@ -509,9 +377,18 @@
             box-sizing: border-box !important;
         }
 
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
 
-        #auth-container { display: block; }
+        #auth-container {
+            display: block;
+        }
 
         .main-app-box {
             display: none;
@@ -573,8 +450,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 10px;
-            padding-top: 8px;
+            margin-top: 14px;
+            padding-top: 12px;
             border-top: 1px solid #2a2a2a;
             flex-shrink: 0;
         }
@@ -626,12 +503,6 @@
                 <section class="widget" id="search-widget">
                     <!-- NAVIGATION BUTTON BAR -->
                     <div class="widget-header">
-                        <button id="dash-toggle" class="nav-hub-btn dash-style" title="Mini Dashboard">
-                            <span>🏠</span> Dash
-                        </button>
-                        <button id="notes-toggle" class="nav-hub-btn notes-style" title="Scratchpad & Planner">
-                            <span>📝</span> Tasks
-                        </button>
                         <button id="changelog-toggle" class="nav-hub-btn changelog-style" title="Version History">
                             <span>🕒</span> Updates
                         </button>
@@ -643,52 +514,12 @@
                         </button>
                     </div>
 
-                    <!-- MINI DASHBOARD DRAWER -->
-                    <div id="dashboard-drawer" class="help-drawer">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <strong style="color: #2aa198;">🏠 Live Telemetry Dash</strong>
-                            <button id="refresh-dash-btn" style="background:#002b36; border:1px solid #2aa198; color:#2aa198; border-radius:4px; font-size:0.7rem; cursor:pointer;">🔄 Sync</button>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;" id="dashboard-cards-container">
-                            <div style="background:#1a1a1a; padding:8px; border-radius:6px; border-left:3px solid #00bcd4;">
-                                <div style="font-size:0.68rem; color:#888;">WEATHER</div>
-                                <div id="dash-weather-val" style="font-size:0.85rem; font-weight:bold; color:#fff;">Loading...</div>
-                            </div>
-                            <div style="background:#1a1a1a; padding:8px; border-radius:6px; border-left:3px solid #6f42c1;">
-                                <div style="font-size:0.68rem; color:#888;">BITCOIN</div>
-                                <div id="dash-btc-val" style="font-size:0.85rem; font-weight:bold; color:#00e676;">Loading...</div>
-                            </div>
-                            <div style="background:#1a1a1a; padding:8px; border-radius:6px; border-left:3px solid #00e676;">
-                                <div style="font-size:0.68rem; color:#888;">ISS SPEED</div>
-                                <div id="dash-iss-val" style="font-size:0.85rem; font-weight:bold; color:#fff;">~27,600 km/h</div>
-                            </div>
-                            <div style="background:#1a1a1a; padding:8px; border-radius:6px; border-left:3px solid #ff9800;">
-                                <div style="font-size:0.68rem; color:#888;">DAILY TIP</div>
-                                <div style="font-size:0.75rem; color:#ccc;">Type / for quick actions</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- SCRATCHPAD & DAILY PLANNER DRAWER -->
-                    <div id="notes-drawer" class="help-drawer">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <strong style="color: #f59e0b;">📝 Quick Tasks & Notes:</strong>
-                            <button id="add-note-inline-btn" style="background:#f59e0b; color:#121212; border:none; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:bold; cursor:pointer;">➕ Add</button>
-                        </div>
-                        <input type="text" id="quick-note-input" placeholder="Type quick task or note..." style="margin-bottom:6px; padding:6px 8px; font-size:0.8rem;">
-                        <div id="notes-inline-list" style="display:flex; flex-direction:column; gap:4px; max-height:140px; overflow-y:auto;"></div>
-                    </div>
-
                     <!-- CHANGELOG DRAWER -->
                     <div id="changelog-drawer" class="help-drawer">
                         <strong style="color: #ffc107; font-size: 1rem;">🚀 VAII Version History</strong>
                         <div style="margin-top: 10px; border-left: 2px solid #444; padding-left: 10px; display: flex; flex-direction: column; gap: 12px;">
                             <div>
-                                <strong style="color:#fff;">v8.0 (Current)</strong><br>
-                                <span style="color:#aaa;">Added Instant Scratchpad & Tasks, Live Telemetry Mini-Dashboard, PiP Media Player, Multi-Chat Workspaces, Custom Visual Themes, and Slash Command Palette.</span>
-                            </div>
-                            <div>
-                                <strong style="color:#fff;">v7.5</strong><br>
+                                <strong style="color:#fff;">v7.5 (Current)</strong><br>
                                 <span style="color:#aaa;">Added Live Spotify & YouTube Music hub streams, NASA Mars Rover surface telemetry, playable YouTube Video cards, interactive in-card Stopwatch/Timer with AudioContext chimes, and GitHub Repository Inspector cards.</span>
                             </div>
                             <div>
@@ -751,10 +582,9 @@
 
                         <h4 style="color: #4da3ff; margin-bottom: 8px;">🌐 VAII Native Commands & Syntax</h4>
                         <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
-                            <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant keyboard-only shortcuts (<code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>).</li>
-                            <li><strong>Live Music Streaming & Spotify Hub:</strong> Type <code>play [song]</code> or <code>stream song [song]</code> (e.g. <code>play Blinding Lights</code>) to load 30s preview audio with Spotify, YouTube Music, and Picture-in-Picture docking.</li>
+                            <li><strong>Live Music Streaming & Spotify Hub:</strong> Type <code>play [song]</code> or <code>stream song [song]</code> (e.g. <code>play Blinding Lights</code>) to load 30s preview audio with Spotify and YouTube Music streaming links.</li>
                             <li><strong>NASA Mars Rover Telemetry:</strong> Type <code>mars</code>, <code>rover</code>, <code>curiosity</code>, or <code>perseverance</code> to fetch live Mars surface photos, Martian Sol dates, and landing telemetry.</li>
-                            <li><strong>YouTube Video Hub & Player:</strong> Type <code>yt [query]</code> or <code>youtube [query]</code> (e.g. <code>yt Veritasium</code>, <code>yt Kurzgesagt</code>) to load an inline video player card with PiP docking.</li>
+                            <li><strong>YouTube Video Hub & Player:</strong> Type <code>yt [query]</code> or <code>youtube [query]</code> (e.g. <code>yt Veritasium</code>, <code>yt Kurzgesagt</code>) to load an inline video player card.</li>
                             <li><strong>In-Card Countdown Timer & Stopwatch:</strong> Type <code>timer [duration]</code> (e.g. <code>timer 5m</code>, <code>timer 1m30s</code>, <code>timer 45s</code>) or <code>stopwatch</code> for interactive controls with audio alerts.</li>
                             <li><strong>GitHub Repository Inspector:</strong> Type <code>repo [owner/repo]</code> or <code>github [owner/repo]</code> (e.g. <code>repo facebook/react</code>, <code>repo vercel/next.js</code>) to view stars, forks, issues, and license details.</li>
                             <li><strong>Movies, Tickets & Streaming:</strong> Type <code>movie [title]</code>, <code>tickets [title]</code>, or <code>stream [title]</code> for IMDb ratings, plot summaries, Fandango tickets, and streaming platforms.</li>
@@ -789,7 +619,7 @@
                             <li><strong>Crypto & Stocks:</strong> Type <code>BTC</code>, <code>ETH</code>, or <code>price of AAPL</code>.</li>
                             <li><strong>Local Food Search:</strong> Type <code>order burger</code> or <code>order from Wendy's</code> for GPS DoorDash routing.</li>
                             <li><strong>Image Generation:</strong> Type <code>draw [prompt]</code> to render AI art.</li>
-                            <li><strong>Notes Engine:</strong> Type <code>note: [your text]</code> to save local notes, or click <strong>📝 Tasks</strong> above to view your persistent scratchpad.</li>
+                            <li><strong>Notes Engine:</strong> Type <code>note: [your text]</code> to save local notes, and <code>show notes</code> to view.</li>
                         </ul>
 
                         <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 15px 0;">
@@ -797,9 +627,7 @@
                         <h4 style="color: #6f42c1; margin-bottom: 8px;">✨ Gemini Ecosystem Mode</h4>
                         <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
                             <li>Select <strong>Gemini Ecosystem</strong> on the mode switcher to engage persistent, multi-turn AI chat threads.</li>
-                            <li><strong>Multi-Chat Tabs:</strong> Use the workspace tabs bar (<code>[Chat 1] [+]</code>) to manage multiple concurrent conversational tracks.</li>
-                            <li><strong>Custom Themes:</strong> Open Settings (⚙️) to switch between Default Dark, Cyberpunk Neon, Retro CRT, AMOLED Black, and OLED Purple.</li>
-                            <li><strong>Custom Instructions:</strong> Set persistent system instructions and persona guidelines in the Settings menu.</li>
+                            <li><strong>Custom Instructions:</strong> Click the gear icon (⚙️) next to Gemini to set long-term system instructions or personality guidelines.</li>
                             <li><strong>Thread Management:</strong> Access historical chat sessions via the scroll icon (📜) or start a new thread using the edit icon (📝).</li>
                             <li><strong>Model Fallback Matrix:</strong> Cascades from <strong>Gemini 3.7 Flash</strong> down to Gemma models automatically if quota limits are reached.</li>
                         </ul>
@@ -811,7 +639,6 @@
                             <li><strong>Microphone (🎙️):</strong> Activates speech-to-text input and enables automatic text-to-speech voice playback for responses.</li>
                             <li><strong>Camera / Vision (📷):</strong> Upload any image file and type a prompt to analyze visual input using the Gemini Vision matrix.</li>
                             <li><strong>Text-to-Speech (🔊):</strong> Click the TTS button on active response outputs to read back text cleanly without markdown tags or emojis.</li>
-                            <li><strong>Picture-in-Picture Mini-Player (📺):</strong> Dock live music previews and YouTube streams to keep media running while browsing.</li>
                         </ul>
                     </div>
 
@@ -831,15 +658,6 @@
                             <span id="prefs-close-btn" style="cursor: pointer; color: #dc3545; font-weight: bold; font-size: 0.85rem;">✕</span>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
-                            <label style="font-size: 0.75rem; color: #aaa; font-weight: bold;">UI Visual Theme:</label>
-                            <select id="theme-selector" style="padding:6px; font-size:0.82rem; background:#1a1a1a; color:#fff; border:1px solid #3d3d3d; border-radius:6px;">
-                                <option value="default">Default Dark</option>
-                                <option value="theme-cyberpunk">Cyberpunk Neon</option>
-                                <option value="theme-crt">Retro CRT Terminal</option>
-                                <option value="theme-amoled">AMOLED Pitch Black</option>
-                                <option value="theme-oled-purple">OLED Royal Purple</option>
-                            </select>
-
                             <label style="font-size: 0.75rem; color: #aaa; font-weight: bold;">Custom System Instructions:</label>
                             <textarea id="prefs-instructions-input" style="width: 100%; height: 65px; background: #1a1a1a; color: #fff; border: 1px solid #3d3d3d; border-radius: 6px; padding: 8px; font-family: inherit; font-size: 0.82rem; resize: vertical; box-sizing: border-box;" placeholder="Type persona parameters for the Gemini mode..."></textarea>
 
@@ -856,12 +674,6 @@
                         </div>
                     </div>
 
-                    <!-- MULTI-CHAT WORKSPACE TABS STRIP -->
-                    <div id="workspace-tabs-bar">
-                        <div class="workspace-tab active" data-tab-id="1"><span>Chat 1</span></div>
-                        <button id="add-tab-btn" class="tab-add-btn">➕</button>
-                    </div>
-
                     <!-- MODE SELECTOR AT TOP -->
                     <div class="search-container">
                         <div style="text-align: center; font-size: 0.75rem; color: #888; margin-bottom: 4px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Assistant Engine Mode</div>
@@ -874,7 +686,7 @@
                                 <div style="font-size: 0.7rem; color: #777; margin-top: 4px; line-height: 1.25;">Runs all internet integrations: maps, weather, arithmetic, translations, tickers, and art creation models.</div>
                             </div>
                             
-                            <div style="flex: 1; max-width: 170px; background: #252525; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: left; position: relative;">
+                            <div style="flex: 1; max-width: 170px; background: #252525; padding: 10px; border-radius: 8px; border-left: 1px solid #333; text-align: left; position: relative;">
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 0.88rem; color: #ccc; font-weight: bold;">
                                         <input type="radio" name="vaii-mode" value="gemini" style="width: auto !important; height: auto !important; margin: 0; padding: 0;"> Gemini Ecosystem
@@ -896,24 +708,12 @@
                         <button id="mic-trigger-btn" class="camera-btn" title="Voice Input">🎤</button>
                         <button id="tts-trigger-btn" class="camera-btn" title="Read Aloud" style="display: none;">🔊</button>
                         <button id="camera-trigger-btn" class="camera-btn" title="Image Upload">📷</button>
-                        <button id="pip-trigger-btn" class="camera-btn" title="Toggle Mini Player" style="display:none;">📺</button>
                         <input type="file" id="image-file-input" accept="image/*" style="display: none;">
-                    </div>
-
-                    <!-- SLASH COMMAND PALETTE -->
-                    <div id="command-palette">
-                        <div class="palette-item" data-cmd="/weather "><span>🌦️ /weather</span><span style="color:#666;">Get local weather</span></div>
-                        <div class="palette-item" data-cmd="/play "><span>🎵 /play</span><span style="color:#666;">Stream music preview</span></div>
-                        <div class="palette-item" data-cmd="/movie "><span>🎬 /movie</span><span style="color:#666;">Search films & tickets</span></div>
-                        <div class="palette-item" data-cmd="/draw "><span>🎨 /draw</span><span style="color:#666;">Generate AI art</span></div>
-                        <div class="palette-item" data-cmd="/repo "><span>🐙 /repo</span><span style="color:#666;">GitHub repo stats</span></div>
-                        <div class="palette-item" data-cmd="/qr "><span>📱 /qr</span><span style="color:#666;">Generate QR Code</span></div>
-                        <div class="palette-item" data-cmd="/timer "><span>⏱️ /timer</span><span style="color:#666;">Countdown timer</span></div>
                     </div>
 
                     <!-- TYPING FIELD AND EXECUTE BUTTON AT THE BOTTOM -->
                     <div class="input-row">
-                        <input type="text" id="hub-input" placeholder="Type a command or / for shortcuts..." list="hub-suggestions" autocomplete="off">
+                        <input type="text" id="hub-input" placeholder="Type a command..." list="hub-suggestions" autocomplete="off">
                         <button id="execute-action-btn" class="enter-btn">➔</button>
                     </div>
 
@@ -931,15 +731,6 @@
                         <button id="logout-action-btn" class="logout-btn">Log Out</button>
                     </div>
                 </section>
-            </div>
-
-            <!-- FLOATING PIP MINI-PLAYER -->
-            <div id="pip-mini-player">
-                <div class="pip-header">
-                    <span>📺 Mini Player</span>
-                    <button id="pip-close-btn" style="background:none; border:none; color:#dc3545; cursor:pointer; font-weight:bold;">✕</button>
-                </div>
-                <div id="pip-media-content" style="width:100%; height:110px; border-radius:4px; overflow:hidden; background:#000;"></div>
             </div>
         </main>
     </div>
