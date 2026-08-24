@@ -287,7 +287,6 @@ const executeActionBtn = document.getElementById('execute-action-btn');
 const output = document.getElementById('weather-output');
 const routingWarning = document.getElementById('routing-warning');
 
-// NAVIGATION & DRAWERS
 const helpToggle = document.getElementById('help-toggle');
 const helpGuide = document.getElementById('help-guide');
 const changelogToggle = document.getElementById('changelog-toggle');
@@ -296,16 +295,7 @@ const historyToggle = document.getElementById('history-toggle');
 const historyDrawer = document.getElementById('history-drawer');
 const historyList = document.getElementById('history-list');
 const newChatBtn = document.getElementById('new-chat-btn');
-const dashToggle = document.getElementById('dash-toggle');
-const dashboardDrawer = document.getElementById('dashboard-drawer');
-const notesToggle = document.getElementById('notes-toggle');
-const notesDrawer = document.getElementById('notes-drawer');
-const quickNoteInput = document.getElementById('quick-note-input');
-const addNoteInlineBtn = document.getElementById('add-note-inline-btn');
-const notesInlineList = document.getElementById('notes-inline-list');
-const refreshDashBtn = document.getElementById('refresh-dash-btn');
 
-// THEMES & PREFERENCES
 const prefsToggleBtn = document.getElementById('prefs-toggle-btn');
 const prefsDrawer = document.getElementById('prefs-drawer');
 const prefsCloseBtn = document.getElementById('prefs-close-btn');
@@ -313,16 +303,6 @@ const prefsInstructionsInput = document.getElementById('prefs-instructions-input
 const prefsApiKeyInput = document.getElementById('prefs-api-key-input');
 const apiKeyNote = document.getElementById('api-key-note');
 const prefsSaveBtn = document.getElementById('prefs-save-btn');
-const themeSelector = document.getElementById('theme-selector');
-
-// PIP MINI-PLAYER, SMART TABS & COMMAND PALETTE
-const pipMiniPlayer = document.getElementById('pip-mini-player');
-const pipMediaContent = document.getElementById('pip-media-content');
-const pipCloseBtn = document.getElementById('pip-close-btn');
-const pipTriggerBtn = document.getElementById('pip-trigger-btn');
-const workspaceTabsBar = document.getElementById('workspace-tabs-bar');
-const addTabBtn = document.getElementById('add-tab-btn');
-const commandPalette = document.getElementById('command-palette');
 
 const micBtn = document.getElementById('mic-trigger-btn');
 const ttsBtn = document.getElementById('tts-trigger-btn');
@@ -339,11 +319,6 @@ let activeImageBase64 = null;
 let activeImageMimeType = null;
 let autoSpeak = false;
 
-// MULTI-CHAT WORKSPACE STATE
-let chatTabs = [
-    { id: "tab_1", title: "Chat 1", history: [] }
-];
-let activeTabId = "tab_1";
 let chatHistory = [];
 let currentSessionId = null;
 let activeTimerInterval = null;
@@ -400,31 +375,14 @@ window.initVaiiMap = function() {
 };
 
 // ==========================================
-// 3. UTILS & THEMES
+// 3. UTILS & RENDERERS
 // ==========================================
 function closeAllDrawers() {
-    const drawers = [helpGuide, changelogDrawer, historyDrawer, prefsDrawer, dashboardDrawer, notesDrawer];
+    const drawers = [helpGuide, changelogDrawer, historyDrawer, prefsDrawer];
     drawers.forEach(d => { 
         if (d) d.style.display = "none";
     });
-    if (commandPalette) commandPalette.style.display = "none";
 }
-
-function applyTheme(themeName) {
-    document.body.className = '';
-    if (themeName && themeName !== 'default') {
-        document.body.classList.add(themeName);
-    }
-    localStorage.setItem('vaii_theme', themeName);
-}
-
-const savedTheme = localStorage.getItem('vaii_theme') || 'default';
-if (themeSelector) themeSelector.value = savedTheme;
-applyTheme(savedTheme);
-
-themeSelector?.addEventListener('change', (e) => {
-    applyTheme(e.target.value);
-});
 
 function renderMarkdown(text) {
     if (!text) return "";
@@ -490,133 +448,9 @@ function playTimerChime() {
 function updateWelcomeMessageText() {
     if (!output) return;
     const selectedMode = document.querySelector('input[name="vaii-mode"]:checked')?.value;
-    if (selectedMode === "gemini") {
-        output.innerHTML = welcomeGeminiText;
-        if (workspaceTabsBar) workspaceTabsBar.style.display = "flex";
-    } else {
-        output.innerHTML = welcomeVaiiText;
-        if (workspaceTabsBar) workspaceTabsBar.style.display = "none";
-    }
+    output.innerHTML = (selectedMode === "gemini") ? welcomeGeminiText : welcomeVaiiText;
     if (ttsBtn) ttsBtn.style.display = 'none';
 }
-
-// ==========================================
-// 4. PIP MINI-PLAYER & DASHBOARD & SCRATCHPAD
-// ==========================================
-function dockIntoPiP(htmlContent) {
-    if (!pipMiniPlayer || !pipMediaContent) return;
-    pipMediaContent.innerHTML = htmlContent;
-    pipMiniPlayer.style.display = "block";
-    if (pipTriggerBtn) pipTriggerBtn.style.display = "flex";
-}
-
-pipCloseBtn?.addEventListener('click', () => {
-    if (pipMiniPlayer) pipMiniPlayer.style.display = "none";
-    if (pipMediaContent) pipMediaContent.innerHTML = "";
-});
-
-pipTriggerBtn?.addEventListener('click', () => {
-    if (pipMiniPlayer) {
-        pipMiniPlayer.style.display = (pipMiniPlayer.style.display === "none") ? "block" : "none";
-    }
-});
-
-function renderInlineNotes() {
-    if (!notesInlineList) return;
-    let notes = JSON.parse(localStorage.getItem('vaii_notes') || '[]');
-    notesInlineList.innerHTML = "";
-    if (notes.length === 0) {
-        notesInlineList.innerHTML = `<div style="color:#777; font-size:0.75rem; font-style:italic; padding: 4px 0;">No active tasks. Use "Add" above or type note: [text].</div>`;
-        return;
-    }
-    notes.forEach((note, idx) => {
-        const row = document.createElement('div');
-        row.style = "display:flex; justify-content:space-between; align-items:center; background:#1c1c1c; padding:4px 8px; border-radius:4px;";
-        row.innerHTML = `<span style="font-size:0.78rem; color:#eee;">${note}</span> <button data-idx="${idx}" style="background:none; border:none; color:#dc3545; cursor:pointer;">✕</button>`;
-        row.querySelector('button').addEventListener('click', () => {
-            notes.splice(idx, 1);
-            localStorage.setItem('vaii_notes', JSON.stringify(notes));
-            renderInlineNotes();
-        });
-        notesInlineList.appendChild(row);
-    });
-}
-
-addNoteInlineBtn?.addEventListener('click', () => {
-    const val = quickNoteInput?.value.trim();
-    if (!val) return;
-    let notes = JSON.parse(localStorage.getItem('vaii_notes') || '[]');
-    notes.unshift(val);
-    localStorage.setItem('vaii_notes', JSON.stringify(notes));
-    if (quickNoteInput) quickNoteInput.value = "";
-    renderInlineNotes();
-});
-
-notesToggle?.addEventListener('click', () => {
-    const isVisible = notesDrawer.style.display === "block";
-    closeAllDrawers();
-    if (!isVisible) {
-        notesDrawer.style.display = "block";
-        renderInlineNotes();
-    }
-});
-
-dashToggle?.addEventListener('click', () => {
-    const isVisible = dashboardDrawer.style.display === "block";
-    closeAllDrawers();
-    if (!isVisible) {
-        dashboardDrawer.style.display = "block";
-        syncDashboardStats();
-    }
-});
-
-refreshDashBtn?.addEventListener('click', () => syncDashboardStats());
-
-function syncDashboardStats() {
-    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
-        .then(r => r.json())
-        .then(d => {
-            const btcVal = document.getElementById('dash-btc-val');
-            if (btcVal && d.bitcoin) btcVal.innerText = `$${d.bitcoin.usd.toLocaleString()} USD`;
-        }).catch(() => {});
-
-    fetch('https://api.open-meteo.com/v1/forecast?latitude=28.38&longitude=-81.56&current=temperature_2m,weather_code&temperature_unit=fahrenheit')
-        .then(r => r.json())
-        .then(w => {
-            const wVal = document.getElementById('dash-weather-val');
-            if (wVal && w.current) wVal.innerText = `${Math.round(w.current.temperature_2m)}°F Live`;
-        }).catch(() => {});
-}
-
-// ==========================================
-// 5. WORKSPACE TABS & CHAT
-// ==========================================
-function renderWorkspaceTabs() {
-    if (!workspaceTabsBar) return;
-    workspaceTabsBar.querySelectorAll('.workspace-tab').forEach(t => t.remove());
-
-    chatTabs.forEach(tab => {
-        const tabEl = document.createElement('div');
-        tabEl.className = `workspace-tab ${tab.id === activeTabId ? 'active' : ''}`;
-        tabEl.innerHTML = `<span>${tab.title}</span>`;
-        tabEl.addEventListener('click', () => {
-            activeTabId = tab.id;
-            chatHistory = tab.history;
-            renderWorkspaceTabs();
-            renderFullChatLogBubble();
-        });
-        workspaceTabsBar.insertBefore(tabEl, addTabBtn);
-    });
-}
-
-addTabBtn?.addEventListener('click', () => {
-    const newId = `tab_${Date.now()}`;
-    chatTabs.push({ id: newId, title: `Chat ${chatTabs.length + 1}`, history: [] });
-    activeTabId = newId;
-    chatHistory = [];
-    renderWorkspaceTabs();
-    renderFullChatLogBubble();
-});
 
 function getSavedSessions() {
     try {
@@ -680,8 +514,6 @@ function renderHistoryListItems() {
         textWrapper.addEventListener('click', () => {
             currentSessionId = session.id;
             chatHistory = session.history;
-            const currentTab = chatTabs.find(t => t.id === activeTabId);
-            if (currentTab) currentTab.history = chatHistory;
             renderFullChatLogBubble();
             const modeToggleInput = document.querySelector('input[name="vaii-mode"][value="gemini"]');
             if (modeToggleInput) modeToggleInput.checked = true;
@@ -711,8 +543,6 @@ function renderHistoryListItems() {
 function initializeFreshChatSession() {
     currentSessionId = null;
     chatHistory = [];
-    const currentTab = chatTabs.find(t => t.id === activeTabId);
-    if (currentTab) currentTab.history = [];
     updateWelcomeMessageText(); 
 }
 
@@ -1065,10 +895,7 @@ function fetchLiveStreamPlayer(songQuery) {
 
                     ${track?.previewUrl ? `
                         <div style="margin-bottom: 12px; background: #252525; padding: 8px 10px; border-radius: 6px;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                                <span style="font-size: 0.72rem; color: #888; text-transform: uppercase; font-weight: bold;">Instant 30s Audio Stream:</span>
-                                <button id="dock-audio-pip" style="background:#333; color:#fff; border:none; padding:2px 6px; border-radius:4px; font-size:0.68rem; cursor:pointer;">📺 Dock to Mini-Player</button>
-                            </div>
+                            <span style="font-size: 0.72rem; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px;">Instant 30s Audio Stream:</span>
                             <audio controls style="width: 100%; height: 34px;" src="${track.previewUrl}"></audio>
                         </div>
                     ` : ''}
@@ -1084,11 +911,7 @@ function fetchLiveStreamPlayer(songQuery) {
                     </div>
                 </div>
             `;
-            handleVaiiDataOutput(`Streaming player loaded for ${title} by ${artist}.`, html, () => {
-                document.getElementById('dock-audio-pip')?.addEventListener('click', () => {
-                    dockIntoPiP(`<div style="padding:6px; color:#fff; font-size:0.8rem;"><strong>${title}</strong><div style="color:#aaa; font-size:0.7rem;">${artist}</div><audio controls autoplay style="width:100%; height:28px; margin-top:6px;" src="${track.previewUrl}"></audio></div>`);
-                });
-            });
+            handleVaiiDataOutput(`Streaming player loaded for ${title} by ${artist}.`, html);
         })
         .catch(() => {
             const encTrack = encodeURIComponent(cleanTrack);
@@ -1181,6 +1004,7 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
 
     const currentSpec = ROVER_SPECS[targetRover];
 
+    // Sol Math: 1 Martian Sol = 88,775.244 seconds
     const nowMs = Date.now();
     const landingMs = new Date(currentSpec.landingDateStr).getTime();
     const elapsedSeconds = Math.max(0, (nowMs - landingMs) / 1000);
@@ -1663,7 +1487,7 @@ function executeLocalFoodSearch(queryText) {
 }
 
 // ==========================================
-// 6. CHAT ENGINE (GEMINI FALLBACK LOOP)
+// 5. CHAT ENGINE (GEMINI FALLBACK LOOP)
 // ==========================================
 async function executeGeminiDirectChat(userInput) {
     if (chatHistory.length === 0) {
@@ -1758,9 +1582,6 @@ async function executeGeminiDirectChat(userInput) {
             activeModelName: successfulModelLabel 
         });
 
-        const currentTab = chatTabs.find(t => t.id === activeTabId);
-        if (currentTab) currentTab.history = chatHistory;
-
         renderFullChatLogBubble();
         saveCurrentSessionState();
 
@@ -1803,11 +1624,6 @@ async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningM
         let cleanedTitle = data.candidates[0].content.parts[0].text.trim().replace(/['"]+/g, ''); 
         if (cleanedTitle && cleanedTitle.length > 2) {
             saveCurrentSessionState(cleanedTitle);
-            const currentTab = chatTabs.find(t => t.id === activeTabId);
-            if (currentTab) {
-                currentTab.title = cleanedTitle;
-                renderWorkspaceTabs();
-            }
         }
     } catch (e) {
         console.error("Dynamic title loop exception:", e);
@@ -1815,7 +1631,7 @@ async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningM
 }
 
 // ==========================================
-// 7. UTILITIES (FOREX, QR, ISS, DUCK, COLLEGE, POSTAL, ETC.)
+// 6. UTILITIES (FOREX, QR, ISS, DUCK, COLLEGE, POSTAL, ETC.)
 // ==========================================
 const CURRENCY_SYMBOL_MAP = {
     '$': 'USD',
@@ -2834,29 +2650,6 @@ function runInfoExecution(query) {
         `;
     }
 
-    // Slash Commands Handling
-    if (cleanQuery.startsWith("/weather ")) {
-        return resolveAndRenderLocation(query.substring(9).trim(), greetingHTML);
-    }
-    if (cleanQuery.startsWith("/play ")) {
-        return fetchLiveStreamPlayer(query.substring(6).trim());
-    }
-    if (cleanQuery.startsWith("/movie ")) {
-        return fetchOMDBMedia(query.substring(7).trim());
-    }
-    if (cleanQuery.startsWith("/draw ")) {
-        return executeImageGeneration(query.substring(6).trim());
-    }
-    if (cleanQuery.startsWith("/repo ") || cleanQuery.startsWith("/github ")) {
-        return fetchGitHubRepoInfo(query.replace(/^(\/repo|\/github)\s+/i, '').trim());
-    }
-    if (cleanQuery.startsWith("/qr ")) {
-        return generateQRCode(query.substring(4).trim());
-    }
-    if (cleanQuery.startsWith("/timer ")) {
-        return renderTimerStopwatchCard(query.substring(7).trim());
-    }
-
     if (cleanQuery.includes("calendar") || cleanQuery.includes("calender") || cleanQuery.includes("schedule") || cleanQuery === "agenda" || cleanQuery.includes("email") || cleanQuery.includes("gmail") || cleanQuery.includes("inbox")) {
         const htmlLayout = greetingHTML + `
             <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">
@@ -3122,8 +2915,10 @@ function runInfoExecution(query) {
             return;
         }
 
+        // Clean domain and remove trailing dots/hyphens
         let sanitizedDomain = rawTarget.replace(/&/g, 'and').replace(/[^a-z0-9.-]/g, '').replace(/^[.-]+|[.-]+$/g, '');
 
+        // If it's a single letter or empty after stripping, don't try opening it as a direct web domain
         if (!sanitizedDomain || sanitizedDomain.length < 2) {
             proceedWithWikiPipeline(query);
             return;
@@ -3131,6 +2926,7 @@ function runInfoExecution(query) {
 
         output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Resolving address for "${rawTarget}"...</div>`;
 
+        // Check for a real domain structure (e.g., example.com, test.co.uk)
         if (/\.[a-z]{2,}/i.test(sanitizedDomain)) {
             launchTargetUrl(`https://${sanitizedDomain}`);
         } else {
@@ -3324,12 +3120,9 @@ function compileFinalSourceIndexBox(query, wikiData) {
 
         let videoEmbedHtml = wikiData.youtube.videoId ? `
             <div style="margin-top: 12px; margin-bottom: 8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                    <div style="font-size: 0.78rem; color: #ff4444; font-weight: bold;">▶️ Latest Video: ${wikiData.youtube.videoTitle || ''}</div>
-                    <button id="dock-yt-pip" style="background:#333; color:#fff; border:none; padding:2px 6px; border-radius:4px; font-size:0.68rem; cursor:pointer;">📺 Dock PiP</button>
-                </div>
+                <div style="font-size: 0.78rem; color: #ff4444; font-weight: bold; margin-bottom: 4px;">▶️ Latest Video: ${wikiData.youtube.videoTitle || ''}</div>
                 <div style="position: relative; width: 100%; padding-bottom: 56.25%; height: 0; border-radius: 8px; overflow: hidden; border: 1px solid #333;">
-                    <iframe id="active-yt-iframe" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" src="https://www.youtube-nocookie.com/embed/${wikiData.youtube.videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                    <iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" src="https://www.youtube-nocookie.com/embed/${wikiData.youtube.videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                 </div>
             </div>
         ` : '';
@@ -3379,17 +3172,11 @@ function compileFinalSourceIndexBox(query, wikiData) {
     }
     totalHTML += `</div></div>`;
     
-    handleVaiiDataOutput(spokenText, totalHTML, () => {
-        document.getElementById('dock-yt-pip')?.addEventListener('click', () => {
-            if (wikiData.youtube?.videoId) {
-                dockIntoPiP(`<iframe style="width:100%; height:100%;" src="https://www.youtube-nocookie.com/embed/${wikiData.youtube.videoId}?autoplay=1" frameborder="0" allow="autoplay; picture-in-picture" allowfullscreen></iframe>`);
-            }
-        });
-    });
+    handleVaiiDataOutput(spokenText, totalHTML);
 }
 
 // ==========================================
-// 9. EVENT LISTENERS & PALETTE
+// 9. EVENT LISTENERS
 // ==========================================
 document.querySelectorAll('input[name="vaii-mode"]').forEach(r => r.addEventListener('change', updateWelcomeMessageText));
 
@@ -3533,13 +3320,6 @@ imageClearBtn?.addEventListener('click', () => {
 hubInput?.addEventListener('input', () => {
     const query = hubInput.value; 
     const trimmedQuery = query.trim();
-
-    if (query.startsWith('/')) {
-        if (commandPalette) commandPalette.style.display = "block";
-    } else {
-        if (commandPalette) commandPalette.style.display = "none";
-    }
-
     if (routingWarning) routingWarning.style.display = trimmedQuery.toLowerCase().startsWith('open ') ? "block" : "none";
 
     let customSuggestions = [];
@@ -3761,17 +3541,6 @@ hubInput?.addEventListener('input', () => {
     }, 300);
 });
 
-document.querySelectorAll('.palette-item').forEach(item => {
-    item.addEventListener('click', () => {
-        const cmd = item.getAttribute('data-cmd');
-        if (hubInput) {
-            hubInput.value = cmd;
-            hubInput.focus();
-        }
-        if (commandPalette) commandPalette.style.display = "none";
-    });
-});
-
 // SAFE PROTECTED EXECUTE HANDLER
 executeActionBtn?.addEventListener('click', () => {
     const query = (hubInput?.value || "").trim();
@@ -3782,7 +3551,6 @@ executeActionBtn?.addEventListener('click', () => {
     
     if (hubInput) hubInput.value = "";
     if (routingWarning) routingWarning.style.display = "none";
-    if (commandPalette) commandPalette.style.display = "none";
     
     if (activeImageBase64) {
         executeVisionAnalysis(query || "Describe this image content in clear detail.");
@@ -3850,7 +3618,6 @@ onAuthStateChanged(auth, (user) => {
         initializeFreshChatSession();
         clearActiveImage();
         renderHistoryListItems();
-        renderWorkspaceTabs();
         if (prefsInstructionsInput) prefsInstructionsInput.value = localStorage.getItem('vaii_gemini_instructions') || '';
         if (prefsApiKeyInput) prefsApiKeyInput.value = localStorage.getItem('vaii_custom_api_key') || '';
         updateDatalist([], [], [], []);
