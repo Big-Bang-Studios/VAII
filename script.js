@@ -956,8 +956,8 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "OPERATIONAL",
             statusColor: "#00e676",
             surfacePhotos: [
-                "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/NASA_Mars_Rover_Curiosity_Self-Portrait_at_Martian_Sand_Dune.jpg/1280px-NASA_Mars_Rover_Curiosity_Self-Portrait_at_Martian_Sand_Dune.jpg",
-                "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Curiosity_Self-Portrait_at_%27Big_Sky%27.jpg/1280px-Curiosity_Self-Portrait_at_%27Big_Sky%27.jpg"
+                "https://photojournal.jpl.nasa.gov/jpeg/PIA19839.jpg",
+                "https://photojournal.jpl.nasa.gov/jpeg/PIA16239.jpg"
             ]
         },
         perseverance: {
@@ -970,8 +970,8 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "OPERATIONAL",
             statusColor: "#00e676",
             surfacePhotos: [
-                "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Perseverance_Rover_on_Mars_at_Octavia_E._Butler_Landing.jpg/1280px-Perseverance_Rover_on_Mars_at_Octavia_E._Butler_Landing.jpg",
-                "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/PIA24487-MarsPerseveranceRover-Selfie-20210406.jpg/1280px-PIA24487-MarsPerseveranceRover-Selfie-20210406.jpg"
+                "https://photojournal.jpl.nasa.gov/jpeg/PIA24487.jpg",
+                "https://photojournal.jpl.nasa.gov/jpeg/PIA24836.jpg"
             ]
         },
         opportunity: {
@@ -984,7 +984,7 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "COMPLETE",
             statusColor: "#aaa",
             surfacePhotos: [
-                "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/Opportunity_self-portrait.jpg/1280px-Opportunity_self-portrait.jpg"
+                "https://photojournal.jpl.nasa.gov/jpeg/PIA18076.jpg"
             ]
         },
         spirit: {
@@ -997,7 +997,7 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "COMPLETE",
             statusColor: "#aaa",
             surfacePhotos: [
-                "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Spirit_Mars_Rover_self-portrait.jpg/1280px-Spirit_Mars_Rover_self-portrait.jpg"
+                "https://photojournal.jpl.nasa.gov/jpeg/PIA05200.jpg"
             ]
         }
     };
@@ -1022,7 +1022,7 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
         const safeImg = formatPhotoUrl(photoUrl);
         const fallbackImg = currentSpec.surfacePhotos[0];
 
-        const cardId = "mars-photo-" + Date.now();
+        const cardId = "mars-photo-" + Math.floor(Math.random() * 100000);
         const html = `
             <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff5722; text-align: left;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -1033,11 +1033,12 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
                 <div style="font-size: 0.78rem; color: #aaa; margin-bottom: 4px;">📍 Landing Site: <strong>${currentSpec.landingSite}</strong></div>
                 <div style="font-size: 0.78rem; color: #ff9800; margin-bottom: 10px;">📷 Camera: <strong>${cameraLabel || currentSpec.cameraName}</strong></div>
 
-                <div id="mars-img-container" style="width: 100%; min-height: 200px; max-height: 300px; background: #252525; border-radius: 8px; overflow: hidden; border: 1px solid #333; display: flex; align-items: center; justify-content: center;">
+                <div style="width: 100%; height: 260px; background: #252525; border-radius: 8px; overflow: hidden; border: 1px solid #333; display: flex; align-items: center; justify-content: center;">
                     <img 
                         id="${cardId}"
                         src="${safeImg}" 
-                        style="width: 100%; max-height: 300px; object-fit: cover; display: block;" 
+                        referrerpolicy="no-referrer"
+                        style="width: 100%; height: 100%; object-fit: cover; display: block;" 
                         alt="Mars Surface Panorama"
                     >
                 </div>
