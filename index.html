@@ -99,6 +99,7 @@
             overflow-y: auto !important;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
+            position: relative;
         }
 
         #auth-title {
@@ -204,6 +205,43 @@
             width: 100%;
             margin-top: 8px;
             flex-shrink: 0;
+            position: relative;
+        }
+
+        /* SLASH COMMAND PALETTE */
+        #command-palette {
+            display: none;
+            position: absolute;
+            bottom: 68px;
+            left: 18px;
+            right: 18px;
+            background: #1e1e1e;
+            border: 1px solid #444;
+            border-radius: 8px;
+            box-shadow: 0 -4px 16px rgba(0,0,0,0.7);
+            max-height: 180px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .palette-item {
+            padding: 9px 12px;
+            font-size: 0.82rem;
+            color: #ddd;
+            cursor: pointer;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .palette-item:last-child {
+            border-bottom: none;
+        }
+
+        .palette-item:hover {
+            background: #28a745;
+            color: #fff;
         }
         
         input {
@@ -582,6 +620,7 @@
 
                         <h4 style="color: #4da3ff; margin-bottom: 8px;">🌐 VAII Native Commands & Syntax</h4>
                         <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
+                            <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant shortcuts (<code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>).</li>
                             <li><strong>Live Music Streaming & Spotify Hub:</strong> Type <code>play [song]</code> or <code>stream song [song]</code> (e.g. <code>play Blinding Lights</code>) to load 30s preview audio with Spotify and YouTube Music streaming links.</li>
                             <li><strong>NASA Mars Rover Telemetry:</strong> Type <code>mars</code>, <code>rover</code>, <code>curiosity</code>, or <code>perseverance</code> to fetch live Mars surface photos, Martian Sol dates, and landing telemetry.</li>
                             <li><strong>YouTube Video Hub & Player:</strong> Type <code>yt [query]</code> or <code>youtube [query]</code> (e.g. <code>yt Veritasium</code>, <code>yt Kurzgesagt</code>) to load an inline video player card.</li>
@@ -619,7 +658,7 @@
                             <li><strong>Crypto & Stocks:</strong> Type <code>BTC</code>, <code>ETH</code>, or <code>price of AAPL</code>.</li>
                             <li><strong>Local Food Search:</strong> Type <code>order burger</code> or <code>order from Wendy's</code> for GPS DoorDash routing.</li>
                             <li><strong>Image Generation:</strong> Type <code>draw [prompt]</code> to render AI art.</li>
-                            <li><strong>Notes Engine:</strong> Type <code>note: [your text]</code> to save local notes, and <code>show notes</code> to view.</li>
+                            <li><strong>Notes Engine:</strong> Type <code>note: [your text]</code> to save local notes, and <code>show notes</code> to view and delete individual notes.</li>
                         </ul>
 
                         <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 15px 0;">
@@ -703,12 +742,23 @@
                     <!-- RESPONSE OUTPUT DISPLAY IN THE MIDDLE -->
                     <div id="weather-output" class="output-box"></div>
                     
-                    <!-- TOOL BUTTONS MOVED DIRECTLY ABOVE INPUT PROMPT -->
+                    <!-- TOOL BUTTONS DIRECTLY ABOVE INPUT PROMPT -->
                     <div class="tool-row">
                         <button id="mic-trigger-btn" class="camera-btn" title="Voice Input">🎤</button>
                         <button id="tts-trigger-btn" class="camera-btn" title="Read Aloud" style="display: none;">🔊</button>
                         <button id="camera-trigger-btn" class="camera-btn" title="Image Upload">📷</button>
                         <input type="file" id="image-file-input" accept="image/*" style="display: none;">
+                    </div>
+
+                    <!-- SLASH COMMAND PALETTE (HIDDEN BY DEFAULT, TRIGGERS ONLY WHEN INPUT STARTS WITH '/') -->
+                    <div id="command-palette">
+                        <div class="palette-item" data-cmd="/weather "><span>🌦️ /weather</span><span style="color:#777; font-size:0.75rem;">Forecast & local telemetry</span></div>
+                        <div class="palette-item" data-cmd="/play "><span>🎵 /play</span><span style="color:#777; font-size:0.75rem;">Music preview hub</span></div>
+                        <div class="palette-item" data-cmd="/movie "><span>🎬 /movie</span><span style="color:#777; font-size:0.75rem;">Films, IMDb & tickets</span></div>
+                        <div class="palette-item" data-cmd="/draw "><span>🎨 /draw</span><span style="color:#777; font-size:0.75rem;">Render AI artwork</span></div>
+                        <div class="palette-item" data-cmd="/repo "><span>🐙 /repo</span><span style="color:#777; font-size:0.75rem;">GitHub inspector</span></div>
+                        <div class="palette-item" data-cmd="/qr "><span>📱 /qr</span><span style="color:#777; font-size:0.75rem;">Dynamic QR generator</span></div>
+                        <div class="palette-item" data-cmd="/timer "><span>⏱️ /timer</span><span style="color:#777; font-size:0.75rem;">Countdown & stopwatch</span></div>
                     </div>
 
                     <!-- TYPING FIELD AND EXECUTE BUTTON AT THE BOTTOM -->
