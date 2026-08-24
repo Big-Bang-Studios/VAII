@@ -809,7 +809,7 @@ function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML =
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+                    <div style="grid-template-columns: 1fr 1fr; display: grid; gap: 10px; margin-bottom: 12px;">
                         <div style="background: #252525; padding: 10px 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 1.4rem;">🌅</span>
                             <div>
@@ -1022,6 +1022,7 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
         const safeImg = formatPhotoUrl(photoUrl);
         const fallbackImg = currentSpec.surfacePhotos[0];
 
+        const cardId = "mars-photo-" + Date.now();
         const html = `
             <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff5722; text-align: left;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -1032,12 +1033,12 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
                 <div style="font-size: 0.78rem; color: #aaa; margin-bottom: 4px;">📍 Landing Site: <strong>${currentSpec.landingSite}</strong></div>
                 <div style="font-size: 0.78rem; color: #ff9800; margin-bottom: 10px;">📷 Camera: <strong>${cameraLabel || currentSpec.cameraName}</strong></div>
 
-                <div style="width: 100%; min-height: 200px; max-height: 300px; background: #252525; border-radius: 8px; overflow: hidden; border: 1px solid #333; display: flex; align-items: center; justify-content: center;">
+                <div id="mars-img-container" style="width: 100%; min-height: 200px; max-height: 300px; background: #252525; border-radius: 8px; overflow: hidden; border: 1px solid #333; display: flex; align-items: center; justify-content: center;">
                     <img 
+                        id="${cardId}"
                         src="${safeImg}" 
                         style="width: 100%; max-height: 300px; object-fit: cover; display: block;" 
-                        alt="Mars Surface Panorama" 
-                        onerror="if(this.src !== '${fallbackImg}') { this.src = '${fallbackImg}'; } else { this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div style=\\'color:#888;font-size:0.85rem;padding:30px;text-align:center;\\'>🛰️ Telemetry link active (Image stream temporarily unreachable)</div>'; }"
+                        alt="Mars Surface Panorama"
                     >
                 </div>
 
@@ -1048,10 +1049,20 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
                     <div><strong>🛬 Landing:</strong> ${currentSpec.landingDateDisplay}</div>
                 </div>
 
-                <a href="https://mars.nasa.gov/msl/home/" target="_blank" style="display: inline-block; margin-top: 10px; color: #ff9800; text-decoration: none; font-size: 0.8rem; font-weight: bold;">Explore NASA Mars Missions ↗</a>
+                <a href="https://mars.nasa.gov" target="_blank" style="display: inline-block; margin-top: 10px; color: #ff9800; text-decoration: none; font-size: 0.8rem; font-weight: bold;">Explore NASA Mars Missions ↗</a>
             </div>
         `;
-        handleVaiiDataOutput(`Mars Rover ${currentSpec.name} telemetry on Sol ${solNumber} at ${currentSpec.landingSite}.`, html);
+
+        handleVaiiDataOutput(`Mars Rover ${currentSpec.name} telemetry on Sol ${solNumber} at ${currentSpec.landingSite}.`, html, () => {
+            const imgElement = document.getElementById(cardId);
+            if (imgElement) {
+                imgElement.addEventListener('error', () => {
+                    if (imgElement.src !== fallbackImg) {
+                        imgElement.src = fallbackImg;
+                    }
+                });
+            }
+        });
     };
 
     const primaryUrl = `https://api.nasa.gov/mars-photos/api/v1/rovers/${targetRover}/latest_photos?api_key=DEMO_KEY`;
@@ -1108,7 +1119,7 @@ function renderTimerStopwatchCard(rawQuery) {
                 ⏱️ ${isStopwatch ? 'Interactive Stopwatch' : 'Active Countdown Timer'}
             </div>
             
-            <div id="vaii-timer-display" style="font-size: 3.2rem; font-weight: 800; font-family: monospace; color: #fff; margin-min: 10px 0;">
+            <div id="vaii-timer-display" style="font-size: 3.2rem; font-weight: 800; font-family: monospace; color: #fff; margin: 10px 0;">
                 ${formatDisplay(remaining)}
             </div>
 
@@ -1907,7 +1918,7 @@ function fetchNasaAPOD() {
             if (!data.title) throw new Error("NASA APOD failed");
             const isVideo = data.media_type === "video";
             const mediaElement = isVideo
-                ? `<iframe src="${data.url}" style="width: 100%; height: 220px; border-radius: 8px; border-left: 1px solid #333;" frameborder="0" allowfullscreen></iframe>`
+                ? `<iframe src="${data.url}" style="width: 100%; height: 220px; border-radius: 8px; border: 1px solid #333;" frameborder="0" allowfullscreen></iframe>`
                 : `<img src="${data.url}" style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #333;">`;
 
             const html = `
