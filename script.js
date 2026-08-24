@@ -2898,8 +2898,7 @@ function runInfoExecution(query) {
     if (query.toLowerCase().startsWith("open ")) {
         let rawTarget = query.substring(5).trim().toLowerCase().replace(/['"]+/g, '');
         if (!rawTarget) { if (output) output.innerText = "Please specify what you want to open."; return; }
-        output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Resolving address for "${rawTarget}"...</div>`;
-        
+
         const randomizedRoutes = {
             "gemini": ["https://gemini.google.com"],
             "google gemini": ["https://gemini.google.com"],
@@ -2911,14 +2910,24 @@ function runInfoExecution(query) {
         };
 
         if (randomizedRoutes[rawTarget]) {
+            output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Resolving address for "${rawTarget}"...</div>`;
             launchTargetUrl(randomizedRoutes[rawTarget][0]);
             return;
         }
 
-        let sanitizedDomain = rawTarget.replace(/&/g, 'and').replace(/[^a-z0-9.-]/g, '');
-        if (!sanitizedDomain) sanitizedDomain = "google";
-        
-        if (sanitizedDomain.includes('.')) {
+        // Clean domain and remove trailing dots/hyphens
+        let sanitizedDomain = rawTarget.replace(/&/g, 'and').replace(/[^a-z0-9.-]/g, '').replace(/^[.-]+|[.-]+$/g, '');
+
+        // If it's a single letter or empty after stripping, don't try opening it as a direct web domain
+        if (!sanitizedDomain || sanitizedDomain.length < 2) {
+            proceedWithWikiPipeline(query);
+            return;
+        }
+
+        output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Resolving address for "${rawTarget}"...</div>`;
+
+        // Check for a real domain structure (e.g., example.com, test.co.uk)
+        if (/\.[a-z]{2,}/i.test(sanitizedDomain)) {
             launchTargetUrl(`https://${sanitizedDomain}`);
         } else {
             launchTargetUrl(`https://${sanitizedDomain}.com`);
