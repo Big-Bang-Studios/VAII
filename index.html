@@ -58,7 +58,8 @@
             box-sizing: border-box;
         }
 
-        html, body {
+        html, 
+        body {
             height: 100vh !important;
             height: 100dvh !important;
             width: 100% !important;
@@ -199,17 +200,26 @@
             background: #252525;
             border: 1px solid #3d3d3d;
             border-radius: 8px;
-            padding: 12px;
+            padding: 14px;
             margin-bottom: 12px;
             font-size: 0.82rem;
             color: #ccc;
             line-height: 1.45;
             max-width: 100%;
             flex-shrink: 0;
-            max-height: 240px;
+            max-height: 260px;
             overflow-y: auto !important;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
+        }
+
+        .help-drawer ul {
+            margin: 6px 0 0 0;
+            padding-left: 18px;
+        }
+
+        .help-drawer li {
+            margin-bottom: 6px;
         }
 
         /* SMART TABS STRIP */
@@ -308,7 +318,7 @@
             color: #aaa;
             margin-bottom: 4px;
         }
-
+        
         .search-container {
             display: flex;
             flex-direction: column;
@@ -391,6 +401,24 @@
             background: #112233;
         }
 
+        .camera-btn.listening {
+            border-color: #ff4d4d;
+            color: #ff4d4d;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 77, 77, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 77, 77, 0);
+            }
+        }
+        
         .preview-box {
             display: none;
             align-items: center;
@@ -471,6 +499,9 @@
             height: 18px !important;
             min-width: 18px !important;
             min-height: 18px !important;
+            max-width: 18px !important;
+            max-height: 18px !important;
+            flex-shrink: 0 !important;
             border: 3px solid rgba(255, 255, 255, 0.15) !important;
             border-radius: 50% !important;
             border-top-color: #007bff !important;
@@ -562,10 +593,14 @@
                 <h3 id="auth-title">🔒 Account Sign In</h3>
                 <div class="search-container">
                     <div id="auth-error" style="color: #ff4d4d; font-size: 0.85rem; display: none; margin-bottom: 5px;"></div>
+                    
                     <input type="email" id="auth-email" class="auth-field" placeholder="Email Address">
                     <input type="password" id="auth-password" class="auth-field" placeholder="Password">
+                    
                     <button id="auth-submit-btn" class="auth-btn" style="background: #007bff;">Log In</button>
+
                     <div style="text-align: center; color: #666; font-size: 0.85rem; margin: 5px 0;">— OR —</div>
+                    
                     <button id="google-signin-btn" class="google-btn">
                         <svg width="18" height="18" viewBox="0 0 24 24">
                             <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.69c-.29 1.5-1.14 2.78-2.4 3.63v3.02h3.89c2.28-2.1 3.56-5.19 3.56-8.5z"/>
@@ -575,6 +610,7 @@
                         </svg>
                         Sign in with Google
                     </button>
+
                     <div style="text-align: center;">
                         <span id="auth-toggle" class="auth-toggle-text">Need an account? Register instead</span>
                     </div>
@@ -597,7 +633,7 @@
                             <span>📝</span> Tasks
                         </button>
                         <button id="changelog-toggle" class="nav-hub-btn changelog-style" title="Version History">
-                            <span>🕒</span> Logs
+                            <span>🕒</span> Updates
                         </button>
                         <button id="history-toggle" class="nav-hub-btn history-style" title="Gemini Chat History">
                             <span>📜</span> History
@@ -646,22 +682,137 @@
                     <!-- CHANGELOG DRAWER -->
                     <div id="changelog-drawer" class="help-drawer">
                         <strong style="color: #ffc107; font-size: 1rem;">🚀 VAII Version History</strong>
-                        <div style="margin-top: 10px; border-left: 2px solid #444; padding-left: 10px; display: flex; flex-direction: column; gap: 10px;">
+                        <div style="margin-top: 10px; border-left: 2px solid #444; padding-left: 10px; display: flex; flex-direction: column; gap: 12px;">
                             <div>
                                 <strong style="color:#fff;">v8.0 (Current)</strong><br>
                                 <span style="color:#aaa;">Added Instant Scratchpad & Tasks, Live Telemetry Mini-Dashboard, PiP Media Player, Multi-Chat Workspaces, Custom Visual Themes, and Slash Command Palette.</span>
                             </div>
                             <div>
                                 <strong style="color:#fff;">v7.5</strong><br>
-                                <span style="color:#aaa;">Added Live Spotify & YouTube Music streams, Mars Rover telemetry, stopwatch/timer, and GitHub repo cards.</span>
+                                <span style="color:#aaa;">Added Live Spotify & YouTube Music hub streams, NASA Mars Rover surface telemetry, playable YouTube Video cards, interactive in-card Stopwatch/Timer with AudioContext chimes, and GitHub Repository Inspector cards.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v7.0</strong><br>
+                                <span style="color:#aaa;">Added Fandango showtime checkout, Google/Apple TV streaming and rental routing, and OpenTable dining reservations.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v6.5</strong><br>
+                                <span style="color:#aaa;">Added Sunrise-Sunset.org solar & golden hour calculations, Zippopotam.us postal geocoder, Random Duck media streams, and Hipo University campus search.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v6.0</strong><br>
+                                <span style="color:#aaa;">Added Frankfurter Live Forex currency converter, dynamic QR Code generator with instant downloads, and live ISS orbital velocity telemetry tracker.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v5.8</strong><br>
+                                <span style="color:#aaa;">Added NASA Astronomy Picture of the Day (APOD), Advice Slip generator, Agify.io name age predictor, DictionaryAPI with voice phonetics, and World Bank population data.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v5.5</strong><br>
+                                <span style="color:#aaa;">Integrated REST Countries stat cards, Dog CEO & CATAAS pet photos, TheCocktailDB mixing guides, ipapi.co client telemetry, and native CheapShark deal tracking.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v5.0</strong><br>
+                                <span style="color:#aaa;">Added interactive Open Trivia DB quizzes, live PC game deal trackers, icanhazdadjoke humor engine, and AniList GraphQL adapter.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v4.5</strong><br>
+                                <span style="color:#aaa;">Integrated iTunes audio previews, PokéAPI monster stats & sprites, Open Library books, and Gemini 3.7 Flash engine fallback.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v4.0</strong><br>
+                                <span style="color:#aaa;">Integrated Web Speech API for voice commands, GNews Aggregator, OMDB Media Search, persistent To-Do Notes, and the UI History tracker.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v3.5</strong><br>
+                                <span style="color:#aaa;">Introduced Local Food Concierge, 150+ brand database, and spatial mapping for DoorDash deep links.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v3.0</strong><br>
+                                <span style="color:#aaa;">Added the Gemini Ecosystem fallback tree, Gemini Vision API, Google Maps, CoinGecko Crypto, MyMemory Translations, and Pollinations AI Art.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v2.0</strong><br>
+                                <span style="color:#aaa;">Overhauled the original news lookup into a unified "Info" module using Wikipedia summaries, and added Wiktionary to prevent single-word query confusion.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v1.0</strong><br>
+                                <span style="color:#aaa;">Initial release. Base HTML/CSS, Auth, and Open-Meteo weather integration only.</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- FULL HELP GUIDE DRAWER -->
                     <div id="help-guide" class="help-drawer">
-                        <h3 style="margin-top: 0; color: #ffc107;">❓ VAII System Guide</h3>
-                        <p style="color: #aaa; font-size: 0.88rem;">Type <code>/</code> into the input bar to bring up the command palette for instant access to tools and widgets.</p>
+                        <h3 style="margin-top: 0; color: #ffc107;">❓ VAII System Operation Guide</h3>
+                        <p style="color: #aaa; font-size: 0.88rem;">VAII features two operational modes: <strong>VAII Native</strong> for real-time web utilities and integrations, and <strong>Gemini Ecosystem</strong> for deep conversational threads.</p>
+                        
+                        <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 15px 0;">
+
+                        <h4 style="color: #4da3ff; margin-bottom: 8px;">🌐 VAII Native Commands & Syntax</h4>
+                        <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
+                            <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant keyboard-only shortcuts (<code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>).</li>
+                            <li><strong>Live Music Streaming & Spotify Hub:</strong> Type <code>play [song]</code> or <code>stream song [song]</code> (e.g. <code>play Blinding Lights</code>) to load 30s preview audio with Spotify, YouTube Music, and Picture-in-Picture docking.</li>
+                            <li><strong>NASA Mars Rover Telemetry:</strong> Type <code>mars</code>, <code>rover</code>, <code>curiosity</code>, or <code>perseverance</code> to fetch live Mars surface photos, Martian Sol dates, and landing telemetry.</li>
+                            <li><strong>YouTube Video Hub & Player:</strong> Type <code>yt [query]</code> or <code>youtube [query]</code> (e.g. <code>yt Veritasium</code>, <code>yt Kurzgesagt</code>) to load an inline video player card with PiP docking.</li>
+                            <li><strong>In-Card Countdown Timer & Stopwatch:</strong> Type <code>timer [duration]</code> (e.g. <code>timer 5m</code>, <code>timer 1m30s</code>, <code>timer 45s</code>) or <code>stopwatch</code> for interactive controls with audio alerts.</li>
+                            <li><strong>GitHub Repository Inspector:</strong> Type <code>repo [owner/repo]</code> or <code>github [owner/repo]</code> (e.g. <code>repo facebook/react</code>, <code>repo vercel/next.js</code>) to view stars, forks, issues, and license details.</li>
+                            <li><strong>Movies, Tickets & Streaming:</strong> Type <code>movie [title]</code>, <code>tickets [title]</code>, or <code>stream [title]</code> for IMDb ratings, plot summaries, Fandango tickets, and streaming platforms.</li>
+                            <li><strong>OpenTable Reservations:</strong> Type <code>reserve [restaurant or cuisine] [city]</code> (e.g., <code>reserve steak Orlando</code>) to book tables directly.</li>
+                            <li><strong>General Knowledge:</strong> Type any entity or question (e.g., <code>MrBeast</code>, <code>Quantum Computing</code>) to query Wiktionary, Wikipedia, and YouTube metrics simultaneously.</li>
+                            <li><strong>Sunset & Solar Telemetry:</strong> Type <code>sunset [location]</code>, <code>sunrise [location]</code>, or <code>solar [location]</code> for twilight times, solar noon, day duration, and golden hour windows.</li>
+                            <li><strong>Postal Code Geocoder (Zippopotam):</strong> Type <code>zip [code]</code> or <code>postal [code]</code> (e.g., <code>zip 90210</code>, <code>postal 32801</code>) for town, state, and geographic coordinates.</li>
+                            <li><strong>Cute Animals & Ducks:</strong> Type <code>dog</code>, <code>cat</code>, or <code>duck</code> for instant cute pet photography and duck images.</li>
+                            <li><strong>College & University Directory (Hipo):</strong> Type <code>college [name]</code> or <code>university [name]</code> (e.g., <code>university Harvard</code>, <code>college MIT</code>) for official `.edu` portals and campus locations.</li>
+                            <li><strong>Live Forex Converter (Frankfurter):</strong> Type <code>convert [amount] [from] to [to]</code> (e.g. <code>convert 100 USD to EUR</code>, <code>50 GBP to JPY</code>) for live currency conversions.</li>
+                            <li><strong>Dynamic QR Code Generator:</strong> Type <code>qr [text or url]</code> (e.g. <code>qr https://vaii-two.vercel.app</code>) to generate an instant scannable QR card with direct PNG download.</li>
+                            <li><strong>ISS Telemetry (Where the ISS at):</strong> Type <code>iss</code> or <code>orbit</code> for real-time orbital velocity (km/h), altitude, latitude, and longitude coordinates.</li>
+                            <li><strong>NASA APOD (Astronomy):</strong> Type <code>space</code> or <code>nasa</code> to fetch NASA's Astronomy Picture of the Day with celestial explanations.</li>
+                            <li><strong>Advice & Quotes (Advice Slip):</strong> Type <code>advice</code> for instant random pearls of wisdom.</li>
+                            <li><strong>Age Demographics (Agify):</strong> Type <code>age [name]</code> (e.g., <code>age Logan</code>, <code>age Alex</code>) to predict estimated age and sample size metrics.</li>
+                            <li><strong>Dictionary & Phonetics:</strong> Type <code>define [word]</code> (e.g., <code>define serendipity</code>) for definitions, parts of speech, examples, and audio pronunciation.</li>
+                            <li><strong>Country & Flags (REST Countries & World Bank):</strong> Type <code>country [name]</code> for official flags, capitals, World Bank live population metrics, and currencies.</li>
+                            <li><strong>Drink & Cocktails (TheCocktailDB):</strong> Type <code>drink [name]</code> or <code>random drink</code> for ingredients, measures, and preparation recipes.</li>
+                            <li><strong>Public IP & Network (ipapi):</strong> Type <code>my ip</code> or <code>ip lookup</code> to display your live IP, ISP, and geographic network parameters.</li>
+                            <li><strong>Interactive Trivia Quiz:</strong> Type <code>trivia</code> or <code>quiz</code> to answer interactive multiple-choice questions.</li>
+                            <li><strong>PC Gaming Freebies & Deals:</strong> Type <code>free games</code> or <code>deals</code> for live discounts and free game trackers.</li>
+                            <li><strong>Jokes (icanhazdadjoke):</strong> Type <code>joke</code> or <code>make me laugh</code> for clean one-liners.</li>
+                            <li><strong>Music Previews (iTunes):</strong> Type <code>song [title]</code> (e.g., <code>song Bohemian Rhapsody</code>) to play a 30-second audio preview.</li>
+                            <li><strong>Anime & Manga (AniList):</strong> Type <code>anime [title]</code> or <code>manga [title]</code> for scores, episodes, and summaries.</li>
+                            <li><strong>Pokémon Dex (PokéAPI):</strong> Type <code>pokemon [name/id]</code> for pixel sprites, typings, and stats.</li>
+                            <li><strong>Books (Open Library):</strong> Type <code>book [title]</code> to pull cover art and authors.</li>
+                            <li><strong>Live News (GNews):</strong> Type <code>top news</code> or <code>news about [topic]</code>.</li>
+                            <li><strong>App & Site Launcher:</strong> Type <code>open [site]</code> (e.g., <code>open YouTube</code>, <code>open Minecraft</code>).</li>
+                            <li><strong>Location & Weather:</strong> Type <code>weather [location]</code>, <code>time in [city]</code>, or <code>City, State</code>.</li>
+                            <li><strong>Math & Conversions:</strong> Enter equations like <code>(12 * 4) / 2</code> or conversions like <code>193 lbs to kg</code>.</li>
+                            <li><strong>Language Translation:</strong> Type <code>[phrase] to [language]</code> (e.g., <code>hello to spanish</code>).</li>
+                            <li><strong>Crypto & Stocks:</strong> Type <code>BTC</code>, <code>ETH</code>, or <code>price of AAPL</code>.</li>
+                            <li><strong>Local Food Search:</strong> Type <code>order burger</code> or <code>order from Wendy's</code> for GPS DoorDash routing.</li>
+                            <li><strong>Image Generation:</strong> Type <code>draw [prompt]</code> to render AI art.</li>
+                            <li><strong>Notes Engine:</strong> Type <code>note: [your text]</code> to save local notes, or click <strong>📝 Tasks</strong> above to view your persistent scratchpad.</li>
+                        </ul>
+
+                        <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 15px 0;">
+
+                        <h4 style="color: #6f42c1; margin-bottom: 8px;">✨ Gemini Ecosystem Mode</h4>
+                        <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
+                            <li>Select <strong>Gemini Ecosystem</strong> on the mode switcher to engage persistent, multi-turn AI chat threads.</li>
+                            <li><strong>Multi-Chat Tabs:</strong> Use the workspace tabs bar (<code>[Chat 1] [+]</code>) to manage multiple concurrent conversational tracks.</li>
+                            <li><strong>Custom Themes:</strong> Open Settings (⚙️) to switch between Default Dark, Cyberpunk Neon, Retro CRT, AMOLED Black, and OLED Purple.</li>
+                            <li><strong>Custom Instructions:</strong> Set persistent system instructions and persona guidelines in the Settings menu.</li>
+                            <li><strong>Thread Management:</strong> Access historical chat sessions via the scroll icon (📜) or start a new thread using the edit icon (📝).</li>
+                            <li><strong>Model Fallback Matrix:</strong> Cascades from <strong>Gemini 3.7 Flash</strong> down to Gemma models automatically if quota limits are reached.</li>
+                        </ul>
+
+                        <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 15px 0;">
+
+                        <h4 style="color: #28a745; margin-bottom: 8px;">🎙️ Multimodal & Audio Tools</h4>
+                        <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
+                            <li><strong>Microphone (🎙️):</strong> Activates speech-to-text input and enables automatic text-to-speech voice playback for responses.</li>
+                            <li><strong>Camera / Vision (📷):</strong> Upload any image file and type a prompt to analyze visual input using the Gemini Vision matrix.</li>
+                            <li><strong>Text-to-Speech (🔊):</strong> Click the TTS button on active response outputs to read back text cleanly without markdown tags or emojis.</li>
+                            <li><strong>Picture-in-Picture Mini-Player (📺):</strong> Dock live music previews and YouTube streams to keep media running while browsing.</li>
+                        </ul>
                     </div>
 
                     <!-- HISTORY DRAWER -->
@@ -670,7 +821,7 @@
                             <strong>📜 Saved Gemini Chats:</strong>
                             <button id="new-chat-btn" style="background: #28a745; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: bold;">➕ New Chat</button>
                         </div>
-                        <div id="history-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; margin-top: 5px;"></div>
+                        <div id="history-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; margin-top: 5px; padding-right: 2px;"></div>
                     </div>
 
                     <!-- SYSTEM PREFERENCES DRAWER -->
@@ -690,11 +841,18 @@
                             </select>
 
                             <label style="font-size: 0.75rem; color: #aaa; font-weight: bold;">Custom System Instructions:</label>
-                            <textarea id="prefs-instructions-input" style="width: 100%; height: 50px; background: #1a1a1a; color: #fff; border: 1px solid #3d3d3d; border-radius: 6px; padding: 8px; font-family: inherit; font-size: 0.82rem; resize: vertical;" placeholder="Type persona parameters for the Gemini mode..."></textarea>
+                            <textarea id="prefs-instructions-input" style="width: 100%; height: 65px; background: #1a1a1a; color: #fff; border: 1px solid #3d3d3d; border-radius: 6px; padding: 8px; font-family: inherit; font-size: 0.82rem; resize: vertical; box-sizing: border-box;" placeholder="Type persona parameters for the Gemini mode..."></textarea>
 
-                            <label style="font-size: 0.75rem; color: #aaa; font-weight: bold;">Custom Gemini API Key:</label>
-                            <input type="password" id="prefs-api-key-input" style="width: 100%; background: #1a1a1a; color: #fff; border: 1px solid #3d3d3d; border-radius: 6px; padding: 8px; font-size: 0.82rem;" placeholder="AIzaSy..." autocomplete="off">
-                            <button id="prefs-save-btn" style="background: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: bold; width: 100%; margin-top: 4px;">Save Preferences</button>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                                <label style="font-size: 0.75rem; color: #aaa; font-weight: bold;">Custom Gemini API Key:</label>
+                                <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #4da3ff; font-size: 0.72rem; text-decoration: underline; font-weight: bold;">Get key here ↗</a>
+                            </div>
+                            <input type="password" id="prefs-api-key-input" style="width: 100%; background: #1a1a1a; color: #fff; border: 1px solid #3d3d3d; border-radius: 6px; padding: 8px; font-size: 0.82rem; box-sizing: border-box;" placeholder="AIzaSy..." autocomplete="off">
+                            <div id="api-key-note" style="font-size: 0.72rem; color: #4da3ff; font-style: italic; line-height: 1.3; background: #112233; border: 1px solid #1d4ed8; padding: 6px 8px; border-radius: 4px; display: none;">
+                                💡 VAII is providing you an API key automatically, but you can set your own API key if you want to.
+                            </div>
+
+                            <button id="prefs-save-btn" style="background: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: bold; width: 100%; margin-top: 4px; transition: background 0.2s ease;">Save Preferences</button>
                         </div>
                     </div>
 
@@ -706,19 +864,24 @@
 
                     <!-- MODE SELECTOR AT TOP -->
                     <div class="search-container">
-                        <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 4px;">
-                            <div style="flex: 1; background: #252525; padding: 8px; border-radius: 8px; border: 1px solid #333; text-align: left;">
-                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.82rem; color: #ccc; font-weight: bold;">
-                                    <input type="radio" name="vaii-mode" value="native" checked style="width:auto!important; margin:0;"> VAII Native
+                        <div style="text-align: center; font-size: 0.75rem; color: #888; margin-bottom: 4px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Assistant Engine Mode</div>
+                        
+                        <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 6px;">
+                            <div style="flex: 1; max-width: 170px; background: #252525; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: left;">
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 0.88rem; color: #ccc; font-weight: bold;">
+                                    <input type="radio" name="vaii-mode" value="native" checked style="width: auto !important; height: auto !important; margin: 0; padding: 0;"> VAII Native
                                 </label>
+                                <div style="font-size: 0.7rem; color: #777; margin-top: 4px; line-height: 1.25;">Runs all internet integrations: maps, weather, arithmetic, translations, tickers, and art creation models.</div>
                             </div>
-                            <div style="flex: 1; background: #252525; padding: 8px; border-radius: 8px; border: 1px solid #333; text-align: left; position: relative;">
+                            
+                            <div style="flex: 1; max-width: 170px; background: #252525; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: left; position: relative;">
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.82rem; color: #ccc; font-weight: bold;">
-                                        <input type="radio" name="vaii-mode" value="gemini" style="width:auto!important; margin:0;"> Gemini AI
+                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 0.88rem; color: #ccc; font-weight: bold;">
+                                        <input type="radio" name="vaii-mode" value="gemini" style="width: auto !important; height: auto !important; margin: 0; padding: 0;"> Gemini Ecosystem
                                     </label>
-                                    <span id="prefs-toggle-btn" style="cursor: pointer; font-size: 0.85rem; color: #888;" title="Preferences">⚙️</span>
+                                    <span id="prefs-toggle-btn" style="cursor: pointer; font-size: 0.85rem; padding: 2px; color: #888; transition: color 0.2s;" title="System Preferences">⚙️</span>
                                 </div>
+                                <div style="font-size: 0.7rem; color: #ff6b6b; margin-top: 4px; line-height: 1.25; font-style: italic;">No integrations supported. Text-based historical conversational thread only.</div>
                             </div>
                         </div>
                     </div>
@@ -728,7 +891,7 @@
                     <!-- RESPONSE OUTPUT DISPLAY IN THE MIDDLE -->
                     <div id="weather-output" class="output-box"></div>
                     
-                    <!-- TOOL BUTTONS DIRECTLY ABOVE PROMPT -->
+                    <!-- TOOL BUTTONS DIRECTLY ABOVE INPUT PROMPT -->
                     <div class="tool-row">
                         <button id="mic-trigger-btn" class="camera-btn" title="Voice Input">🎤</button>
                         <button id="tts-trigger-btn" class="camera-btn" title="Read Aloud" style="display: none;">🔊</button>
