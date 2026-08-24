@@ -956,8 +956,8 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "OPERATIONAL",
             statusColor: "#00e676",
             surfacePhotos: [
-                "https://photojournal.jpl.nasa.gov/jpeg/PIA19839.jpg",
-                "https://photojournal.jpl.nasa.gov/jpeg/PIA16239.jpg"
+                "https://mars.nasa.gov/msl-raw-images/msss/01000/mcam/1000ML0044631300305227E03_DXXX.jpg",
+                "https://mars.nasa.gov/msl-raw-images/msss/01000/mcam/1000MR0044631290503689E01_DXXX.jpg"
             ]
         },
         perseverance: {
@@ -970,8 +970,8 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "OPERATIONAL",
             statusColor: "#00e676",
             surfacePhotos: [
-                "https://photojournal.jpl.nasa.gov/jpeg/PIA24487.jpg",
-                "https://photojournal.jpl.nasa.gov/jpeg/PIA24836.jpg"
+                "https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00003/ids/edr/browse/fcam/FLF_0003_0667087612_828ECM_N0010052AUT_04096_00_285J01_1200.jpg",
+                "https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00000/ids/edr/browse/fcam/FLF_0000_0666952864_899ECM_N0010052AUT_04096_00_285J01_1200.jpg"
             ]
         },
         opportunity: {
@@ -984,7 +984,7 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "COMPLETE",
             statusColor: "#aaa",
             surfacePhotos: [
-                "https://photojournal.jpl.nasa.gov/jpeg/PIA18076.jpg"
+                "https://mars.nasa.gov/mer/gallery/all/1/p/5111/1P582046467EFFB2FCP2415L7M1-BR.JPG"
             ]
         },
         spirit: {
@@ -997,7 +997,7 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
             status: "COMPLETE",
             statusColor: "#aaa",
             surfacePhotos: [
-                "https://photojournal.jpl.nasa.gov/jpeg/PIA05200.jpg"
+                "https://mars.nasa.gov/mer/gallery/all/2/p/2208/2P322476535EFFB157P2440L7M1-BR.JPG"
             ]
         }
     };
@@ -1021,8 +1021,8 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
     const renderCard = (photoUrl, cameraLabel, solNumber, earthDate) => {
         const safeImg = formatPhotoUrl(photoUrl);
         const fallbackImg = currentSpec.surfacePhotos[0];
-
         const cardId = "mars-photo-" + Math.floor(Math.random() * 100000);
+
         const html = `
             <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff5722; text-align: left;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
