@@ -162,11 +162,11 @@ const LOCAL_FOOD_DB = {
         { name: "McAlister's Deli", item: "McAlister's Club" },
         { name: "Arby's", item: "Classic Roast Beef" },
         { name: "Penn Station", item: "Philly Cheesesteak" },
-        { name: "Which Wich", item: "The标志Wicked" }
+        { name: "Which Wich", item: "The Wicked" }
     ],
     "coffee": [
         { name: "Starbucks", item: "Caramel Macchiato" },
-        { name: "Dunkin'", item: "Iced Coffee with Hazelnut" },
+        { name: "Dunkin'", item: "Iced Coffee with标志Hazelnut" },
         { name: "Peet's Coffee", item: "Major Dickason's Blend" },
         { name: "Dutch Bros", item: "Golden Eagle" },
         { name: "Caribou Coffee", item: "Campfire Mocha" },
@@ -190,7 +190,7 @@ const LOCAL_FOOD_DB = {
     ],
     "donuts": [
         { name: "Dunkin'", item: "Boston Kreme Donut" },
-        { name: "Krispy标志Kreme", item: "Original Glazed" },
+        { name: "Krispy Kreme", item: "Original Glazed" },
         { name: "Tim Hortons", item: "Timbits" },
         { name: "Shipley Do-Nuts", item: "Glazed Do-Nut" },
         { name: "Voodoo Doughnut", item: "Bacon Maple Bar" },
@@ -322,6 +322,16 @@ let autoSpeak = false;
 let chatHistory = [];
 let currentSessionId = null;
 let activeTimerInterval = null;
+let termEnvironment = {
+    "USER": "guest",
+    "HOSTNAME": "vaii",
+    "HOME": "/home/guest",
+    "SHELL": "/bin/sh",
+    "PATH": "/bin:/usr/bin",
+    "TERM": "xterm-256color"
+};
+let termAliases = {};
+const terminalStartTime = Date.now();
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -377,18 +387,26 @@ window.initVaiiMap = function() {
 };
 
 // ==========================================
-// TERMINAL SANDBOX, VFS & EOF HEREDOC ENGINE
+// TERMINAL SANDBOX, VFS & EXTENDED UNIX ENGINE
 // ==========================================
 const VFS_STORAGE_KEY = 'vaii_terminal_vfs';
 const HISTORY_STORAGE_KEY = 'vaii_terminal_history';
 
 function getDefaultVFS() {
     return {
-        "/": { type: "dir", children: ["home", "bin"] },
-        "/home": { type: "dir", children: ["guest"] },
-        "/home/guest": { type: "dir", children: ["readme.txt"] },
-        "/home/guest/readme.txt": { type: "file", content: "Welcome to the VAII Terminal Sandbox!\nAll changes persist to localStorage.\nTry typing: cat << 'EOF' > test.txt" },
-        "/bin": { type: "dir", children: [] }
+        "/": { type: "dir", children: ["home", "bin", "etc", "var", "tmp"], ctime: Date.now() },
+        "/home": { type: "dir", children: ["guest"], ctime: Date.now() },
+        "/home/guest": { type: "dir", children: ["readme.txt", "welcome.sh"], ctime: Date.now() },
+        "/home/guest/readme.txt": { type: "file", content: "Welcome to the VAII Extended Unix Terminal Sandbox!\nAll changes persist to localStorage.\nTry: ls, tree, grep, head, tail, base64, curl, stat, and more.", ctime: Date.now() },
+        "/home/guest/welcome.sh": { type: "file", content: "echo 'VAII Unix Matrix Online!'", ctime: Date.now() },
+        "/bin": { type: "dir", children: ["sh", "echo", "ls", "cat", "pwd"], ctime: Date.now() },
+        "/etc": { type: "dir", children: ["os-release", "hosts"], ctime: Date.now() },
+        "/etc/os-release": { type: "file", content: "NAME=\"VAII Linux-Subsystem\"\nVERSION=\"2.0.0 LTS\"\nID=vaii\nPRETTY_NAME=\"VAII Unix Sandbox 2.0\"", ctime: Date.now() },
+        "/etc/hosts": { type: "file", content: "127.0.0.1 localhost\n::1 localhost ip6-localhost", ctime: Date.now() },
+        "/var": { type: "dir", children: ["log"], ctime: Date.now() },
+        "/var/log": { type: "dir", children: ["syslog"], ctime: Date.now() },
+        "/var/log/syslog": { type: "file", content: "[SYSTEM_BOOT] VFS mounted successfully.\n[AUTH] User 'guest' logged into session.", ctime: Date.now() },
+        "/tmp": { type: "dir", children: [], ctime: Date.now() }
     };
 }
 
@@ -414,17 +432,17 @@ function getTerminalHistory() {
 }
 
 function saveTerminalHistory(history) {
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history.slice(-50)));
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history.slice(-100)));
 }
 
 let termCurrentPath = "/home/guest";
 let termHistoryIndex = -1;
 
-// Heredoc Multi-Line State
 let heredocMode = false;
 let heredocDelimiter = "EOF";
 let heredocBuffer = [];
 let heredocTargetFile = null;
+let heredocAppend = false;
 
 function normalizePath(path) {
     if (!path) return "/";
@@ -443,6 +461,7 @@ function normalizePath(path) {
 
 function resolvePath(target) {
     if (!target || target === ".") return termCurrentPath;
+    if (target.startsWith("~")) target = "/home/guest" + target.slice(1);
     if (target.startsWith("/")) return normalizePath(target);
     const combined = (termCurrentPath === "/") ? `/${target}` : `${termCurrentPath}/${target}`;
     return normalizePath(combined);
@@ -515,14 +534,14 @@ function launchTerminalSandbox() {
 
         termContainer.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 8px; margin-bottom: 6px; flex-shrink: 0;">
-                <span style="color: #7ee787; font-weight: bold; font-size: 0.9rem;">⚡ VAII Terminal Sandbox [v1.1.0]</span>
+                <span style="color: #7ee787; font-weight: bold; font-size: 0.9rem;">⚡ VAII Unix Terminal Sandbox [v2.0 Extended]</span>
                 <span style="color: #8b949e; font-size: 0.75rem;">Type 'exit' or 'logout' to return</span>
             </div>
             
             <div id="terminal-logs" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; white-space: pre-wrap; line-height: 1.4; color: #c9d1d9; font-size: 0.9rem; padding-bottom: 8px;"></div>
             
             <div style="display: flex; align-items: center; gap: 6px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; margin-top: auto; flex-shrink: 0;">
-                <span id="terminal-prompt" style="color: #7ee787; font-weight: bold; font-size: 0.85rem; white-space: nowrap;">guest@vaii:${termCurrentPath}$</span>
+                <span id="terminal-prompt" style="color: #7ee787; font-weight: bold; font-size: 0.85rem; white-space: nowrap;">${termEnvironment.USER}@${termEnvironment.HOSTNAME}:${termCurrentPath}$</span>
                 <input id="terminal-cli-input" type="text" autocomplete="off" spellcheck="false" placeholder="type a command..." style="
                     flex: 1; background: transparent; border: none; outline: none; color: #f0f6fc;
                     font-family: inherit; font-size: 0.9rem; padding: 0; margin: 0;
@@ -538,7 +557,7 @@ function launchTerminalSandbox() {
     const input = document.getElementById('terminal-cli-input');
     const prompt = document.getElementById('terminal-prompt');
 
-    logs.innerHTML = `VAII Sandbox Environment Initialized.\nStorage Matrix: LocalStorage Synced.\nType <span style="color:#e3b341;">help</span> to inspect shell commands.\n\n`;
+    logs.innerHTML = `VAII Extended Unix Environment Initialized.\nPOSIX Subsystem Ready. LocalStorage Synced.\nType <span style="color:#e3b341;">help</span> to inspect shell commands.\n\n`;
     input.value = "";
     input.focus();
 
@@ -555,7 +574,8 @@ function launchTerminalSandbox() {
                     let vfs = getVFS();
                     const fullContent = heredocBuffer.join("\n");
                     const targetPath = resolvePath(heredocTargetFile);
-                    vfs[targetPath] = { type: "file", content: fullContent };
+                    const prevContent = (heredocAppend && vfs[targetPath]?.content) ? vfs[targetPath].content + "\n" : "";
+                    vfs[targetPath] = { type: "file", content: prevContent + fullContent, ctime: Date.now() };
                     
                     const fileNameOnly = targetPath.split('/').filter(Boolean).pop();
                     const parentDir = normalizePath(targetPath.substring(0, targetPath.lastIndexOf('/')) || '/');
@@ -565,17 +585,19 @@ function launchTerminalSandbox() {
                     }
                     saveVFS(vfs);
 
-                    logs.innerHTML += `<span style="color:#7ee787;">[Saved '${heredocTargetFile}' (${fullContent.length} bytes)]</span>\n`;
+                    logs.innerHTML += `<span style="color:#7ee787;">[Saved '${heredocTargetFile}' (${(prevContent + fullContent).length} bytes)]</span>\n`;
                     heredocMode = false;
                     heredocBuffer = [];
                     heredocTargetFile = null;
-                    prompt.innerText = `guest@vaii:${termCurrentPath}$`;
+                    heredocAppend = false;
+                    prompt.innerText = `${termEnvironment.USER}@${termEnvironment.HOSTNAME}:${termCurrentPath}$`;
                     prompt.style.color = "#7ee787";
                 } else if (rawLine.trim() === "cancel" || rawLine.trim() === "exit") {
                     heredocMode = false;
                     heredocBuffer = [];
                     heredocTargetFile = null;
-                    prompt.innerText = `guest@vaii:${termCurrentPath}$`;
+                    heredocAppend = false;
+                    prompt.innerText = `${termEnvironment.USER}@${termEnvironment.HOSTNAME}:${termCurrentPath}$`;
                     prompt.style.color = "#7ee787";
                     logs.innerHTML += `<span style="color:#f85149;">[Heredoc aborted]</span>\n`;
                 } else {
@@ -592,7 +614,7 @@ function launchTerminalSandbox() {
                 saveTerminalHistory(history);
                 termHistoryIndex = history.length;
             }
-            logs.innerHTML += `\n<span style="color:#7ee787;">guest@vaii:${termCurrentPath}$</span> ${rawLine}\n`;
+            logs.innerHTML += `\n<span style="color:#7ee787;">${termEnvironment.USER}@${termEnvironment.HOSTNAME}:${termCurrentPath}$</span> ${rawLine}\n`;
 
             const commands = splitCommandsSafely(rawCmd);
             for (const singleCmd of commands) {
@@ -601,7 +623,7 @@ function launchTerminalSandbox() {
 
             input.value = "";
             if (!heredocMode) {
-                prompt.innerText = `guest@vaii:${termCurrentPath}$`;
+                prompt.innerText = `${termEnvironment.USER}@${termEnvironment.HOSTNAME}:${termCurrentPath}$`;
             }
             logs.scrollTop = logs.scrollHeight;
         } else if (e.key === 'ArrowUp') {
@@ -623,29 +645,54 @@ function launchTerminalSandbox() {
     };
 }
 
+function renderTree(vfs, path, prefix = "") {
+    let result = "";
+    const node = vfs[path];
+    if (!node || node.type !== "dir") return "";
+    const children = node.children || [];
+    children.forEach((child, index) => {
+        const isLast = index === children.length - 1;
+        const fullChildPath = normalizePath(`${path}/${child}`);
+        const isDir = vfs[fullChildPath]?.type === "dir";
+        result += `${prefix}${isLast ? "└── " : "├── "}${isDir ? `<span style="color:#58a6ff;font-weight:bold;">${child}/</span>` : child}\n`;
+        if (isDir) {
+            result += renderTree(vfs, fullChildPath, prefix + (isLast ? "    " : "│   "));
+        }
+    });
+    return result;
+}
+
 function executeShellCommand(cmdStr, logs, container, prompt) {
     if (!cmdStr) return;
 
-    // Heredoc CAT Matcher
-    const heredocMatch = cmdStr.match(/^cat\s*<<\s*['"]?([a-zA-Z0-9_-]+)['"]?\s*>\s*([^\s]+)/i);
+    let expandedCmd = cmdStr;
+    const firstWord = cmdStr.split(" ")[0];
+    if (termAliases[firstWord]) {
+        expandedCmd = cmdStr.replace(firstWord, termAliases[firstWord]);
+    }
+
+    // Heredoc Pattern Match: cat << 'EOF' > file OR cat << 'EOF' >> file
+    const heredocMatch = expandedCmd.match(/^cat\s*<<\s*['"]?([a-zA-Z0-9_-]+)['"]?\s*(>>|>)\s*([^\s]+)/i);
     if (heredocMatch) {
         heredocDelimiter = heredocMatch[1];
-        heredocTargetFile = heredocMatch[2];
+        heredocAppend = heredocMatch[2] === ">>";
+        heredocTargetFile = heredocMatch[3];
         heredocBuffer = [];
         heredocMode = true;
         if (prompt) {
             prompt.innerText = ">";
             prompt.style.color = "#e3b341";
         }
-        logs.innerHTML += `<span style="color:#8b949e;">[Heredoc input started. Enter '${heredocDelimiter}' on a new line to write to ${heredocTargetFile}, or type 'cancel' to abort]</span>\n`;
+        logs.innerHTML += `<span style="color:#8b949e;">[Heredoc input started. Enter '${heredocDelimiter}' on a new line to ${heredocAppend ? 'append to' : 'write to'} ${heredocTargetFile}, or 'cancel']</span>\n`;
         return;
     }
 
-    // Direct Redirection for ECHO: echo 'something' > file.ext
-    const echoRedirectMatch = cmdStr.match(/^echo\s+([\s\S]+?)\s*>\s*([^\s]+)$/i);
+    // Echo & Append/Overwrite Redirection: echo 'text' >> file or echo 'text' > file
+    const echoRedirectMatch = expandedCmd.match(/^echo\s+([\s\S]+?)\s*(>>|>)\s*([^\s]+)$/i);
     if (echoRedirectMatch) {
         let content = echoRedirectMatch[1].trim();
-        const filename = echoRedirectMatch[2].trim();
+        const isAppend = echoRedirectMatch[2] === ">>";
+        const filename = echoRedirectMatch[3].trim();
 
         if ((content.startsWith("'") && content.endsWith("'")) || (content.startsWith('"') && content.endsWith('"'))) {
             content = content.slice(1, -1);
@@ -656,7 +703,9 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
         const pureName = filePath.split('/').filter(Boolean).pop();
         const parentDir = normalizePath(filePath.substring(0, filePath.lastIndexOf('/')) || '/');
 
-        vfs[filePath] = { type: "file", content: content };
+        const existingContent = (isAppend && vfs[filePath]?.content) ? vfs[filePath].content + "\n" : "";
+        vfs[filePath] = { type: "file", content: existingContent + content, ctime: Date.now() };
+
         if (vfs[parentDir] && !vfs[parentDir].children.includes(pureName)) {
             vfs[parentDir].children.push(pureName);
         }
@@ -664,7 +713,7 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
         return;
     }
 
-    const parts = cmdStr.trim().split(/\s+/);
+    const parts = expandedCmd.trim().split(/\s+/);
     const cmd = parts[0].toLowerCase();
     const args = parts.slice(1);
     let vfs = getVFS();
@@ -677,21 +726,38 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             break;
 
         case "help":
-            logs.innerHTML += `Available Shell Commands:
-  <span style="color:#58a6ff;">ls</span>                      List files in working directory
-  <span style="color:#58a6ff;">pwd</span>                     Show current directory path
+            logs.innerHTML += `Extended Unix Shell Utilities:
+  <span style="color:#58a6ff;">ls [-l]</span>                 List directory entries
+  <span style="color:#58a6ff;">tree [path]</span>             Directory tree hierarchy
+  <span style="color:#58a6ff;">pwd</span>                     Print current working directory
   <span style="color:#58a6ff;">cd &lt;dir&gt;</span>                Change directory
-  <span style="color:#58a6ff;">cat &lt;file&gt;</span>              Display file contents
-  <span style="color:#58a6ff;">cat &lt;&lt; 'EOF' &gt; &lt;file&gt;</span>   Multi-line heredoc file creator
-  <span style="color:#58a6ff;">download &lt;file&gt;</span>         Download a file to your device
-  <span style="color:#58a6ff;">touch &lt;file&gt;</span>            Create an empty file
-  <span style="color:#58a6ff;">mkdir &lt;dir&gt;</span>             Create a directory
-  <span style="color:#58a6ff;">rm &lt;target&gt;</span>             Remove a file or directory
-  <span style="color:#58a6ff;">echo &lt;str&gt; [> f]</span>        Print text or redirect to file
-  <span style="color:#58a6ff;">js &lt;code&gt;</span>               Execute JavaScript expression
-  <span style="color:#58a6ff;">clear</span>                   Clear terminal logs
-  <span style="color:#58a6ff;">resetfs</span>                 Wipe virtual file system
-  <span style="color:#58a6ff;">exit / logout</span>           Close terminal and return to VAII\n`;
+  <span style="color:#58a6ff;">cat &lt;f&gt;</span>                 Print file contents
+  <span style="color:#58a6ff;">head [-n] &lt;f&gt;</span>           Show first N lines
+  <span style="color:#58a6ff;">tail [-n] &lt;f&gt;</span>           Show last N lines
+  <span style="color:#58a6ff;">grep &lt;pattern&gt; &lt;f&gt;</span>      Search text inside file
+  <span style="color:#58a6ff;">wc [-l/-w/-c] &lt;f&gt;</span>       Count lines, words, or characters
+  <span style="color:#58a6ff;">stat &lt;f&gt;</span>                Inspect file metadata & inode specs
+  <span style="color:#58a6ff;">find [path] [name]</span>      Locate files in directory hierarchy
+  <span style="color:#58a6ff;">cp &lt;src&gt; &lt;dest&gt;</span>         Copy a file
+  <span style="color:#58a6ff;">mv &lt;src&gt; &lt;dest&gt;</span>         Move / rename a file
+  <span style="color:#58a6ff;">rm &lt;target&gt;</span>             Remove file or directory
+  <span style="color:#58a6ff;">mkdir &lt;dir&gt;</span>             Create new directory
+  <span style="color:#58a6ff;">touch &lt;file&gt;</span>            Create or update timestamp
+  <span style="color:#58a6ff;">echo &lt;str&gt; [>/>> f]</span>     Print string or redirect into file
+  <span style="color:#58a6ff;">cat &lt;&lt; 'EOF' &gt; &lt;f&gt;</span>      Multi-line heredoc editor
+  <span style="color:#58a6ff;">download &lt;file&gt;</span>         Export file to host device
+  <span style="color:#58a6ff;">curl / wget &lt;url&gt;</span>       Fetch HTTP response to terminal
+  <span style="color:#58a6ff;">base64 [-d] &lt;str/file&gt;</span>  Encode or decode base64
+  <span style="color:#58a6ff;">date / uptime</span>           System time & sandbox runtime
+  <span style="color:#58a6ff;">whoami / id</span>             Current active user profile
+  <span style="color:#58a6ff;">uname [-a]</span>              Kernel & architecture release
+  <span style="color:#58a6ff;">env / export K=V</span>        Environment variable manager
+  <span style="color:#58a6ff;">alias [name='cmd']</span>      Command alias registry
+  <span style="color:#58a6ff;">history</span>                 Command input log
+  <span style="color:#58a6ff;">ps / which &lt;bin&gt;</span>        Process monitor & executable resolver
+  <span style="color:#58a6ff;">js &lt;code&gt;</span>               Eval JavaScript runtime
+  <span style="color:#58a6ff;">clear / resetfs</span>         Clear screen / factory reset VFS
+  <span style="color:#58a6ff;">exit / logout</span>           Close terminal overlay\n`;
             break;
 
         case "clear":
@@ -703,16 +769,40 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             break;
 
         case "ls":
+            const isLongFormat = args.includes("-l") || args.includes("-la") || args.includes("-al");
             const currentDirNode = vfs[termCurrentPath];
             if (!currentDirNode || currentDirNode.type !== "dir") {
                 logs.innerHTML += `<span style="color:#f85149;">Error: Directory missing (${termCurrentPath}). Resetting to root.</span>\n`;
                 termCurrentPath = "/";
             } else {
-                const listing = currentDirNode.children.map(name => {
-                    const full = resolvePath(name);
-                    return vfs[full]?.type === "dir" ? `<span style="color:#58a6ff; font-weight:bold;">${name}/</span>` : name;
-                }).join("  ");
-                logs.innerHTML += `${listing || "(empty directory)"}\n`;
+                if (isLongFormat) {
+                    let totalLines = `total ${currentDirNode.children.length}\n`;
+                    currentDirNode.children.forEach(name => {
+                        const full = resolvePath(name);
+                        const n = vfs[full];
+                        const isDir = n?.type === "dir";
+                        const perms = isDir ? "drwxr-xr-x" : "-rw-r--r--";
+                        const size = isDir ? 4096 : (n?.content?.length || 0);
+                        const dateStr = new Date(n?.ctime || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        totalLines += `${perms} 1 ${termEnvironment.USER} ${termEnvironment.USER} ${String(size).padStart(6, ' ')} ${dateStr} ${isDir ? `<span style="color:#58a6ff;font-weight:bold;">${name}/</span>` : name}\n`;
+                    });
+                    logs.innerHTML += totalLines;
+                } else {
+                    const listing = currentDirNode.children.map(name => {
+                        const full = resolvePath(name);
+                        return vfs[full]?.type === "dir" ? `<span style="color:#58a6ff; font-weight:bold;">${name}/</span>` : name;
+                    }).join("  ");
+                    logs.innerHTML += `${listing || "(empty directory)"}\n`;
+                }
+            }
+            break;
+
+        case "tree":
+            const treePath = args[0] ? resolvePath(args[0]) : termCurrentPath;
+            if (!vfs[treePath] || vfs[treePath].type !== "dir") {
+                logs.innerHTML += `<span style="color:#f85149;">tree: [${args[0] || termCurrentPath}]: No such directory</span>\n`;
+            } else {
+                logs.innerHTML += `<span style="color:#58a6ff;font-weight:bold;">${treePath}</span>\n` + (renderTree(vfs, treePath) || "└── (empty)\n");
             }
             break;
 
@@ -727,14 +817,281 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
 
         case "cat":
             if (!args[0]) {
-                logs.innerHTML += `Usage: cat <filename> or cat << 'EOF' > <filename>\n`;
+                logs.innerHTML += `Usage: cat <filename>\n`;
                 break;
             }
-            const targetFile = resolvePath(args[0]);
-            if (vfs[targetFile] && vfs[targetFile].type === "file") {
-                logs.innerHTML += `${vfs[targetFile].content}\n`;
+            const catPath = resolvePath(args[0]);
+            if (vfs[catPath] && vfs[catPath].type === "file") {
+                logs.innerHTML += `${vfs[catPath].content}\n`;
             } else {
                 logs.innerHTML += `<span style="color:#f85149;">cat: ${args[0]}: No such file</span>\n`;
+            }
+            break;
+
+        case "head":
+            if (!args[0]) {
+                logs.innerHTML += `Usage: head [-n lines] <filename>\n`;
+                break;
+            }
+            let headLinesCount = 10;
+            let headFile = args[0];
+            if (args[0] === "-n" && args[1]) {
+                headLinesCount = parseInt(args[1], 10) || 10;
+                headFile = args[2];
+            }
+            const headPath = resolvePath(headFile);
+            if (vfs[headPath] && vfs[headPath].type === "file") {
+                const lines = vfs[headPath].content.split("\n").slice(0, headLinesCount).join("\n");
+                logs.innerHTML += `${lines}\n`;
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">head: cannot open '${headFile}': No such file</span>\n`;
+            }
+            break;
+
+        case "tail":
+            if (!args[0]) {
+                logs.innerHTML += `Usage: tail [-n lines] <filename>\n`;
+                break;
+            }
+            let tailLinesCount = 10;
+            let tailFile = args[0];
+            if (args[0] === "-n" && args[1]) {
+                tailLinesCount = parseInt(args[1], 10) || 10;
+                tailFile = args[2];
+            }
+            const tailPath = resolvePath(tailFile);
+            if (vfs[tailPath] && vfs[tailPath].type === "file") {
+                const lines = vfs[tailPath].content.split("\n").slice(-tailLinesCount).join("\n");
+                logs.innerHTML += `${lines}\n`;
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">tail: cannot open '${tailFile}': No such file</span>\n`;
+            }
+            break;
+
+        case "grep":
+            if (!args[0] || !args[1]) {
+                logs.innerHTML += `Usage: grep <pattern> <filename>\n`;
+                break;
+            }
+            const pattern = args[0].replace(/^['"]|['"]$/g, '');
+            const grepPath = resolvePath(args[1]);
+            if (vfs[grepPath] && vfs[grepPath].type === "file") {
+                const matched = vfs[grepPath].content.split("\n").filter(l => l.includes(pattern));
+                if (matched.length > 0) {
+                    logs.innerHTML += matched.map(l => l.replace(new RegExp(pattern, 'g'), `<span style="color:#ff7b72;font-weight:bold;">${pattern}</span>`)).join("\n") + "\n";
+                }
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">grep: ${args[1]}: No such file</span>\n`;
+            }
+            break;
+
+        case "wc":
+            if (!args[0]) {
+                logs.innerHTML += `Usage: wc [-l/-w/-c] <filename>\n`;
+                break;
+            }
+            let wcTarget = args[args.length - 1];
+            const wcPath = resolvePath(wcTarget);
+            if (vfs[wcPath] && vfs[wcPath].type === "file") {
+                const txt = vfs[wcPath].content;
+                const lines = txt.split("\n").length;
+                const words = txt.trim() ? txt.trim().split(/\s+/).length : 0;
+                const chars = txt.length;
+                if (args.includes("-l")) logs.innerHTML += `${lines} ${wcTarget}\n`;
+                else if (args.includes("-w")) logs.innerHTML += `${words} ${wcTarget}\n`;
+                else if (args.includes("-c")) logs.innerHTML += `${chars} ${wcTarget}\n`;
+                else logs.innerHTML += `  ${lines}  ${words}  ${chars} ${wcTarget}\n`;
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">wc: ${wcTarget}: No such file</span>\n`;
+            }
+            break;
+
+        case "stat":
+            if (!args[0]) {
+                logs.innerHTML += `Usage: stat <file/dir>\n`;
+                break;
+            }
+            const statPath = resolvePath(args[0]);
+            if (vfs[statPath]) {
+                const node = vfs[statPath];
+                logs.innerHTML += `  File: ${args[0]}
+  Size: ${node.type === "file" ? node.content.length : 4096} bytes
+  Type: ${node.type === "file" ? "regular file" : "directory"}
+ Inode: ${Math.abs(statPath.split("").reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0))}
+Access: (0755/${node.type === "file" ? "-rwxr-xr-x" : "drwxr-xr-x"})
+Modify: ${new Date(node.ctime || Date.now()).toISOString()}\n`;
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">stat: cannot stat '${args[0]}': No such file or directory</span>\n`;
+            }
+            break;
+
+        case "find":
+            const findRoot = args[0] && !args[0].startsWith("-") ? resolvePath(args[0]) : termCurrentPath;
+            const findTerm = args.includes("-name") ? args[args.indexOf("-name") + 1]?.replace(/^['"]|['"]$/g, '') : null;
+            let matchedFiles = [];
+            Object.keys(vfs).forEach(k => {
+                if (k.startsWith(findRoot)) {
+                    const leaf = k.split("/").filter(Boolean).pop() || "/";
+                    if (!findTerm || leaf.includes(findTerm)) matchedFiles.push(k);
+                }
+            });
+            logs.innerHTML += `${matchedFiles.join("\n")}\n`;
+            break;
+
+        case "cp":
+            if (!args[0] || !args[1]) {
+                logs.innerHTML += `Usage: cp <source> <dest>\n`;
+                break;
+            }
+            const srcPath = resolvePath(args[0]);
+            const destPath = resolvePath(args[1]);
+            if (vfs[srcPath] && vfs[srcPath].type === "file") {
+                vfs[destPath] = { type: "file", content: vfs[srcPath].content, ctime: Date.now() };
+                const pureDestName = destPath.split('/').filter(Boolean).pop();
+                const parentDestDir = normalizePath(destPath.substring(0, destPath.lastIndexOf('/')) || '/');
+                if (vfs[parentDestDir] && !vfs[parentDestDir].children.includes(pureDestName)) {
+                    vfs[parentDestDir].children.push(pureDestName);
+                }
+                saveVFS(vfs);
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">cp: cannot stat '${args[0]}': No such file</span>\n`;
+            }
+            break;
+
+        case "mv":
+            if (!args[0] || !args[1]) {
+                logs.innerHTML += `Usage: mv <source> <dest>\n`;
+                break;
+            }
+            const mvSrc = resolvePath(args[0]);
+            const mvDest = resolvePath(args[1]);
+            if (vfs[mvSrc]) {
+                vfs[mvDest] = { ...vfs[mvSrc], ctime: Date.now() };
+                delete vfs[mvSrc];
+
+                const oldName = mvSrc.split('/').filter(Boolean).pop();
+                const oldParent = normalizePath(mvSrc.substring(0, mvSrc.lastIndexOf('/')) || '/');
+                if (vfs[oldParent]) vfs[oldParent].children = vfs[oldParent].children.filter(c => c !== oldName);
+
+                const newName = mvDest.split('/').filter(Boolean).pop();
+                const newParent = normalizePath(mvDest.substring(0, mvDest.lastIndexOf('/')) || '/');
+                if (vfs[newParent] && !vfs[newParent].children.includes(newName)) vfs[newParent].children.push(newName);
+
+                saveVFS(vfs);
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">mv: cannot stat '${args[0]}': No such file</span>\n`;
+            }
+            break;
+
+        case "base64":
+            if (!args[0]) {
+                logs.innerHTML += `Usage: base64 [-d] <string/file>\n`;
+                break;
+            }
+            if (args[0] === "-d" && args[1]) {
+                const b64Target = resolvePath(args[1]);
+                const raw = vfs[b64Target]?.content || args[1];
+                try {
+                    logs.innerHTML += `${atob(raw)}\n`;
+                } catch (err) {
+                    logs.innerHTML += `<span style="color:#f85149;">base64: invalid input</span>\n`;
+                }
+            } else {
+                const b64Target = resolvePath(args[0]);
+                const raw = vfs[b64Target]?.content || args.join(" ");
+                logs.innerHTML += `${btoa(raw)}\n`;
+            }
+            break;
+
+        case "curl":
+        case "wget":
+            if (!args[0]) {
+                logs.innerHTML += `Usage: ${cmd} <url>\n`;
+                break;
+            }
+            let targetUrl = args[0].startsWith("http") ? args[0] : "https://" + args[0];
+            logs.innerHTML += `<span style="color:#8b949e;">Connecting to ${targetUrl}...</span>\n`;
+            fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`)
+                .then(r => r.text())
+                .then(text => {
+                    logs.innerHTML += `${text.slice(0, 500)}${text.length > 500 ? "\n[... truncated]" : ""}\n`;
+                    logs.scrollTop = logs.scrollHeight;
+                })
+                .catch(() => {
+                    logs.innerHTML += `<span style="color:#f85149;">${cmd}: failed to fetch resource</span>\n`;
+                });
+            break;
+
+        case "whoami":
+            logs.innerHTML += `${termEnvironment.USER}\n`;
+            break;
+
+        case "id":
+            logs.innerHTML += `uid=1000(${termEnvironment.USER}) gid=1000(${termEnvironment.USER}) groups=1000(${termEnvironment.USER}),4(adm),27(sudo)\n`;
+            break;
+
+        case "uname":
+            if (args.includes("-a")) {
+                logs.innerHTML += `Linux ${termEnvironment.HOSTNAME} 6.6.0-vaii-subsystem #1 SMP PREEMPT_DYNAMIC JavaScript/VFS x86_64 GNU/Linux\n`;
+            } else {
+                logs.innerHTML += `Linux\n`;
+            }
+            break;
+
+        case "date":
+            logs.innerHTML += `${new Date().toUTCString()}\n`;
+            break;
+
+        case "uptime":
+            const totalSec = Math.floor((Date.now() - terminalStartTime) / 1000);
+            const m = Math.floor(totalSec / 60);
+            const s = totalSec % 60;
+            logs.innerHTML += `up ${m} min, ${s} sec, load average: 0.08, 0.03, 0.01\n`;
+            break;
+
+        case "env":
+            logs.innerHTML += Object.entries(termEnvironment).map(([k, v]) => `${k}=${v}`).join("\n") + "\n";
+            break;
+
+        case "export":
+            if (!args[0] || !args[0].includes("=")) {
+                logs.innerHTML += `Usage: export KEY=VALUE\n`;
+                break;
+            }
+            const [envK, ...envV] = args.join(" ").split("=");
+            termEnvironment[envK.trim()] = envV.join("=").replace(/^['"]|['"]$/g, '').trim();
+            break;
+
+        case "alias":
+            if (!args[0]) {
+                logs.innerHTML += Object.entries(termAliases).map(([k, v]) => `alias ${k}='${v}'`).join("\n") || "No aliases defined.\n";
+            } else {
+                const aliasMatch = args.join(" ").match(/^([a-zA-Z0-9_-]+)=['"]?(.+?)['"]?$/);
+                if (aliasMatch) {
+                    termAliases[aliasMatch[1]] = aliasMatch[2];
+                }
+            }
+            break;
+
+        case "history":
+            const hist = getTerminalHistory();
+            logs.innerHTML += hist.map((h, i) => `  ${String(i + 1).padStart(4, ' ')}  ${h}`).join("\n") + "\n";
+            break;
+
+        case "ps":
+            logs.innerHTML += `  PID TTY          TIME CMD
+    1 ?        00:00:01 init
+   14 pts/0    00:00:00 vaii-shell
+  108 pts/0    00:00:00 ps\n`;
+            break;
+
+        case "which":
+            if (!args[0]) break;
+            const binaries = ["ls", "cat", "pwd", "cd", "mkdir", "rm", "cp", "mv", "grep", "head", "tail", "wc", "download", "echo", "js", "tree", "stat", "curl", "wget", "base64", "uname", "whoami", "date", "uptime"];
+            if (binaries.includes(args[0])) {
+                logs.innerHTML += `/bin/${args[0]}\n`;
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">which: no ${args[0]} in (${termEnvironment.PATH})</span>\n`;
             }
             break;
 
@@ -757,12 +1114,15 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             if (!args[0]) break;
             const newFile = resolvePath(args[0]);
             if (!vfs[newFile]) {
-                vfs[newFile] = { type: "file", content: "" };
+                vfs[newFile] = { type: "file", content: "", ctime: Date.now() };
                 const fileNameOnly = newFile.split('/').filter(Boolean).pop();
                 const parentDir = normalizePath(newFile.substring(0, newFile.lastIndexOf('/')) || '/');
                 if (vfs[parentDir] && !vfs[parentDir].children.includes(fileNameOnly)) {
                     vfs[parentDir].children.push(fileNameOnly);
                 }
+                saveVFS(vfs);
+            } else {
+                vfs[newFile].ctime = Date.now();
                 saveVFS(vfs);
             }
             break;
@@ -771,7 +1131,7 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             if (!args[0]) break;
             const newDir = resolvePath(args[0]);
             if (!vfs[newDir]) {
-                vfs[newDir] = { type: "dir", children: [] };
+                vfs[newDir] = { type: "dir", children: [], ctime: Date.now() };
                 const dirNameOnly = newDir.split('/').filter(Boolean).pop();
                 const parentDir = normalizePath(newDir.substring(0, newDir.lastIndexOf('/')) || '/');
                 if (vfs[parentDir] && !vfs[parentDir].children.includes(dirNameOnly)) {
@@ -818,7 +1178,7 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
         case "resetfs":
             localStorage.removeItem(VFS_STORAGE_KEY);
             termCurrentPath = "/home/guest";
-            logs.innerHTML += `Virtual filesystem reset to defaults.\n`;
+            logs.innerHTML += `Virtual filesystem reset to factory defaults.\n`;
             break;
 
         default:
@@ -3880,7 +4240,7 @@ hubInput?.addEventListener('input', () => {
     }
 
     if ("age".startsWith(cleanInput)) {
-        customSuggestions.push("age Logan", "age Alex", "age Emily", "age Liam");
+                customSuggestions.push("age Logan", "age Alex", "age Emily", "age Liam");
     }
 
     if ("define".startsWith(cleanInput)) {
