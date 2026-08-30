@@ -329,6 +329,8 @@ const welcomeVaiiText = `Welcome to VAII Native! Enter a search query, app routi
 const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent conversational space. Start typing below to begin a continuous chat thread...`;
 
 const defaultAssistantSuggestions = [
+    "terminal",
+    "/terminal",
     "Open Gemini", 
     "Play Blinding Lights",
     "Mars Rover",
@@ -373,6 +375,278 @@ const defaultAssistantSuggestions = [
 window.initVaiiMap = function() {
     console.log("Maps system ready.");
 };
+
+// ==========================================
+// TERMINAL SANDBOX & VFS ENGINE
+// ==========================================
+const VFS_STORAGE_KEY = 'vaii_terminal_vfs';
+const HISTORY_STORAGE_KEY = 'vaii_terminal_history';
+
+function getVFS() {
+    try {
+        return JSON.parse(localStorage.getItem(VFS_STORAGE_KEY)) || {
+            "/": { type: "dir", children: ["home", "bin"] },
+            "/home": { type: "dir", children: ["guest"] },
+            "/home/guest": { type: "dir", children: ["readme.txt"] },
+            "/home/guest/readme.txt": { type: "file", content: "Welcome to the VAII Terminal Sandbox!\nAll changes persist to localStorage." },
+            "/bin": { type: "dir", children: [] }
+        };
+    } catch (e) {
+        return { "/": { type: "dir", children: [] } };
+    }
+}
+
+function saveVFS(vfs) {
+    localStorage.setItem(VFS_STORAGE_KEY, JSON.stringify(vfs));
+}
+
+function getTerminalHistory() {
+    try {
+        return JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY)) || [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveTerminalHistory(history) {
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history.slice(-50)));
+}
+
+let termCurrentPath = "/home/guest";
+let termHistoryIndex = -1;
+
+function launchTerminalSandbox() {
+    let termContainer = document.getElementById('vaii-terminal-overlay');
+    if (!termContainer) {
+        termContainer = document.createElement('div');
+        termContainer.id = 'vaii-terminal-overlay';
+        termContainer.style = `
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #0d1117; color: #58a6ff; font-family: 'Courier New', Courier, monospace;
+            padding: 20px; box-sizing: border-box; z-index: 99999; display: flex;
+            flex-direction: column; overflow: hidden;
+        `;
+
+        termContainer.innerHTML = `
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #30363d; padding-bottom: 8px; margin-bottom: 10px;">
+                <span style="color: #7ee787; font-weight: bold;">⚡ VAII Terminal Sandbox [v1.0.0]</span>
+                <span style="color: #8b949e; font-size: 0.85rem;">Type 'exit' or 'logout' to return</span>
+            </div>
+            <div id="terminal-logs" style="flex: 1; overflow-y: auto; white-space: pre-wrap; line-height: 1.4; color: #c9d1d9;"></div>
+            <div style="display: flex; gap: 8px; align-items: center; margin-top: 10px; border-top: 1px solid #30363d; padding-top: 10px;">
+                <span id="terminal-prompt" style="color: #7ee787; font-weight: bold;">guest@vaii:${termCurrentPath}$</span>
+                <input id="terminal-cli-input" type="text" autocomplete="off" spellcheck="false" style="
+                    flex: 1; background: transparent; border: none; outline: none; color: #f0f6fc;
+                    font-family: inherit; font-size: 1rem;
+                ">
+            </div>
+        `;
+        document.body.appendChild(termContainer);
+    } else {
+        termContainer.style.display = "flex";
+    }
+
+    const logs = document.getElementById('terminal-logs');
+    const input = document.getElementById('terminal-cli-input');
+    const prompt = document.getElementById('terminal-prompt');
+
+    logs.innerHTML = `VAII Sandbox Environment Initialized.\nStorage Matrix: LocalStorage Synced.\nType <span style="color:#e3b341;">help</span> to inspect shell commands.\n\n`;
+    input.value = "";
+    input.focus();
+
+    termContainer.onclick = () => input.focus();
+
+    input.onkeydown = (e) => {
+        let history = getTerminalHistory();
+        if (e.key === 'Enter') {
+            const rawCmd = input.value.trim();
+            if (rawCmd) {
+                history.push(rawCmd);
+                saveTerminalHistory(history);
+                termHistoryIndex = history.length;
+            }
+            logs.innerHTML += `\n<span style="color:#7ee787;">guest@vaii:${termCurrentPath}$</span> ${input.value}\n`;
+            executeShellCommand(rawCmd, logs, termContainer);
+            input.value = "";
+            prompt.innerText = `guest@vaii:${termCurrentPath}$`;
+            logs.scrollTop = logs.scrollHeight;
+        } else if (e.key === 'ArrowUp') {
+            if (termHistoryIndex > 0) {
+                termHistoryIndex--;
+                input.value = history[termHistoryIndex] || "";
+            }
+        } else if (e.key === 'ArrowDown') {
+            if (termHistoryIndex < history.length - 1) {
+                termHistoryIndex++;
+                input.value = history[termHistoryIndex] || "";
+            } else {
+                termHistoryIndex = history.length;
+                input.value = "";
+            }
+        }
+    };
+}
+
+function resolvePath(target) {
+    if (!target || target === ".") return termCurrentPath;
+    if (target.startsWith("/")) return target.replace(/\/+$/, '') || "/";
+    if (target === "..") {
+        if (termCurrentPath === "/") return "/";
+        const parts = termCurrentPath.split("/").filter(Boolean);
+        parts.pop();
+        return "/" + parts.join("/");
+    }
+    return (termCurrentPath === "/" ? `/${target}` : `${termCurrentPath}/${target}`).replace(/\/+$/, '');
+}
+
+function executeShellCommand(cmdStr, logs, container) {
+    if (!cmdStr) return;
+    const parts = cmdStr.split(" ");
+    const cmd = parts[0].toLowerCase();
+    const args = parts.slice(1);
+    let vfs = getVFS();
+
+    switch (cmd) {
+        case "exit":
+        case "logout":
+            container.style.display = "none";
+            if (hubInput) hubInput.focus();
+            break;
+
+        case "help":
+            logs.innerHTML += `Available Shell Commands:
+  <span style="color:#58a6ff;">ls</span>                 List files in working directory
+  <span style="color:#58a6ff;">pwd</span>                Show current directory path
+  <span style="color:#58a6ff;">cd &lt;dir&gt;</span>           Change directory
+  <span style="color:#58a6ff;">cat &lt;file&gt;</span>         Display file contents
+  <span style="color:#58a6ff;">touch &lt;file&gt;</span>       Create an empty file
+  <span style="color:#58a6ff;">mkdir &lt;dir&gt;</span>        Create a directory
+  <span style="color:#58a6ff;">rm &lt;target&gt;</span>        Remove a file or directory
+  <span style="color:#58a6ff;">echo &lt;str&gt; [> f]</span>   Print text or redirect to file
+  <span style="color:#58a6ff;">js &lt;code&gt;</span>          Execute JavaScript expression
+  <span style="color:#58a6ff;">clear</span>              Clear terminal logs
+  <span style="color:#58a6ff;">resetfs</span>            Wipe virtual file system
+  <span style="color:#58a6ff;">exit / logout</span>      Close terminal and return to VAII\n`;
+            break;
+
+        case "clear":
+            logs.innerHTML = "";
+            break;
+
+        case "pwd":
+            logs.innerHTML += `${termCurrentPath}\n`;
+            break;
+
+        case "ls":
+            const currentDirNode = vfs[termCurrentPath];
+            if (!currentDirNode || currentDirNode.type !== "dir") {
+                logs.innerHTML += `<span style="color:#f85149;">Error: Directory missing.</span>\n`;
+            } else {
+                const listing = currentDirNode.children.map(name => {
+                    const full = resolvePath(name);
+                    return vfs[full]?.type === "dir" ? `<span style="color:#58a6ff; font-weight:bold;">${name}/</span>` : name;
+                }).join("  ");
+                logs.innerHTML += `${listing || "(empty directory)"}\n`;
+            }
+            break;
+
+        case "cd":
+            const targetDir = resolvePath(args[0] || "/home/guest");
+            if (vfs[targetDir] && vfs[targetDir].type === "dir") {
+                termCurrentPath = targetDir;
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">cd: no such file or directory: ${args[0]}</span>\n`;
+            }
+            break;
+
+        case "cat":
+            if (!args[0]) {
+                logs.innerHTML += `Usage: cat <filename>\n`;
+                break;
+            }
+            const targetFile = resolvePath(args[0]);
+            if (vfs[targetFile] && vfs[targetFile].type === "file") {
+                logs.innerHTML += `${vfs[targetFile].content}\n`;
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">cat: ${args[0]}: No such file</span>\n`;
+            }
+            break;
+
+        case "touch":
+            if (!args[0]) break;
+            const newFile = resolvePath(args[0]);
+            if (!vfs[newFile]) {
+                vfs[newFile] = { type: "file", content: "" };
+                if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(args[0])) {
+                    vfs[termCurrentPath].children.push(args[0]);
+                }
+                saveVFS(vfs);
+            }
+            break;
+
+        case "mkdir":
+            if (!args[0]) break;
+            const newDir = resolvePath(args[0]);
+            if (!vfs[newDir]) {
+                vfs[newDir] = { type: "dir", children: [] };
+                if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(args[0])) {
+                    vfs[termCurrentPath].children.push(args[0]);
+                }
+                saveVFS(vfs);
+            }
+            break;
+
+        case "rm":
+            if (!args[0]) break;
+            const rmTarget = resolvePath(args[0]);
+            if (vfs[rmTarget]) {
+                delete vfs[rmTarget];
+                if (vfs[termCurrentPath]) {
+                    vfs[termCurrentPath].children = vfs[termCurrentPath].children.filter(c => c !== args[0]);
+                }
+                saveVFS(vfs);
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">rm: cannot remove '${args[0]}': No such file or directory</span>\n`;
+            }
+            break;
+
+        case "echo":
+            const fullEcho = args.join(" ");
+            if (fullEcho.includes(">")) {
+                const [content, filename] = fullEcho.split(">").map(s => s.trim());
+                if (filename) {
+                    const filePath = resolvePath(filename);
+                    vfs[filePath] = { type: "file", content: content.replace(/^['"]|['"]$/g, '') };
+                    if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(filename)) {
+                        vfs[termCurrentPath].children.push(filename);
+                    }
+                    saveVFS(vfs);
+                }
+            } else {
+                logs.innerHTML += `${fullEcho.replace(/^['"]|['"]$/g, '')}\n`;
+            }
+            break;
+
+        case "js":
+            try {
+                const evalCode = args.join(" ");
+                const res = window.eval(evalCode);
+                logs.innerHTML += `<span style="color:#bc8cff;">${res !== undefined ? res : "undefined"}</span>\n`;
+            } catch (err) {
+                logs.innerHTML += `<span style="color:#f85149;">EvalError: ${err.message}</span>\n`;
+            }
+            break;
+
+        case "resetfs":
+            localStorage.removeItem(VFS_STORAGE_KEY);
+            termCurrentPath = "/home/guest";
+            logs.innerHTML += `Virtual filesystem reset to defaults.\n`;
+            break;
+
+        default:
+            logs.innerHTML += `<span style="color:#f85149;">command not found: ${cmd}</span>\n`;
+    }
+}
 
 // ==========================================
 // 3. UTILS & RENDERERS
@@ -1013,7 +1287,6 @@ function fetchMarsRoverTelemetry(roverName = "curiosity") {
 
     const currentSpec = ROVER_SPECS[targetRover];
 
-    // Sol Math: 1 Martian Sol = 88,775.244 seconds
     const nowMs = Date.now();
     const landingMs = new Date(currentSpec.landingDateStr).getTime();
     const elapsedSeconds = Math.max(0, (nowMs - landingMs) / 1000);
@@ -2659,6 +2932,12 @@ function runInfoExecution(query) {
         `;
     }
 
+    // Direct Sandbox Launch Command
+    if (cleanQuery === "terminal" || cleanQuery === "/terminal" || cleanQuery === "shell" || cleanQuery === "sandbox") {
+        launchTerminalSandbox();
+        return;
+    }
+
     // Slash Commands Handling
     if (cleanQuery.startsWith("/weather ")) {
         return resolveAndRenderLocation(query.substring(9).trim(), greetingHTML);
@@ -2956,10 +3235,8 @@ function runInfoExecution(query) {
             return;
         }
 
-        // Clean domain and remove trailing dots/hyphens
         let sanitizedDomain = rawTarget.replace(/&/g, 'and').replace(/[^a-z0-9.-]/g, '').replace(/^[.-]+|[.-]+$/g, '');
 
-        // If it's a single letter or empty after stripping, don't try opening it as a direct web domain
         if (!sanitizedDomain || sanitizedDomain.length < 2) {
             proceedWithWikiPipeline(query);
             return;
@@ -2967,7 +3244,6 @@ function runInfoExecution(query) {
 
         output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Resolving address for "${rawTarget}"...</div>`;
 
-        // Check for a real domain structure (e.g., example.com, test.co.uk)
         if (/\.[a-z]{2,}/i.test(sanitizedDomain)) {
             launchTargetUrl(`https://${sanitizedDomain}`);
         } else {
@@ -3367,7 +3643,6 @@ hubInput?.addEventListener('input', () => {
     let customSuggestions = [];
     let cleanInput = trimmedQuery.toLowerCase();
     
-    // Auto-suggest slash commands dynamically right inside the search datalist
     if (cleanInput.startsWith('/')) {
         const slashCommands = [
             "/weather Orlando, FL",
@@ -3377,11 +3652,16 @@ hubInput?.addEventListener('input', () => {
             "/repo facebook/react",
             "/qr https://vaii-two.vercel.app",
             "/timer 5m",
-            "/note Check server deployments"
+            "/note Check server deployments",
+            "/terminal"
         ];
         customSuggestions = slashCommands.filter(c => c.toLowerCase().startsWith(cleanInput));
         updateDatalist([], [], [], customSuggestions);
         return;
+    }
+
+    if ("terminal".startsWith(cleanInput) || "shell".startsWith(cleanInput) || "sandbox".startsWith(cleanInput)) {
+        customSuggestions.push("terminal", "shell", "sandbox");
     }
 
     if (/^(o|or|ord|orde|order|f|fi|fin|find|r|re|res|rese|reser|reserv|reserve)/i.test(cleanInput)) {
