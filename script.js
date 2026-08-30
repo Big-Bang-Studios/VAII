@@ -377,7 +377,7 @@ window.initVaiiMap = function() {
 };
 
 // ==========================================
-// TERMINAL SANDBOX & VFS ENGINE
+// TERMINAL SANDBOX, VFS & EOF HEREDOC ENGINE
 // ==========================================
 const VFS_STORAGE_KEY = 'vaii_terminal_vfs';
 const HISTORY_STORAGE_KEY = 'vaii_terminal_history';
@@ -388,7 +388,7 @@ function getVFS() {
             "/": { type: "dir", children: ["home", "bin"] },
             "/home": { type: "dir", children: ["guest"] },
             "/home/guest": { type: "dir", children: ["readme.txt"] },
-            "/home/guest/readme.txt": { type: "file", content: "Welcome to the VAII Terminal Sandbox!\nAll changes persist to localStorage." },
+            "/home/guest/readme.txt": { type: "file", content: "Welcome to the VAII Terminal Sandbox!\nAll changes persist to localStorage.\nTry typing: cat << 'EOF' > test.txt" },
             "/bin": { type: "dir", children: [] }
         };
     } catch (e) {
@@ -415,6 +415,12 @@ function saveTerminalHistory(history) {
 let termCurrentPath = "/home/guest";
 let termHistoryIndex = -1;
 
+// Heredoc Multi-Line State
+let heredocMode = false;
+let heredocDelimiter = "EOF";
+let heredocBuffer = [];
+let heredocTargetFile = null;
+
 function launchTerminalSandbox() {
     let termContainer = document.getElementById('vaii-terminal-overlay');
     if (!termContainer) {
@@ -440,7 +446,7 @@ function launchTerminalSandbox() {
 
         termContainer.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 8px; margin-bottom: 6px; flex-shrink: 0;">
-                <span style="color: #7ee787; font-weight: bold; font-size: 0.9rem;">⚡ VAII Terminal Sandbox [v1.0.0]</span>
+                <span style="color: #7ee787; font-weight: bold; font-size: 0.9rem;">⚡ VAII Terminal Sandbox [v1.1.0]</span>
                 <span style="color: #8b949e; font-size: 0.75rem;">Type 'exit' or 'logout' to return</span>
             </div>
             
@@ -472,29 +478,63 @@ function launchTerminalSandbox() {
     input.onkeydown = (e) => {
         let history = getTerminalHistory();
         if (e.key === 'Enter') {
-            const rawCmd = input.value.trim();
+            const rawLine = input.value;
+            
+            if (heredocMode) {
+                logs.innerHTML += `\n<span style="color:#e3b341;">&gt;</span> ${rawLine}\n`;
+                if (rawLine.trim() === heredocDelimiter) {
+                    let vfs = getVFS();
+                    const fullContent = heredocBuffer.join("\n");
+                    const targetPath = resolvePath(heredocTargetFile);
+                    vfs[targetPath] = { type: "file", content: fullContent };
+                    
+                    const fileNameOnly = heredocTargetFile.split('/').filter(Boolean).pop();
+                    if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(fileNameOnly)) {
+                        vfs[termCurrentPath].children.push(fileNameOnly);
+                    }
+                    saveVFS(vfs);
+
+                    logs.innerHTML += `<span style="color:#7ee787;">[Saved '${heredocTargetFile}' (${fullContent.length} bytes)]</span>\n`;
+                    heredocMode = false;
+                    heredocBuffer = [];
+                    heredocTargetFile = null;
+                    prompt.innerText = `guest@vaii:${termCurrentPath}$`;
+                    prompt.style.color = "#7ee787";
+                } else {
+                    heredocBuffer.push(rawLine);
+                }
+                input.value = "";
+                logs.scrollTop = logs.scrollHeight;
+                return;
+            }
+
+            const rawCmd = rawLine.trim();
             if (rawCmd) {
                 history.push(rawCmd);
                 saveTerminalHistory(history);
                 termHistoryIndex = history.length;
             }
-            logs.innerHTML += `\n<span style="color:#7ee787;">guest@vaii:${termCurrentPath}$</span> ${input.value}\n`;
-            executeShellCommand(rawCmd, logs, termContainer);
+            logs.innerHTML += `\n<span style="color:#7ee787;">guest@vaii:${termCurrentPath}$</span> ${rawLine}\n`;
+            executeShellCommand(rawCmd, logs, termContainer, prompt);
             input.value = "";
-            prompt.innerText = `guest@vaii:${termCurrentPath}$`;
+            if (!heredocMode) {
+                prompt.innerText = `guest@vaii:${termCurrentPath}$`;
+            }
             logs.scrollTop = logs.scrollHeight;
         } else if (e.key === 'ArrowUp') {
-            if (termHistoryIndex > 0) {
+            if (!heredocMode && termHistoryIndex > 0) {
                 termHistoryIndex--;
                 input.value = history[termHistoryIndex] || "";
             }
         } else if (e.key === 'ArrowDown') {
-            if (termHistoryIndex < history.length - 1) {
-                termHistoryIndex++;
-                input.value = history[termHistoryIndex] || "";
-            } else {
-                termHistoryIndex = history.length;
-                input.value = "";
+            if (!heredocMode) {
+                if (termHistoryIndex < history.length - 1) {
+                    termHistoryIndex++;
+                    input.value = history[termHistoryIndex] || "";
+                } else {
+                    termHistoryIndex = history.length;
+                    input.value = "";
+                }
             }
         }
     };
@@ -512,8 +552,36 @@ function resolvePath(target) {
     return (termCurrentPath === "/" ? `/${target}` : `${termCurrentPath}/${target}`).replace(/\/+$/, '');
 }
 
-function executeShellCommand(cmdStr, logs, container) {
+function triggerBrowserDownload(filename, content) {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function executeShellCommand(cmdStr, logs, container, prompt) {
     if (!cmdStr) return;
+
+    // 1. HEREDOC CAT PATTERN: cat << 'EOF' > file.txt OR cat << EOF > file.txt
+    const heredocMatch = cmdStr.match(/^cat\s*<<\s*['"]?([a-zA-Z0-9_-]+)['"]?\s*>\s*([^\s]+)/i);
+    if (heredocMatch) {
+        heredocDelimiter = heredocMatch[1];
+        heredocTargetFile = heredocMatch[2];
+        heredocBuffer = [];
+        heredocMode = true;
+        if (prompt) {
+            prompt.innerText = ">";
+            prompt.style.color = "#e3b341";
+        }
+        logs.innerHTML += `<span style="color:#8b949e;">[Heredoc input started. Enter '${heredocDelimiter}' on a new line to write to ${heredocTargetFile}]</span>\n`;
+        return;
+    }
+
     const parts = cmdStr.split(" ");
     const cmd = parts[0].toLowerCase();
     const args = parts.slice(1);
@@ -528,18 +596,20 @@ function executeShellCommand(cmdStr, logs, container) {
 
         case "help":
             logs.innerHTML += `Available Shell Commands:
-  <span style="color:#58a6ff;">ls</span>                 List files in working directory
-  <span style="color:#58a6ff;">pwd</span>                Show current directory path
-  <span style="color:#58a6ff;">cd &lt;dir&gt;</span>           Change directory
-  <span style="color:#58a6ff;">cat &lt;file&gt;</span>         Display file contents
-  <span style="color:#58a6ff;">touch &lt;file&gt;</span>       Create an empty file
-  <span style="color:#58a6ff;">mkdir &lt;dir&gt;</span>        Create a directory
-  <span style="color:#58a6ff;">rm &lt;target&gt;</span>        Remove a file or directory
-  <span style="color:#58a6ff;">echo &lt;str&gt; [> f]</span>   Print text or redirect to file
-  <span style="color:#58a6ff;">js &lt;code&gt;</span>          Execute JavaScript expression
-  <span style="color:#58a6ff;">clear</span>              Clear terminal logs
-  <span style="color:#58a6ff;">resetfs</span>            Wipe virtual file system
-  <span style="color:#58a6ff;">exit / logout</span>      Close terminal and return to VAII\n`;
+  <span style="color:#58a6ff;">ls</span>                      List files in working directory
+  <span style="color:#58a6ff;">pwd</span>                     Show current directory path
+  <span style="color:#58a6ff;">cd &lt;dir&gt;</span>                Change directory
+  <span style="color:#58a6ff;">cat &lt;file&gt;</span>              Display file contents
+  <span style="color:#58a6ff;">cat &lt;&lt; 'EOF' &gt; &lt;file&gt;</span>   Multi-line heredoc file creator
+  <span style="color:#58a6ff;">download &lt;file&gt;</span>         Download a file to your device
+  <span style="color:#58a6ff;">touch &lt;file&gt;</span>            Create an empty file
+  <span style="color:#58a6ff;">mkdir &lt;dir&gt;</span>             Create a directory
+  <span style="color:#58a6ff;">rm &lt;target&gt;</span>             Remove a file or directory
+  <span style="color:#58a6ff;">echo &lt;str&gt; [> f]</span>        Print text or redirect to file
+  <span style="color:#58a6ff;">js &lt;code&gt;</span>               Execute JavaScript expression
+  <span style="color:#58a6ff;">clear</span>                   Clear terminal logs
+  <span style="color:#58a6ff;">resetfs</span>                 Wipe virtual file system
+  <span style="color:#58a6ff;">exit / logout</span>           Close terminal and return to VAII\n`;
             break;
 
         case "clear":
@@ -574,7 +644,7 @@ function executeShellCommand(cmdStr, logs, container) {
 
         case "cat":
             if (!args[0]) {
-                logs.innerHTML += `Usage: cat <filename>\n`;
+                logs.innerHTML += `Usage: cat <filename> or cat << 'EOF' > <filename>\n`;
                 break;
             }
             const targetFile = resolvePath(args[0]);
@@ -585,13 +655,29 @@ function executeShellCommand(cmdStr, logs, container) {
             }
             break;
 
+        case "download":
+            if (!args[0]) {
+                logs.innerHTML += `Usage: download <filename>\n`;
+                break;
+            }
+            const dlPath = resolvePath(args[0]);
+            if (vfs[dlPath] && vfs[dlPath].type === "file") {
+                const pureName = args[0].split('/').filter(Boolean).pop();
+                triggerBrowserDownload(pureName, vfs[dlPath].content);
+                logs.innerHTML += `<span style="color:#7ee787;">Downloaded '${pureName}' successfully.</span>\n`;
+            } else {
+                logs.innerHTML += `<span style="color:#f85149;">download: '${args[0]}': No such file</span>\n`;
+            }
+            break;
+
         case "touch":
             if (!args[0]) break;
             const newFile = resolvePath(args[0]);
             if (!vfs[newFile]) {
                 vfs[newFile] = { type: "file", content: "" };
-                if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(args[0])) {
-                    vfs[termCurrentPath].children.push(args[0]);
+                const fileNameOnly = args[0].split('/').filter(Boolean).pop();
+                if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(fileNameOnly)) {
+                    vfs[termCurrentPath].children.push(fileNameOnly);
                 }
                 saveVFS(vfs);
             }
@@ -602,8 +688,9 @@ function executeShellCommand(cmdStr, logs, container) {
             const newDir = resolvePath(args[0]);
             if (!vfs[newDir]) {
                 vfs[newDir] = { type: "dir", children: [] };
-                if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(args[0])) {
-                    vfs[termCurrentPath].children.push(args[0]);
+                const dirNameOnly = args[0].split('/').filter(Boolean).pop();
+                if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(dirNameOnly)) {
+                    vfs[termCurrentPath].children.push(dirNameOnly);
                 }
                 saveVFS(vfs);
             }
@@ -614,8 +701,9 @@ function executeShellCommand(cmdStr, logs, container) {
             const rmTarget = resolvePath(args[0]);
             if (vfs[rmTarget]) {
                 delete vfs[rmTarget];
+                const targetNameOnly = args[0].split('/').filter(Boolean).pop();
                 if (vfs[termCurrentPath]) {
-                    vfs[termCurrentPath].children = vfs[termCurrentPath].children.filter(c => c !== args[0]);
+                    vfs[termCurrentPath].children = vfs[termCurrentPath].children.filter(c => c !== targetNameOnly);
                 }
                 saveVFS(vfs);
             } else {
@@ -629,9 +717,10 @@ function executeShellCommand(cmdStr, logs, container) {
                 const [content, filename] = fullEcho.split(">").map(s => s.trim());
                 if (filename) {
                     const filePath = resolvePath(filename);
+                    const pureName = filename.split('/').filter(Boolean).pop();
                     vfs[filePath] = { type: "file", content: content.replace(/^['"]|['"]$/g, '') };
-                    if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(filename)) {
-                        vfs[termCurrentPath].children.push(filename);
+                    if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(pureName)) {
+                        vfs[termCurrentPath].children.push(pureName);
                     }
                     saveVFS(vfs);
                 }
@@ -2214,7 +2303,7 @@ function fetchNasaAPOD() {
             if (!data.title) throw new Error("NASA APOD failed");
             const isVideo = data.media_type === "video";
             const mediaElement = isVideo
-                ? `<iframe src="${data.url}" style="width: 100%; height: 220px; border-radius: 8px; border-left: 3px solid #333;" frameborder="0" allowfullscreen></iframe>`
+                ? `<iframe src="${data.url}" style="width: 100%; height: 220px; border-radius: 8px; border: 1px solid #333;" frameborder="0" allowfullscreen></iframe>`
                 : `<img src="${data.url}" style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #333;">`;
 
             const html = `
