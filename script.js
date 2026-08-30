@@ -162,7 +162,7 @@ const LOCAL_FOOD_DB = {
         { name: "McAlister's Deli", item: "McAlister's Club" },
         { name: "Arby's", item: "Classic Roast Beef" },
         { name: "Penn Station", item: "Philly Cheesesteak" },
-        { name: "Which Wich", item: "The Wicked" }
+        { name: "Which Wich", item: "The标志Wicked" }
     ],
     "coffee": [
         { name: "Starbucks", item: "Caramel Macchiato" },
@@ -190,7 +190,7 @@ const LOCAL_FOOD_DB = {
     ],
     "donuts": [
         { name: "Dunkin'", item: "Boston Kreme Donut" },
-        { name: "Krispy Kreme", item: "Original Glazed" },
+        { name: "Krispy标志Kreme", item: "Original Glazed" },
         { name: "Tim Hortons", item: "Timbits" },
         { name: "Shipley Do-Nuts", item: "Glazed Do-Nut" },
         { name: "Voodoo Doughnut", item: "Bacon Maple Bar" },
@@ -462,6 +462,34 @@ function triggerBrowserDownload(filename, content) {
     }, 1500);
 }
 
+function splitCommandsSafely(input) {
+    const commands = [];
+    let current = "";
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+
+    for (let i = 0; i < input.length; i++) {
+        const char = input[i];
+
+        if (char === "'" && !inDoubleQuote) {
+            inSingleQuote = !inSingleQuote;
+            current += char;
+        } else if (char === '"' && !inSingleQuote) {
+            inDoubleQuote = !inDoubleQuote;
+            current += char;
+        } else if (!inSingleQuote && !inDoubleQuote && (char === ';' || (char === '&' && input[i + 1] === '&'))) {
+            if (current.trim()) commands.push(current.trim());
+            current = "";
+            if (char === '&') i++;
+        } else {
+            current += char;
+        }
+    }
+
+    if (current.trim()) commands.push(current.trim());
+    return commands;
+}
+
 function launchTerminalSandbox() {
     let termContainer = document.getElementById('vaii-terminal-overlay');
     if (!termContainer) {
@@ -543,6 +571,13 @@ function launchTerminalSandbox() {
                     heredocTargetFile = null;
                     prompt.innerText = `guest@vaii:${termCurrentPath}$`;
                     prompt.style.color = "#7ee787";
+                } else if (rawLine.trim() === "cancel" || rawLine.trim() === "exit") {
+                    heredocMode = false;
+                    heredocBuffer = [];
+                    heredocTargetFile = null;
+                    prompt.innerText = `guest@vaii:${termCurrentPath}$`;
+                    prompt.style.color = "#7ee787";
+                    logs.innerHTML += `<span style="color:#f85149;">[Heredoc aborted]</span>\n`;
                 } else {
                     heredocBuffer.push(rawLine);
                 }
@@ -559,10 +594,9 @@ function launchTerminalSandbox() {
             }
             logs.innerHTML += `\n<span style="color:#7ee787;">guest@vaii:${termCurrentPath}$</span> ${rawLine}\n`;
 
-            const commands = rawCmd.split(/;|&&/);
+            const commands = splitCommandsSafely(rawCmd);
             for (const singleCmd of commands) {
-                const trimmed = singleCmd.trim();
-                if (trimmed) executeShellCommand(trimmed, logs, termContainer, prompt);
+                if (singleCmd) executeShellCommand(singleCmd, logs, termContainer, prompt);
             }
 
             input.value = "";
@@ -592,6 +626,7 @@ function launchTerminalSandbox() {
 function executeShellCommand(cmdStr, logs, container, prompt) {
     if (!cmdStr) return;
 
+    // Heredoc CAT Matcher
     const heredocMatch = cmdStr.match(/^cat\s*<<\s*['"]?([a-zA-Z0-9_-]+)['"]?\s*>\s*([^\s]+)/i);
     if (heredocMatch) {
         heredocDelimiter = heredocMatch[1];
@@ -602,7 +637,30 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             prompt.innerText = ">";
             prompt.style.color = "#e3b341";
         }
-        logs.innerHTML += `<span style="color:#8b949e;">[Heredoc input started. Enter '${heredocDelimiter}' on a new line to write to ${heredocTargetFile}]</span>\n`;
+        logs.innerHTML += `<span style="color:#8b949e;">[Heredoc input started. Enter '${heredocDelimiter}' on a new line to write to ${heredocTargetFile}, or type 'cancel' to abort]</span>\n`;
+        return;
+    }
+
+    // Direct Redirection for ECHO: echo 'something' > file.ext
+    const echoRedirectMatch = cmdStr.match(/^echo\s+([\s\S]+?)\s*>\s*([^\s]+)$/i);
+    if (echoRedirectMatch) {
+        let content = echoRedirectMatch[1].trim();
+        const filename = echoRedirectMatch[2].trim();
+
+        if ((content.startsWith("'") && content.endsWith("'")) || (content.startsWith('"') && content.endsWith('"'))) {
+            content = content.slice(1, -1);
+        }
+
+        let vfs = getVFS();
+        const filePath = resolvePath(filename);
+        const pureName = filePath.split('/').filter(Boolean).pop();
+        const parentDir = normalizePath(filePath.substring(0, filePath.lastIndexOf('/')) || '/');
+
+        vfs[filePath] = { type: "file", content: content };
+        if (vfs[parentDir] && !vfs[parentDir].children.includes(pureName)) {
+            vfs[parentDir].children.push(pureName);
+        }
+        saveVFS(vfs);
         return;
     }
 
@@ -740,22 +798,11 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             break;
 
         case "echo":
-            const fullEcho = args.join(" ");
-            if (fullEcho.includes(">")) {
-                const [content, filename] = fullEcho.split(">").map(s => s.trim());
-                if (filename) {
-                    const filePath = resolvePath(filename);
-                    const pureName = filePath.split('/').filter(Boolean).pop();
-                    const parentDir = normalizePath(filePath.substring(0, filePath.lastIndexOf('/')) || '/');
-                    vfs[filePath] = { type: "file", content: content.replace(/^['"]|['"]$/g, '') };
-                    if (vfs[parentDir] && !vfs[parentDir].children.includes(pureName)) {
-                        vfs[parentDir].children.push(pureName);
-                    }
-                    saveVFS(vfs);
-                }
-            } else {
-                logs.innerHTML += `${fullEcho.replace(/^['"]|['"]$/g, '')}\n`;
+            let fullEcho = args.join(" ");
+            if ((fullEcho.startsWith("'") && fullEcho.endsWith("'")) || (fullEcho.startsWith('"') && fullEcho.endsWith('"'))) {
+                fullEcho = fullEcho.slice(1, -1);
             }
+            logs.innerHTML += `${fullEcho}\n`;
             break;
 
         case "js":
