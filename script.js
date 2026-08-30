@@ -382,17 +382,22 @@ window.initVaiiMap = function() {
 const VFS_STORAGE_KEY = 'vaii_terminal_vfs';
 const HISTORY_STORAGE_KEY = 'vaii_terminal_history';
 
+function getDefaultVFS() {
+    return {
+        "/": { type: "dir", children: ["home", "bin"] },
+        "/home": { type: "dir", children: ["guest"] },
+        "/home/guest": { type: "dir", children: ["readme.txt"] },
+        "/home/guest/readme.txt": { type: "file", content: "Welcome to the VAII Terminal Sandbox!\nAll changes persist to localStorage.\nTry typing: cat << 'EOF' > test.txt" },
+        "/bin": { type: "dir", children: [] }
+    };
+}
+
 function getVFS() {
     try {
-        return JSON.parse(localStorage.getItem(VFS_STORAGE_KEY)) || {
-            "/": { type: "dir", children: ["home", "bin"] },
-            "/home": { type: "dir", children: ["guest"] },
-            "/home/guest": { type: "dir", children: ["readme.txt"] },
-            "/home/guest/readme.txt": { type: "file", content: "Welcome to the VAII Terminal Sandbox!\nAll changes persist to localStorage.\nTry typing: cat << 'EOF' > test.txt" },
-            "/bin": { type: "dir", children: [] }
-        };
+        const stored = JSON.parse(localStorage.getItem(VFS_STORAGE_KEY));
+        return (stored && typeof stored === 'object' && stored["/"]) ? stored : getDefaultVFS();
     } catch (e) {
-        return { "/": { type: "dir", children: [] } };
+        return getDefaultVFS();
     }
 }
 
@@ -420,6 +425,42 @@ let heredocMode = false;
 let heredocDelimiter = "EOF";
 let heredocBuffer = [];
 let heredocTargetFile = null;
+
+function normalizePath(path) {
+    if (!path) return "/";
+    const parts = path.split('/').filter(Boolean);
+    const resolved = [];
+    for (const part of parts) {
+        if (part === '.') continue;
+        if (part === '..') {
+            resolved.pop();
+        } else {
+            resolved.push(part);
+        }
+    }
+    return '/' + resolved.join('/');
+}
+
+function resolvePath(target) {
+    if (!target || target === ".") return termCurrentPath;
+    if (target.startsWith("/")) return normalizePath(target);
+    const combined = (termCurrentPath === "/") ? `/${target}` : `${termCurrentPath}/${target}`;
+    return normalizePath(combined);
+}
+
+function triggerBrowserDownload(filename, content) {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, 1500);
+}
 
 function launchTerminalSandbox() {
     let termContainer = document.getElementById('vaii-terminal-overlay');
@@ -488,9 +529,11 @@ function launchTerminalSandbox() {
                     const targetPath = resolvePath(heredocTargetFile);
                     vfs[targetPath] = { type: "file", content: fullContent };
                     
-                    const fileNameOnly = heredocTargetFile.split('/').filter(Boolean).pop();
-                    if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(fileNameOnly)) {
-                        vfs[termCurrentPath].children.push(fileNameOnly);
+                    const fileNameOnly = targetPath.split('/').filter(Boolean).pop();
+                    const parentDir = normalizePath(targetPath.substring(0, targetPath.lastIndexOf('/')) || '/');
+                    
+                    if (vfs[parentDir] && !vfs[parentDir].children.includes(fileNameOnly)) {
+                        vfs[parentDir].children.push(fileNameOnly);
                     }
                     saveVFS(vfs);
 
@@ -515,7 +558,13 @@ function launchTerminalSandbox() {
                 termHistoryIndex = history.length;
             }
             logs.innerHTML += `\n<span style="color:#7ee787;">guest@vaii:${termCurrentPath}$</span> ${rawLine}\n`;
-            executeShellCommand(rawCmd, logs, termContainer, prompt);
+
+            const commands = rawCmd.split(/;|&&/);
+            for (const singleCmd of commands) {
+                const trimmed = singleCmd.trim();
+                if (trimmed) executeShellCommand(trimmed, logs, termContainer, prompt);
+            }
+
             input.value = "";
             if (!heredocMode) {
                 prompt.innerText = `guest@vaii:${termCurrentPath}$`;
@@ -540,34 +589,9 @@ function launchTerminalSandbox() {
     };
 }
 
-function resolvePath(target) {
-    if (!target || target === ".") return termCurrentPath;
-    if (target.startsWith("/")) return target.replace(/\/+$/, '') || "/";
-    if (target === "..") {
-        if (termCurrentPath === "/") return "/";
-        const parts = termCurrentPath.split("/").filter(Boolean);
-        parts.pop();
-        return "/" + parts.join("/");
-    }
-    return (termCurrentPath === "/" ? `/${target}` : `${termCurrentPath}/${target}`).replace(/\/+$/, '');
-}
-
-function triggerBrowserDownload(filename, content) {
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
-
 function executeShellCommand(cmdStr, logs, container, prompt) {
     if (!cmdStr) return;
 
-    // 1. HEREDOC CAT PATTERN: cat << 'EOF' > file.txt OR cat << EOF > file.txt
     const heredocMatch = cmdStr.match(/^cat\s*<<\s*['"]?([a-zA-Z0-9_-]+)['"]?\s*>\s*([^\s]+)/i);
     if (heredocMatch) {
         heredocDelimiter = heredocMatch[1];
@@ -582,7 +606,7 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
         return;
     }
 
-    const parts = cmdStr.split(" ");
+    const parts = cmdStr.trim().split(/\s+/);
     const cmd = parts[0].toLowerCase();
     const args = parts.slice(1);
     let vfs = getVFS();
@@ -623,7 +647,8 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
         case "ls":
             const currentDirNode = vfs[termCurrentPath];
             if (!currentDirNode || currentDirNode.type !== "dir") {
-                logs.innerHTML += `<span style="color:#f85149;">Error: Directory missing.</span>\n`;
+                logs.innerHTML += `<span style="color:#f85149;">Error: Directory missing (${termCurrentPath}). Resetting to root.</span>\n`;
+                termCurrentPath = "/";
             } else {
                 const listing = currentDirNode.children.map(name => {
                     const full = resolvePath(name);
@@ -634,11 +659,11 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             break;
 
         case "cd":
-            const targetDir = resolvePath(args[0] || "/home/guest");
+            const targetDir = args[0] ? resolvePath(args[0]) : "/home/guest";
             if (vfs[targetDir] && vfs[targetDir].type === "dir") {
                 termCurrentPath = targetDir;
             } else {
-                logs.innerHTML += `<span style="color:#f85149;">cd: no such file or directory: ${args[0]}</span>\n`;
+                logs.innerHTML += `<span style="color:#f85149;">cd: no such file or directory: ${args[0] || ""}</span>\n`;
             }
             break;
 
@@ -675,9 +700,10 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             const newFile = resolvePath(args[0]);
             if (!vfs[newFile]) {
                 vfs[newFile] = { type: "file", content: "" };
-                const fileNameOnly = args[0].split('/').filter(Boolean).pop();
-                if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(fileNameOnly)) {
-                    vfs[termCurrentPath].children.push(fileNameOnly);
+                const fileNameOnly = newFile.split('/').filter(Boolean).pop();
+                const parentDir = normalizePath(newFile.substring(0, newFile.lastIndexOf('/')) || '/');
+                if (vfs[parentDir] && !vfs[parentDir].children.includes(fileNameOnly)) {
+                    vfs[parentDir].children.push(fileNameOnly);
                 }
                 saveVFS(vfs);
             }
@@ -688,9 +714,10 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             const newDir = resolvePath(args[0]);
             if (!vfs[newDir]) {
                 vfs[newDir] = { type: "dir", children: [] };
-                const dirNameOnly = args[0].split('/').filter(Boolean).pop();
-                if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(dirNameOnly)) {
-                    vfs[termCurrentPath].children.push(dirNameOnly);
+                const dirNameOnly = newDir.split('/').filter(Boolean).pop();
+                const parentDir = normalizePath(newDir.substring(0, newDir.lastIndexOf('/')) || '/');
+                if (vfs[parentDir] && !vfs[parentDir].children.includes(dirNameOnly)) {
+                    vfs[parentDir].children.push(dirNameOnly);
                 }
                 saveVFS(vfs);
             }
@@ -701,9 +728,10 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             const rmTarget = resolvePath(args[0]);
             if (vfs[rmTarget]) {
                 delete vfs[rmTarget];
-                const targetNameOnly = args[0].split('/').filter(Boolean).pop();
-                if (vfs[termCurrentPath]) {
-                    vfs[termCurrentPath].children = vfs[termCurrentPath].children.filter(c => c !== targetNameOnly);
+                const targetNameOnly = rmTarget.split('/').filter(Boolean).pop();
+                const parentDir = normalizePath(rmTarget.substring(0, rmTarget.lastIndexOf('/')) || '/');
+                if (vfs[parentDir]) {
+                    vfs[parentDir].children = vfs[parentDir].children.filter(c => c !== targetNameOnly);
                 }
                 saveVFS(vfs);
             } else {
@@ -717,10 +745,11 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
                 const [content, filename] = fullEcho.split(">").map(s => s.trim());
                 if (filename) {
                     const filePath = resolvePath(filename);
-                    const pureName = filename.split('/').filter(Boolean).pop();
+                    const pureName = filePath.split('/').filter(Boolean).pop();
+                    const parentDir = normalizePath(filePath.substring(0, filePath.lastIndexOf('/')) || '/');
                     vfs[filePath] = { type: "file", content: content.replace(/^['"]|['"]$/g, '') };
-                    if (vfs[termCurrentPath] && !vfs[termCurrentPath].children.includes(pureName)) {
-                        vfs[termCurrentPath].children.push(pureName);
+                    if (vfs[parentDir] && !vfs[parentDir].children.includes(pureName)) {
+                        vfs[parentDir].children.push(pureName);
                     }
                     saveVFS(vfs);
                 }
@@ -1047,7 +1076,6 @@ function clearActiveImage() {
     if (cameraTriggerBtn) cameraTriggerBtn.classList.remove('active');
 }
 
-// PERSISTENT SCRATCHPAD & REMOVE FROM LOCALSTORAGE
 function renderNotesManager() {
     let notes = JSON.parse(localStorage.getItem('vaii_notes') || '[]');
     if (notes.length === 0) {
@@ -3034,13 +3062,11 @@ function runInfoExecution(query) {
         `;
     }
 
-    // Direct Sandbox Launch Command
     if (cleanQuery === "terminal" || cleanQuery === "/terminal" || cleanQuery === "shell" || cleanQuery === "sandbox") {
         launchTerminalSandbox();
         return;
     }
 
-    // Slash Commands Handling
     if (cleanQuery.startsWith("/weather ")) {
         return resolveAndRenderLocation(query.substring(9).trim(), greetingHTML);
     }
@@ -3095,7 +3121,6 @@ function runInfoExecution(query) {
     }
     if (cleanQuery === "show notes" || cleanQuery === "my notes") return renderNotesManager();
 
-    // 1. PRIORITY LOCATION/WEATHER/MAP MATCHERS
     const options = Array.from(datalist?.options || []);
     const matchedOption = options.find(opt => opt.value.toLowerCase() === cleanQuery);
     if (matchedOption && matchedOption.getAttribute('data-lat')) {
@@ -3138,32 +3163,26 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 2. LIVE MUSIC STREAMING EMBED CARD
     if (cleanQuery.startsWith("play ") || cleanQuery.startsWith("stream song ")) {
         return fetchLiveStreamPlayer(query.replace(/^(play|stream song)\s+/i, '').trim());
     }
 
-    // 3. NASA MARS ROVER TELEMETRY
     if (cleanQuery === "mars" || cleanQuery === "rover" || cleanQuery.startsWith("mars ") || cleanQuery.startsWith("rover ") || cleanQuery === "curiosity" || cleanQuery === "perseverance" || cleanQuery === "percy") {
         return fetchMarsRoverTelemetry(cleanQuery);
     }
 
-    // 4. IN-CARD TIMER & STOPWATCH
     if (cleanQuery.startsWith("timer") || cleanQuery === "stopwatch" || cleanQuery === "sw") {
         return renderTimerStopwatchCard(query);
     }
 
-    // 5. GITHUB REPOSITORY INSPECTOR
     if (cleanQuery.startsWith("repo ") || cleanQuery.startsWith("github ")) {
         return fetchGitHubRepoInfo(query);
     }
 
-    // 6. CINEMATIC MEDIA, FANDANGO TICKETS & STREAMING ROUTING
     if (cleanQuery.startsWith("movie ") || cleanQuery.startsWith("film ") || cleanQuery.startsWith("tickets ") || cleanQuery.startsWith("ticket ") || cleanQuery.startsWith("stream ") || cleanQuery.startsWith("watch ")) {
         return fetchOMDBMedia(query.replace(/^(movie|film|tickets|ticket|stream|watch)\s+/i, '').trim());
     }
 
-    // 7. UNIFIED DINING & TABLE RESERVATIONS
     const exactFoodCategoryMatch = Object.keys(LOCAL_FOOD_DB).some(cat => {
         const regex = new RegExp(`\\b${cat}\\b`, 'i');
         return regex.test(cleanQuery);
@@ -3177,7 +3196,6 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 8. STRICT CURRENCY CONVERSION
     const forexPattern1 = /^(?:convert\s+)?([0-9.]+)?\s*([a-zA-Z]{3}|[$€£¥])\s+(?:to|in|into)\s+([a-zA-Z]{3}|[$€£¥])$/i;
     const forexPattern2 = /^(?:convert\s+)?([$€£¥])\s*([0-9.]+)\s+(?:to|in|into)\s+([a-zA-Z]{3}|[$€£¥])$/i;
 
@@ -3206,52 +3224,42 @@ function runInfoExecution(query) {
         }
     }
 
-    // 9. QR CODE GENERATOR
     if (cleanQuery.startsWith("qr ") || cleanQuery.startsWith("qrcode ")) {
         return generateQRCode(query.replace(/^(qr|qrcode)\s+/i, '').trim());
     }
 
-    // 10. ISS TELEMETRY
     if (cleanQuery === "iss" || cleanQuery === "orbit" || cleanQuery === "where is the iss" || cleanQuery === "space station") {
         return fetchISSTelemetry();
     }
 
-    // 11. DUCKS (INSTANT)
     if (cleanQuery === "duck" || cleanQuery === "ducks" || cleanQuery === "random duck") {
         return fetchRandomDuck();
     }
 
-    // 12. POSTAL CODE GEOCODER
     if (cleanQuery.startsWith("zip ") || cleanQuery.startsWith("postal ")) {
         return fetchPostalCodeInfo(cleanQuery.replace(/^(zip|postal)\s+/i, '').trim());
     }
 
-    // 13. COLLEGE & UNIVERSITY SEARCH
     if (cleanQuery.startsWith("college ") || cleanQuery.startsWith("university ")) {
         return fetchUniversityDirectory(cleanQuery.replace(/^(college|university)\s+/i, '').trim());
     }
 
-    // 14. NASA APOD
     if (cleanQuery === "space" || cleanQuery === "nasa" || cleanQuery === "apod" || cleanQuery === "astronomy") {
         return fetchNasaAPOD();
     }
 
-    // 15. ADVICE SLIP
     if (cleanQuery === "advice" || cleanQuery === "give me advice" || cleanQuery === "quote") {
         return fetchAdviceSlip();
     }
 
-    // 16. AGIFY NAME DEMOGRAPHICS
     if (cleanQuery.startsWith("age ")) {
         return fetchAgifyPrediction(cleanQuery.replace(/^age\s+/i, '').trim());
     }
 
-    // 17. DICTIONARY DEFINITIONS & PHONETICS
     if (cleanQuery.startsWith("define ")) {
         return fetchDictionaryDefinition(cleanQuery.replace(/^define\s+/i, '').trim());
     }
 
-    // 18. PET PICTURES
     if (cleanQuery === "dog" || cleanQuery === "random dog" || cleanQuery === "dogs") {
         return fetchCuteAnimal("dog");
     }
@@ -3259,42 +3267,34 @@ function runInfoExecution(query) {
         return fetchCuteAnimal("cat");
     }
 
-    // 19. COUNTRY & FLAGS
     if (cleanQuery.startsWith("country ") || cleanQuery.startsWith("flag of ")) {
         return fetchCountryInfo(cleanQuery.replace(/^(country|flag of)\s+/i, '').trim());
     }
 
-    // 20. COCKTAILS & DRINKS
     if (cleanQuery.startsWith("drink ") || cleanQuery === "random drink" || cleanQuery === "cocktail") {
         return fetchDrinkRecipe(cleanQuery.replace(/^drink\s+/i, '').trim());
     }
 
-    // 21. PUBLIC IP TELEMETRY
     if (cleanQuery === "my ip" || cleanQuery === "ip" || cleanQuery === "ip lookup" || cleanQuery === "what is my ip") {
         return fetchClientIPLookup();
     }
 
-    // 22. TRIVIA QUIZ
     if (cleanQuery === "trivia" || cleanQuery === "quiz" || cleanQuery.startsWith("trivia ") || cleanQuery.startsWith("quiz ")) {
         return fetchTriviaQuestion();
     }
 
-    // 23. GAME DEALS
     if (cleanQuery === "free games" || cleanQuery === "deals" || cleanQuery === "giveaways" || cleanQuery.startsWith("free game")) {
         return fetchGameDeals();
     }
 
-    // 24. JOKES
     if (cleanQuery === "joke" || cleanQuery === "tell me a joke" || cleanQuery === "make me laugh" || cleanQuery.startsWith("joke ")) {
         return fetchDadJoke();
     }
 
-    // 25. ITUNES MUSIC PREVIEWS
     if (cleanQuery.startsWith("song ") || cleanQuery.startsWith("music ") || cleanQuery.startsWith("track ")) {
         return fetchSongTrack(cleanQuery.replace(/^(song|music|track)\s+/i, '').trim());
     }
 
-    // 26. ANILIST ANIME & MANGA
     if (cleanQuery.startsWith("anime ")) {
         return fetchAniListMedia(cleanQuery.replace(/^anime\s+/i, '').trim(), "ANIME");
     }
@@ -3302,21 +3302,17 @@ function runInfoExecution(query) {
         return fetchAniListMedia(cleanQuery.replace(/^manga\s+/i, '').trim(), "MANGA");
     }
 
-    // 27. POKEDEX
     if (cleanQuery.startsWith("pokemon ") || cleanQuery.startsWith("pokedex ")) {
         return fetchPokemonEntry(cleanQuery.replace(/^(pokemon|pokedex)\s+/i, '').trim());
     }
 
-    // 28. OPEN LIBRARY BOOKS
     if (cleanQuery.startsWith("book ") || cleanQuery.startsWith("novel ")) {
         return fetchOpenLibraryBook(cleanQuery.replace(/^(book|novel)\s+/i, '').trim());
     }
 
-    // 29. GNEWS LIVE NEWS
     if (cleanQuery.startsWith("news about ")) return fetchNewsAPI(query.substring(11).trim());
     if (cleanQuery === "top news" || cleanQuery === "news") return fetchNewsAPI("");
 
-    // 30. APP LAUNCHER
     if (query.toLowerCase().startsWith("open ")) {
         let rawTarget = query.substring(5).trim().toLowerCase().replace(/['"]+/g, '');
         if (!rawTarget) { if (output) output.innerText = "Please specify what you want to open."; return; }
@@ -3354,20 +3350,17 @@ function runInfoExecution(query) {
         return;
     }
 
-    // 31. DIRECT URL NAVIGATION
     if (/\.[a-z]{2,6}/i.test(query) || query.startsWith('http://') || query.startsWith('https://')) {
         let cleanUrl = query.startsWith('http') ? query : 'https://' + query;
         launchTargetUrl(cleanUrl);
         return;
     }
 
-    // 32. CRYPTO & MARKET QUOTES
     if (cryptoMap[cleanQuery] || cleanQuery.startsWith("price of ")) {
         runMarketExecution(cleanQuery.startsWith("price of ") ? cleanQuery.substring(9).trim() : cleanQuery);
         return;
     }
 
-    // 33. ARITHMETIC, UNIT CONVERSIONS & LANGUAGE TRANSLATION
     if (/^[0-9+\-*/().\s]+$/.test(query) || cleanQuery.includes(" to ")) {
         try {
             if (!cleanQuery.includes(" to ")) {
@@ -3982,7 +3975,6 @@ hubInput?.addEventListener('input', () => {
     }, 300);
 });
 
-// SAFE PROTECTED EXECUTE HANDLER
 executeActionBtn?.addEventListener('click', () => {
     const query = (hubInput?.value || "").trim();
     const modeEl = document.querySelector('input[name="vaii-mode"]:checked');
