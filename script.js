@@ -166,7 +166,7 @@ const LOCAL_FOOD_DB = {
     ],
     "coffee": [
         { name: "Starbucks", item: "Caramel Macchiato" },
-        { name: "Dunkin'", item: "Iced Coffee with标志Hazelnut" },
+        { name: "Dunkin'", item: "Iced Coffee with Hazelnut" },
         { name: "Peet's Coffee", item: "Major Dickason's Blend" },
         { name: "Dutch Bros", item: "Golden Eagle" },
         { name: "Caribou Coffee", item: "Campfire Mocha" },
@@ -387,33 +387,41 @@ window.initVaiiMap = function() {
 };
 
 // ==========================================
-// TERMINAL SANDBOX, VFS & EXTENDED UNIX ENGINE
+// TERMINAL SANDBOX, VFS & EXTENDED UNIX ENGINE (ACCURATE TIMESTAMPS)
 // ==========================================
 const VFS_STORAGE_KEY = 'vaii_terminal_vfs';
 const HISTORY_STORAGE_KEY = 'vaii_terminal_history';
 
+const SYSTEM_INIT_TIME = Date.now() - 86400000;
+
 function getDefaultVFS() {
     return {
-        "/": { type: "dir", children: ["home", "bin", "etc", "var", "tmp"], ctime: Date.now() },
-        "/home": { type: "dir", children: ["guest"], ctime: Date.now() },
-        "/home/guest": { type: "dir", children: ["readme.txt", "welcome.sh"], ctime: Date.now() },
-        "/home/guest/readme.txt": { type: "file", content: "Welcome to the VAII Extended Unix Terminal Sandbox!\nAll changes persist to localStorage.\nTry: ls, tree, grep, head, tail, base64, curl, stat, and more.", ctime: Date.now() },
-        "/home/guest/welcome.sh": { type: "file", content: "echo 'VAII Unix Matrix Online!'", ctime: Date.now() },
-        "/bin": { type: "dir", children: ["sh", "echo", "ls", "cat", "pwd"], ctime: Date.now() },
-        "/etc": { type: "dir", children: ["os-release", "hosts"], ctime: Date.now() },
-        "/etc/os-release": { type: "file", content: "NAME=\"VAII Linux-Subsystem\"\nVERSION=\"2.0.0 LTS\"\nID=vaii\nPRETTY_NAME=\"VAII Unix Sandbox 2.0\"", ctime: Date.now() },
-        "/etc/hosts": { type: "file", content: "127.0.0.1 localhost\n::1 localhost ip6-localhost", ctime: Date.now() },
-        "/var": { type: "dir", children: ["log"], ctime: Date.now() },
-        "/var/log": { type: "dir", children: ["syslog"], ctime: Date.now() },
-        "/var/log/syslog": { type: "file", content: "[SYSTEM_BOOT] VFS mounted successfully.\n[AUTH] User 'guest' logged into session.", ctime: Date.now() },
-        "/tmp": { type: "dir", children: [], ctime: Date.now() }
+        "/": { type: "dir", children: ["home", "bin", "etc", "var", "tmp"], mtime: SYSTEM_INIT_TIME },
+        "/home": { type: "dir", children: ["guest"], mtime: SYSTEM_INIT_TIME },
+        "/home/guest": { type: "dir", children: ["readme.txt", "welcome.sh"], mtime: SYSTEM_INIT_TIME },
+        "/home/guest/readme.txt": { type: "file", content: "Welcome to the VAII Extended Unix Terminal Sandbox!\nAll changes persist to localStorage.\nTry: ls, tree, grep, head, tail, base64, curl, stat, and more.", mtime: SYSTEM_INIT_TIME },
+        "/home/guest/welcome.sh": { type: "file", content: "echo 'VAII Unix Matrix Online!'", mtime: SYSTEM_INIT_TIME },
+        "/bin": { type: "dir", children: ["sh", "echo", "ls", "cat", "pwd"], mtime: SYSTEM_INIT_TIME },
+        "/etc": { type: "dir", children: ["os-release", "hosts"], mtime: SYSTEM_INIT_TIME },
+        "/etc/os-release": { type: "file", content: "NAME=\"VAII Linux-Subsystem\"\nVERSION=\"2.0.0 LTS\"\nID=vaii\nPRETTY_NAME=\"VAII Unix Sandbox 2.0\"", mtime: SYSTEM_INIT_TIME },
+        "/etc/hosts": { type: "file", content: "127.0.0.1 localhost\n::1 localhost ip6-localhost", mtime: SYSTEM_INIT_TIME },
+        "/var": { type: "dir", children: ["log"], mtime: SYSTEM_INIT_TIME },
+        "/var/log": { type: "dir", children: ["syslog"], mtime: SYSTEM_INIT_TIME },
+        "/var/log/syslog": { type: "file", content: "[SYSTEM_BOOT] VFS mounted successfully.\n[AUTH] User 'guest' logged into session.", mtime: SYSTEM_INIT_TIME },
+        "/tmp": { type: "dir", children: [], mtime: SYSTEM_INIT_TIME }
     };
 }
 
 function getVFS() {
     try {
         const stored = JSON.parse(localStorage.getItem(VFS_STORAGE_KEY));
-        return (stored && typeof stored === 'object' && stored["/"]) ? stored : getDefaultVFS();
+        if (stored && typeof stored === 'object' && stored["/"]) {
+            Object.keys(stored).forEach(k => {
+                if (!stored[k].mtime) stored[k].mtime = stored[k].ctime || SYSTEM_INIT_TIME;
+            });
+            return stored;
+        }
+        return getDefaultVFS();
     } catch (e) {
         return getDefaultVFS();
     }
@@ -569,13 +577,13 @@ function launchTerminalSandbox() {
             const rawLine = input.value;
             
             if (heredocMode) {
-                logs.innerHTML += `\n<span style="color:#e3b341;">&gt;</span> ${rawLine}\n`;
+                logs.innerHTML += `\n<span style="color:#e3b341;">></span> ${rawLine}\n`;
                 if (rawLine.trim() === heredocDelimiter) {
                     let vfs = getVFS();
                     const fullContent = heredocBuffer.join("\n");
                     const targetPath = resolvePath(heredocTargetFile);
                     const prevContent = (heredocAppend && vfs[targetPath]?.content) ? vfs[targetPath].content + "\n" : "";
-                    vfs[targetPath] = { type: "file", content: prevContent + fullContent, ctime: Date.now() };
+                    vfs[targetPath] = { type: "file", content: prevContent + fullContent, mtime: Date.now() };
                     
                     const fileNameOnly = targetPath.split('/').filter(Boolean).pop();
                     const parentDir = normalizePath(targetPath.substring(0, targetPath.lastIndexOf('/')) || '/');
@@ -671,7 +679,6 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
         expandedCmd = cmdStr.replace(firstWord, termAliases[firstWord]);
     }
 
-    // Heredoc Pattern Match: cat << 'EOF' > file OR cat << 'EOF' >> file
     const heredocMatch = expandedCmd.match(/^cat\s*<<\s*['"]?([a-zA-Z0-9_-]+)['"]?\s*(>>|>)\s*([^\s]+)/i);
     if (heredocMatch) {
         heredocDelimiter = heredocMatch[1];
@@ -687,7 +694,6 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
         return;
     }
 
-    // Echo & Append/Overwrite Redirection: echo 'text' >> file or echo 'text' > file
     const echoRedirectMatch = expandedCmd.match(/^echo\s+([\s\S]+?)\s*(>>|>)\s*([^\s]+)$/i);
     if (echoRedirectMatch) {
         let content = echoRedirectMatch[1].trim();
@@ -704,7 +710,7 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
         const parentDir = normalizePath(filePath.substring(0, filePath.lastIndexOf('/')) || '/');
 
         const existingContent = (isAppend && vfs[filePath]?.content) ? vfs[filePath].content + "\n" : "";
-        vfs[filePath] = { type: "file", content: existingContent + content, ctime: Date.now() };
+        vfs[filePath] = { type: "file", content: existingContent + content, mtime: Date.now() };
 
         if (vfs[parentDir] && !vfs[parentDir].children.includes(pureName)) {
             vfs[parentDir].children.push(pureName);
@@ -783,7 +789,14 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
                         const isDir = n?.type === "dir";
                         const perms = isDir ? "drwxr-xr-x" : "-rw-r--r--";
                         const size = isDir ? 4096 : (n?.content?.length || 0);
-                        const dateStr = new Date(n?.ctime || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        const timestamp = n?.mtime || SYSTEM_INIT_TIME;
+                        const dateStr = new Date(timestamp).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            hour: '2-digit', 
+                            minute: '2-digit', 
+                            hour12: false 
+                        });
                         totalLines += `${perms} 1 ${termEnvironment.USER} ${termEnvironment.USER} ${String(size).padStart(6, ' ')} ${dateStr} ${isDir ? `<span style="color:#58a6ff;font-weight:bold;">${name}/</span>` : name}\n`;
                     });
                     logs.innerHTML += totalLines;
@@ -919,7 +932,7 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
   Type: ${node.type === "file" ? "regular file" : "directory"}
  Inode: ${Math.abs(statPath.split("").reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0))}
 Access: (0755/${node.type === "file" ? "-rwxr-xr-x" : "drwxr-xr-x"})
-Modify: ${new Date(node.ctime || Date.now()).toISOString()}\n`;
+Modify: ${new Date(node.mtime || SYSTEM_INIT_TIME).toISOString()}\n`;
             } else {
                 logs.innerHTML += `<span style="color:#f85149;">stat: cannot stat '${args[0]}': No such file or directory</span>\n`;
             }
@@ -946,7 +959,7 @@ Modify: ${new Date(node.ctime || Date.now()).toISOString()}\n`;
             const srcPath = resolvePath(args[0]);
             const destPath = resolvePath(args[1]);
             if (vfs[srcPath] && vfs[srcPath].type === "file") {
-                vfs[destPath] = { type: "file", content: vfs[srcPath].content, ctime: Date.now() };
+                vfs[destPath] = { type: "file", content: vfs[srcPath].content, mtime: Date.now() };
                 const pureDestName = destPath.split('/').filter(Boolean).pop();
                 const parentDestDir = normalizePath(destPath.substring(0, destPath.lastIndexOf('/')) || '/');
                 if (vfs[parentDestDir] && !vfs[parentDestDir].children.includes(pureDestName)) {
@@ -966,7 +979,7 @@ Modify: ${new Date(node.ctime || Date.now()).toISOString()}\n`;
             const mvSrc = resolvePath(args[0]);
             const mvDest = resolvePath(args[1]);
             if (vfs[mvSrc]) {
-                vfs[mvDest] = { ...vfs[mvSrc], ctime: Date.now() };
+                vfs[mvDest] = { ...vfs[mvSrc], mtime: Date.now() };
                 delete vfs[mvSrc];
 
                 const oldName = mvSrc.split('/').filter(Boolean).pop();
@@ -1114,7 +1127,7 @@ Modify: ${new Date(node.ctime || Date.now()).toISOString()}\n`;
             if (!args[0]) break;
             const newFile = resolvePath(args[0]);
             if (!vfs[newFile]) {
-                vfs[newFile] = { type: "file", content: "", ctime: Date.now() };
+                vfs[newFile] = { type: "file", content: "", mtime: Date.now() };
                 const fileNameOnly = newFile.split('/').filter(Boolean).pop();
                 const parentDir = normalizePath(newFile.substring(0, newFile.lastIndexOf('/')) || '/');
                 if (vfs[parentDir] && !vfs[parentDir].children.includes(fileNameOnly)) {
@@ -1122,7 +1135,7 @@ Modify: ${new Date(node.ctime || Date.now()).toISOString()}\n`;
                 }
                 saveVFS(vfs);
             } else {
-                vfs[newFile].ctime = Date.now();
+                vfs[newFile].mtime = Date.now();
                 saveVFS(vfs);
             }
             break;
@@ -1131,12 +1144,15 @@ Modify: ${new Date(node.ctime || Date.now()).toISOString()}\n`;
             if (!args[0]) break;
             const newDir = resolvePath(args[0]);
             if (!vfs[newDir]) {
-                vfs[newDir] = { type: "dir", children: [], ctime: Date.now() };
+                vfs[newDir] = { type: "dir", children: [], mtime: Date.now() };
                 const dirNameOnly = newDir.split('/').filter(Boolean).pop();
                 const parentDir = normalizePath(newDir.substring(0, newDir.lastIndexOf('/')) || '/');
                 if (vfs[parentDir] && !vfs[parentDir].children.includes(dirNameOnly)) {
                     vfs[parentDir].children.push(dirNameOnly);
                 }
+                saveVFS(vfs);
+            } else {
+                vfs[newDir].mtime = Date.now();
                 saveVFS(vfs);
             }
             break;
@@ -1939,7 +1955,7 @@ function renderTimerStopwatchCard(rawQuery) {
                 ⏱️ ${isStopwatch ? 'Interactive Stopwatch' : 'Active Countdown Timer'}
             </div>
             
-            <div id="vaii-timer-display" style="font-size: 3.2rem; font-weight: 800; font-family: monospace; color: #fff; margin: 10px 0;">
+            <div id="vaii-timer-display" style="font-size: 3.2rem; font-weight: 800; font-family: monospace; color: #fff; margin-top: 10px; margin-bottom: 10px;">
                 ${formatDisplay(remaining)}
             </div>
 
@@ -4240,10 +4256,10 @@ hubInput?.addEventListener('input', () => {
     }
 
     if ("age".startsWith(cleanInput)) {
-                customSuggestions.push("age Logan", "age Alex", "age Emily", "age Liam");
-    }
+        customSuggestions.push("age Logan", "age Alex", "age Emily", "age Liam");
+    } 
 
-    if ("define".startsWith(cleanInput)) {
+        if ("define".startsWith(cleanInput)) {
         customSuggestions.push("define serendipity", "define ephemeral", "define paradigm");
     }
 
@@ -4466,3 +4482,6 @@ onAuthStateChanged(auth, (user) => {
         if (mainApp) mainApp.style.display = "none";
     }
 });
+
+
+    
