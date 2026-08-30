@@ -421,23 +421,36 @@ function launchTerminalSandbox() {
         termContainer = document.createElement('div');
         termContainer.id = 'vaii-terminal-overlay';
         termContainer.style = `
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #0d1117; color: #58a6ff; font-family: 'Courier New', Courier, monospace;
-            padding: 20px; box-sizing: border-box; z-index: 99999; display: flex;
-            flex-direction: column; overflow: hidden;
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100vw; 
+            height: 100dvh; 
+            max-height: 100dvh;
+            background: #0d1117; 
+            color: #58a6ff; 
+            font-family: 'Courier New', Courier, monospace;
+            padding: 12px 14px; 
+            box-sizing: border-box; 
+            z-index: 99999; 
+            display: flex;
+            flex-direction: column; 
+            overflow: hidden;
         `;
 
         termContainer.innerHTML = `
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #30363d; padding-bottom: 8px; margin-bottom: 10px;">
-                <span style="color: #7ee787; font-weight: bold;">⚡ VAII Terminal Sandbox [v1.0.0]</span>
-                <span style="color: #8b949e; font-size: 0.85rem;">Type 'exit' or 'logout' to return</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 8px; margin-bottom: 6px; flex-shrink: 0;">
+                <span style="color: #7ee787; font-weight: bold; font-size: 0.9rem;">⚡ VAII Terminal Sandbox [v1.0.0]</span>
+                <span style="color: #8b949e; font-size: 0.75rem;">Type 'exit' or 'logout' to return</span>
             </div>
-            <div id="terminal-logs" style="flex: 1; overflow-y: auto; white-space: pre-wrap; line-height: 1.4; color: #c9d1d9;"></div>
-            <div style="display: flex; gap: 8px; align-items: center; margin-top: 10px; border-top: 1px solid #30363d; padding-top: 10px;">
-                <span id="terminal-prompt" style="color: #7ee787; font-weight: bold;">guest@vaii:${termCurrentPath}$</span>
-                <input id="terminal-cli-input" type="text" autocomplete="off" spellcheck="false" style="
+            
+            <div id="terminal-logs" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; white-space: pre-wrap; line-height: 1.4; color: #c9d1d9; font-size: 0.9rem; padding-bottom: 8px;"></div>
+            
+            <div style="display: flex; align-items: center; gap: 6px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; margin-top: auto; flex-shrink: 0;">
+                <span id="terminal-prompt" style="color: #7ee787; font-weight: bold; font-size: 0.85rem; white-space: nowrap;">guest@vaii:${termCurrentPath}$</span>
+                <input id="terminal-cli-input" type="text" autocomplete="off" spellcheck="false" placeholder="type a command..." style="
                     flex: 1; background: transparent; border: none; outline: none; color: #f0f6fc;
-                    font-family: inherit; font-size: 1rem;
+                    font-family: inherit; font-size: 0.9rem; padding: 0; margin: 0;
                 ">
             </div>
         `;
@@ -2201,7 +2214,7 @@ function fetchNasaAPOD() {
             if (!data.title) throw new Error("NASA APOD failed");
             const isVideo = data.media_type === "video";
             const mediaElement = isVideo
-                ? `<iframe src="${data.url}" style="width: 100%; height: 220px; border-radius: 8px; border: 1px solid #333;" frameborder="0" allowfullscreen></iframe>`
+                ? `<iframe src="${data.url}" style="width: 100%; height: 220px; border-radius: 8px; border-left: 3px solid #333;" frameborder="0" allowfullscreen></iframe>`
                 : `<img src="${data.url}" style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #333;">`;
 
             const html = `
@@ -3645,6 +3658,7 @@ hubInput?.addEventListener('input', () => {
     
     if (cleanInput.startsWith('/')) {
         const slashCommands = [
+            "/terminal",
             "/weather Orlando, FL",
             "/play Blinding Lights",
             "/movie Inception",
@@ -3652,8 +3666,7 @@ hubInput?.addEventListener('input', () => {
             "/repo facebook/react",
             "/qr https://vaii-two.vercel.app",
             "/timer 5m",
-            "/note Check server deployments",
-            "/terminal"
+            "/note Check server deployments"
         ];
         customSuggestions = slashCommands.filter(c => c.toLowerCase().startsWith(cleanInput));
         updateDatalist([], [], [], customSuggestions);
