@@ -558,7 +558,11 @@
                         <strong style="color: #ffc107; font-size: 1rem;">🚀 VAII Version History</strong>
                         <div style="margin-top: 10px; border-left: 2px solid #444; padding-left: 10px; display: flex; flex-direction: column; gap: 12px;">
                             <div>
-                                <strong style="color:#fff;">v7.5 (Current)</strong><br>
+                                <strong style="color:#fff;">v8.0 (Current)</strong><br>
+                                <span style="color:#aaa;">Added interactive Full-Screen Terminal Sandbox (VFS) with persistent localStorage file system, file manipulation commands (<code>ls</code>, <code>cd</code>, <code>cat</code>, <code>echo</code>, <code>touch</code>, <code>mkdir</code>, <code>rm</code>, <code>pwd</code>), command history navigation, in-terminal JavaScript execution (<code>js</code>), and <code>exit</code> / <code>logout</code> session routing.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v7.5</strong><br>
                                 <span style="color:#aaa;">Added Live Spotify & YouTube Music hub streams, NASA Mars Rover surface telemetry, playable YouTube Video cards, interactive in-card Stopwatch/Timer with AudioContext chimes, and GitHub Repository Inspector cards.</span>
                             </div>
                             <div>
@@ -621,7 +625,8 @@
 
                         <h4 style="color: #4da3ff; margin-bottom: 8px;">🌐 VAII Native Commands & Syntax</h4>
                         <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
-                            <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant shortcuts (<code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>, <code>/note</code>).</li>
+                            <li><strong>Terminal Sandbox:</strong> Type <code>terminal</code>, <code>/terminal</code>, or <code>shell</code> to open an interactive Unix-style shell environment with a persistent localStorage virtual file system. Type <code>exit</code> or <code>logout</code> to return.</li>
+                            <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant shortcuts (<code>/terminal</code>, <code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>, <code>/note</code>).</li>
                             <li><strong>Live Music Streaming & Spotify Hub:</strong> Type <code>play [song]</code> or <code>stream song [song]</code> (e.g. <code>play Blinding Lights</code>) to load 30s preview audio with Spotify and YouTube Music streaming links.</li>
                             <li><strong>NASA Mars Rover Telemetry:</strong> Type <code>mars</code>, <code>rover</code>, <code>curiosity</code>, or <code>perseverance</code> to fetch live Mars surface photos, Martian Sol dates, and landing telemetry.</li>
                             <li><strong>YouTube Video Hub & Player:</strong> Type <code>yt [query]</code> or <code>youtube [query]</code> (e.g. <code>yt Veritasium</code>, <code>yt Kurzgesagt</code>) to load an inline video player card.</li>
@@ -753,6 +758,7 @@
 
                     <!-- SLASH COMMAND PALETTE -->
                     <div id="command-palette">
+                        <div class="palette-item" data-cmd="/terminal"><span>💻 /terminal</span><span style="color:#666; font-size:0.75rem;">Launch sandbox</span></div>
                         <div class="palette-item" data-cmd="/weather "><span>🌦️ /weather</span><span style="color:#666; font-size:0.75rem;">Get local weather</span></div>
                         <div class="palette-item" data-cmd="/play "><span>🎵 /play</span><span style="color:#666; font-size:0.75rem;">Music stream</span></div>
                         <div class="palette-item" data-cmd="/movie "><span>🎬 /movie</span><span style="color:#666; font-size:0.75rem;">Search films</span></div>
