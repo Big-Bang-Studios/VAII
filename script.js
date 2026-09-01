@@ -387,27 +387,30 @@ window.initVaiiMap = function() {
 };
 
 // ==========================================
-// TERMINAL SANDBOX, VFS & EXTENDED UNIX ENGINE (ACCURATE TIMESTAMPS)
+// TERMINAL SANDBOX, VFS & EXTENDED UNIX ENGINE (PACKAGE MANAGER & SEPARATORS)
 // ==========================================
 const VFS_STORAGE_KEY = 'vaii_terminal_vfs';
 const HISTORY_STORAGE_KEY = 'vaii_terminal_history';
+const PKG_STORAGE_KEY = 'vaii_terminal_pkgs';
 
 const SYSTEM_INIT_TIME = Date.now() - 86400000;
 
 function getDefaultVFS() {
     return {
-        "/": { type: "dir", children: ["home", "bin", "etc", "var", "tmp"], mtime: SYSTEM_INIT_TIME },
+        "/": { type: "dir", children: ["home", "bin", "usr", "etc", "var", "tmp"], mtime: SYSTEM_INIT_TIME },
         "/home": { type: "dir", children: ["guest"], mtime: SYSTEM_INIT_TIME },
         "/home/guest": { type: "dir", children: ["readme.txt", "welcome.sh"], mtime: SYSTEM_INIT_TIME },
-        "/home/guest/readme.txt": { type: "file", content: "Welcome to the VAII Extended Unix Terminal Sandbox!\nAll changes persist to localStorage.\nTry: ls, tree, grep, head, tail, base64, curl, stat, and more.", mtime: SYSTEM_INIT_TIME },
-        "/home/guest/welcome.sh": { type: "file", content: "echo 'VAII Unix Matrix Online!'", mtime: SYSTEM_INIT_TIME },
-        "/bin": { type: "dir", children: ["sh", "echo", "ls", "cat", "pwd"], mtime: SYSTEM_INIT_TIME },
+        "/home/guest/readme.txt": { type: "file", content: "Welcome to VAII Unix 3.0!\nInstall tools with: apt install python3 git\nTry: python3, git init, neofetch, pipes (|), &&, ||, ;", mtime: SYSTEM_INIT_TIME },
+        "/home/guest/welcome.sh": { type: "file", content: "echo 'VAII Matrix Engine Online!'", mtime: SYSTEM_INIT_TIME },
+        "/bin": { type: "dir", children: ["sh", "echo", "ls", "cat", "pwd", "apt", "pkg"], mtime: SYSTEM_INIT_TIME },
+        "/usr": { type: "dir", children: ["bin"], mtime: SYSTEM_INIT_TIME },
+        "/usr/bin": { type: "dir", children: [], mtime: SYSTEM_INIT_TIME },
         "/etc": { type: "dir", children: ["os-release", "hosts"], mtime: SYSTEM_INIT_TIME },
-        "/etc/os-release": { type: "file", content: "NAME=\"VAII Linux-Subsystem\"\nVERSION=\"2.0.0 LTS\"\nID=vaii\nPRETTY_NAME=\"VAII Unix Sandbox 2.0\"", mtime: SYSTEM_INIT_TIME },
+        "/etc/os-release": { type: "file", content: "NAME=\"VAII Linux-Subsystem\"\nVERSION=\"3.0.0 LTS\"\nID=vaii\nPRETTY_NAME=\"VAII Unix Sandbox 3.0\"", mtime: SYSTEM_INIT_TIME },
         "/etc/hosts": { type: "file", content: "127.0.0.1 localhost\n::1 localhost ip6-localhost", mtime: SYSTEM_INIT_TIME },
         "/var": { type: "dir", children: ["log"], mtime: SYSTEM_INIT_TIME },
         "/var/log": { type: "dir", children: ["syslog"], mtime: SYSTEM_INIT_TIME },
-        "/var/log/syslog": { type: "file", content: "[SYSTEM_BOOT] VFS mounted successfully.\n[AUTH] User 'guest' logged into session.", mtime: SYSTEM_INIT_TIME },
+        "/var/log/syslog": { type: "file", content: "[SYSTEM_BOOT] VFS mounted successfully.\n[APT] Ready for packages.", mtime: SYSTEM_INIT_TIME },
         "/tmp": { type: "dir", children: [], mtime: SYSTEM_INIT_TIME }
     };
 }
@@ -431,6 +434,18 @@ function saveVFS(vfs) {
     localStorage.setItem(VFS_STORAGE_KEY, JSON.stringify(vfs));
 }
 
+function getInstalledPackages() {
+    try {
+        return JSON.parse(localStorage.getItem(PKG_STORAGE_KEY)) || ["coreutils", "apt", "bash"];
+    } catch (e) {
+        return ["coreutils", "apt", "bash"];
+    }
+}
+
+function saveInstalledPackages(pkgs) {
+    localStorage.setItem(PKG_STORAGE_KEY, JSON.stringify(pkgs));
+}
+
 function getTerminalHistory() {
     try {
         return JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY)) || [];
@@ -451,6 +466,13 @@ let heredocDelimiter = "EOF";
 let heredocBuffer = [];
 let heredocTargetFile = null;
 let heredocAppend = false;
+
+let pythonReplMode = false;
+let pythonBuffer = [];
+
+let nanoMode = false;
+let nanoTargetFile = null;
+let nanoBuffer = [];
 
 function normalizePath(path) {
     if (!path) return "/";
@@ -489,32 +511,48 @@ function triggerBrowserDownload(filename, content) {
     }, 1500);
 }
 
-function splitCommandsSafely(input) {
-    const commands = [];
+function parseCommandPipeline(input) {
+    const tokens = [];
     let current = "";
-    let inSingleQuote = false;
-    let inDoubleQuote = false;
+    let inSingle = false;
+    let inDouble = false;
 
     for (let i = 0; i < input.length; i++) {
-        const char = input[i];
-
-        if (char === "'" && !inDoubleQuote) {
-            inSingleQuote = !inSingleQuote;
-            current += char;
-        } else if (char === '"' && !inSingleQuote) {
-            inDoubleQuote = !inDoubleQuote;
-            current += char;
-        } else if (!inSingleQuote && !inDoubleQuote && (char === ';' || (char === '&' && input[i + 1] === '&'))) {
-            if (current.trim()) commands.push(current.trim());
-            current = "";
-            if (char === '&') i++;
+        const c = input[i];
+        if (c === "'" && !inDouble) {
+            inSingle = !inSingle;
+            current += c;
+        } else if (c === '"' && !inSingle) {
+            inDouble = !inDouble;
+            current += c;
+        } else if (!inSingle && !inDouble) {
+            if (c === ';') {
+                if (current.trim()) tokens.push({ type: 'cmd', val: current.trim() });
+                tokens.push({ type: 'op', val: ';' });
+                current = "";
+            } else if (c === '&' && input[i + 1] === '&') {
+                if (current.trim()) tokens.push({ type: 'cmd', val: current.trim() });
+                tokens.push({ type: 'op', val: '&&' });
+                current = "";
+                i++;
+            } else if (c === '|' && input[i + 1] === '|') {
+                if (current.trim()) tokens.push({ type: 'cmd', val: current.trim() });
+                tokens.push({ type: 'op', val: '||' });
+                current = "";
+                i++;
+            } else if (c === '|') {
+                if (current.trim()) tokens.push({ type: 'cmd', val: current.trim() });
+                tokens.push({ type: 'op', val: '|' });
+                current = "";
+            } else {
+                current += c;
+            }
         } else {
-            current += char;
+            current += c;
         }
     }
-
-    if (current.trim()) commands.push(current.trim());
-    return commands;
+    if (current.trim()) tokens.push({ type: 'cmd', val: current.trim() });
+    return tokens;
 }
 
 function launchTerminalSandbox() {
@@ -542,7 +580,7 @@ function launchTerminalSandbox() {
 
         termContainer.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 8px; margin-bottom: 6px; flex-shrink: 0;">
-                <span style="color: #7ee787; font-weight: bold; font-size: 0.9rem;">⚡ VAII Unix Terminal Sandbox [v2.0 Extended]</span>
+                <span style="color: #7ee787; font-weight: bold; font-size: 0.9rem;">⚡ VAII Unix Terminal Sandbox [v3.0 Extended]</span>
                 <span style="color: #8b949e; font-size: 0.75rem;">Type 'exit' or 'logout' to return</span>
             </div>
             
@@ -565,7 +603,7 @@ function launchTerminalSandbox() {
     const input = document.getElementById('terminal-cli-input');
     const prompt = document.getElementById('terminal-prompt');
 
-    logs.innerHTML = `VAII Extended Unix Environment Initialized.\nPOSIX Subsystem Ready. LocalStorage Synced.\nType <span style="color:#e3b341;">help</span> to inspect shell commands.\n\n`;
+    logs.innerHTML = `VAII Extended Unix Environment Initialized.\nPOSIX Subsystem Ready. Package Manager Synced.\nType <span style="color:#e3b341;">help</span> to inspect shell commands.\n\n`;
     input.value = "";
     input.focus();
 
@@ -616,6 +654,51 @@ function launchTerminalSandbox() {
                 return;
             }
 
+            if (pythonReplMode) {
+                logs.innerHTML += `\n<span style="color:#3572A5;">>>></span> ${rawLine}\n`;
+                if (rawLine.trim() === "exit()" || rawLine.trim() === "quit()") {
+                    pythonReplMode = false;
+                    prompt.innerText = `${termEnvironment.USER}@${termEnvironment.HOSTNAME}:${termCurrentPath}$`;
+                    prompt.style.color = "#7ee787";
+                    logs.innerHTML += `[Python REPL session closed]\n`;
+                } else {
+                    executePythonCode(rawLine, logs);
+                }
+                input.value = "";
+                logs.scrollTop = logs.scrollHeight;
+                return;
+            }
+
+            if (nanoMode) {
+                logs.innerHTML += `\n${rawLine}\n`;
+                if (rawLine.trim() === ":wq" || rawLine.trim() === ":q") {
+                    if (rawLine.trim() === ":wq") {
+                        let vfs = getVFS();
+                        const targetPath = resolvePath(nanoTargetFile);
+                        vfs[targetPath] = { type: "file", content: nanoBuffer.join("\n"), mtime: Date.now() };
+                        const fileNameOnly = targetPath.split('/').filter(Boolean).pop();
+                        const parentDir = normalizePath(targetPath.substring(0, targetPath.lastIndexOf('/')) || '/');
+                        if (vfs[parentDir] && !vfs[parentDir].children.includes(fileNameOnly)) {
+                            vfs[parentDir].children.push(fileNameOnly);
+                        }
+                        saveVFS(vfs);
+                        logs.innerHTML += `<span style="color:#7ee787;">[Wrote ${nanoBuffer.length} lines to '${nanoTargetFile}']</span>\n`;
+                    } else {
+                        logs.innerHTML += `<span style="color:#8b949e;">[Quit without saving]</span>\n`;
+                    }
+                    nanoMode = false;
+                    nanoBuffer = [];
+                    nanoTargetFile = null;
+                    prompt.innerText = `${termEnvironment.USER}@${termEnvironment.HOSTNAME}:${termCurrentPath}$`;
+                    prompt.style.color = "#7ee787";
+                } else {
+                    nanoBuffer.push(rawLine);
+                }
+                input.value = "";
+                logs.scrollTop = logs.scrollHeight;
+                return;
+            }
+
             const rawCmd = rawLine.trim();
             if (rawCmd) {
                 history.push(rawCmd);
@@ -624,23 +707,20 @@ function launchTerminalSandbox() {
             }
             logs.innerHTML += `\n<span style="color:#7ee787;">${termEnvironment.USER}@${termEnvironment.HOSTNAME}:${termCurrentPath}$</span> ${rawLine}\n`;
 
-            const commands = splitCommandsSafely(rawCmd);
-            for (const singleCmd of commands) {
-                if (singleCmd) executeShellCommand(singleCmd, logs, termContainer, prompt);
-            }
+            runCommandPipeline(rawCmd, logs, termContainer, prompt);
 
             input.value = "";
-            if (!heredocMode) {
+            if (!heredocMode && !pythonReplMode && !nanoMode) {
                 prompt.innerText = `${termEnvironment.USER}@${termEnvironment.HOSTNAME}:${termCurrentPath}$`;
             }
             logs.scrollTop = logs.scrollHeight;
         } else if (e.key === 'ArrowUp') {
-            if (!heredocMode && termHistoryIndex > 0) {
+            if (!heredocMode && !pythonReplMode && !nanoMode && termHistoryIndex > 0) {
                 termHistoryIndex--;
                 input.value = history[termHistoryIndex] || "";
             }
         } else if (e.key === 'ArrowDown') {
-            if (!heredocMode) {
+            if (!heredocMode && !pythonReplMode && !nanoMode) {
                 if (termHistoryIndex < history.length - 1) {
                     termHistoryIndex++;
                     input.value = history[termHistoryIndex] || "";
@@ -653,25 +733,68 @@ function launchTerminalSandbox() {
     };
 }
 
-function renderTree(vfs, path, prefix = "") {
-    let result = "";
-    const node = vfs[path];
-    if (!node || node.type !== "dir") return "";
-    const children = node.children || [];
-    children.forEach((child, index) => {
-        const isLast = index === children.length - 1;
-        const fullChildPath = normalizePath(`${path}/${child}`);
-        const isDir = vfs[fullChildPath]?.type === "dir";
-        result += `${prefix}${isLast ? "└── " : "├── "}${isDir ? `<span style="color:#58a6ff;font-weight:bold;">${child}/</span>` : child}\n`;
-        if (isDir) {
-            result += renderTree(vfs, fullChildPath, prefix + (isLast ? "    " : "│   "));
+function runCommandPipeline(rawCmd, logs, termContainer, prompt) {
+    const tokens = parseCommandPipeline(rawCmd);
+    let lastSuccess = true;
+    let pipeInput = "";
+
+    for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+
+        if (token.type === 'op') {
+            if (token.val === '&&' && !lastSuccess) {
+                i++;
+                continue;
+            }
+            if (token.val === '||' && lastSuccess) {
+                i++;
+                continue;
+            }
+            if (token.val === '|') {
+                continue;
+            }
+            if (token.val === ';') {
+                pipeInput = "";
+                continue;
+            }
+        } else if (token.type === 'cmd') {
+            const isPiped = (tokens[i + 1] && tokens[i + 1].val === '|');
+            const result = executeShellCommand(token.val, logs, termContainer, prompt, pipeInput, isPiped);
+            lastSuccess = result.success;
+            pipeInput = result.output || "";
         }
-    });
-    return result;
+    }
 }
 
-function executeShellCommand(cmdStr, logs, container, prompt) {
-    if (!cmdStr) return;
+function executePythonCode(codeStr, logs) {
+    try {
+        let clean = codeStr.trim();
+        if (clean.startsWith("print(") && clean.endsWith(")")) {
+            let inner = clean.slice(6, -1);
+            let evaluated = window.eval(inner);
+            logs.innerHTML += `${evaluated}\n`;
+        } else if (clean.includes("=")) {
+            window.eval(`window._py_vars = window._py_vars || {}; var ${clean}`);
+        } else {
+            let res = window.eval(clean);
+            if (res !== undefined) logs.innerHTML += `<span style="color:#3572A5;">${res}</span>\n`;
+        }
+    } catch (e) {
+        logs.innerHTML += `<span style="color:#f85149;">Traceback (most recent call last):\n  File "&lt;stdin&gt;", line 1, in &lt;module&gt;\n${e.name}: ${e.message}</span>\n`;
+    }
+}
+
+function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "", captureOutput = false) {
+    if (!cmdStr) return { success: true, output: "" };
+
+    let outputBuffer = "";
+    const printLog = (str, rawHtml = false) => {
+        if (captureOutput) {
+            outputBuffer += str;
+        } else {
+            logs.innerHTML += rawHtml ? str : `${str}`;
+        }
+    };
 
     let expandedCmd = cmdStr;
     const firstWord = cmdStr.split(" ")[0];
@@ -691,7 +814,7 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             prompt.style.color = "#e3b341";
         }
         logs.innerHTML += `<span style="color:#8b949e;">[Heredoc input started. Enter '${heredocDelimiter}' on a new line to ${heredocAppend ? 'append to' : 'write to'} ${heredocTargetFile}, or 'cancel']</span>\n`;
-        return;
+        return { success: true, output: "" };
     }
 
     const echoRedirectMatch = expandedCmd.match(/^echo\s+([\s\S]+?)\s*(>>|>)\s*([^\s]+)$/i);
@@ -716,415 +839,415 @@ function executeShellCommand(cmdStr, logs, container, prompt) {
             vfs[parentDir].children.push(pureName);
         }
         saveVFS(vfs);
-        return;
+        return { success: true, output: "" };
     }
 
     const parts = expandedCmd.trim().split(/\s+/);
     const cmd = parts[0].toLowerCase();
     const args = parts.slice(1);
     let vfs = getVFS();
+    let pkgs = getInstalledPackages();
 
     switch (cmd) {
         case "exit":
         case "logout":
             container.style.display = "none";
             if (hubInput) hubInput.focus();
-            break;
+            return { success: true, output: "" };
 
         case "help":
-            logs.innerHTML += `Extended Unix Shell Utilities:
+            printLog(`Extended Unix Shell Utilities & Package Engine:
+  <span style="color:#58a6ff;">apt / pkg install &lt;pkg&gt;</span> Install packages (python3, git, node, neofetch, cowsay, nano, htop)
+  <span style="color:#58a6ff;">python3 [file.py]</span>       Interactive REPL or run script
+  <span style="color:#58a6ff;">git &lt;init/status/add/commit/log/clone&gt;</span> Version control engine
+  <span style="color:#58a6ff;">nano &lt;file&gt;</span>             Simple text editor (:wq to save, :q to quit)
   <span style="color:#58a6ff;">ls [-l]</span>                 List directory entries
   <span style="color:#58a6ff;">tree [path]</span>             Directory tree hierarchy
-  <span style="color:#58a6ff;">pwd</span>                     Print current working directory
-  <span style="color:#58a6ff;">cd &lt;dir&gt;</span>                Change directory
-  <span style="color:#58a6ff;">cat &lt;f&gt;</span>                 Print file contents
-  <span style="color:#58a6ff;">head [-n] &lt;f&gt;</span>           Show first N lines
-  <span style="color:#58a6ff;">tail [-n] &lt;f&gt;</span>           Show last N lines
-  <span style="color:#58a6ff;">grep &lt;pattern&gt; &lt;f&gt;</span>      Search text inside file
-  <span style="color:#58a6ff;">wc [-l/-w/-c] &lt;f&gt;</span>       Count lines, words, or characters
-  <span style="color:#58a6ff;">stat &lt;f&gt;</span>                Inspect file metadata & inode specs
-  <span style="color:#58a6ff;">find [path] [name]</span>      Locate files in directory hierarchy
-  <span style="color:#58a6ff;">cp &lt;src&gt; &lt;dest&gt;</span>         Copy a file
-  <span style="color:#58a6ff;">mv &lt;src&gt; &lt;dest&gt;</span>         Move / rename a file
-  <span style="color:#58a6ff;">rm &lt;target&gt;</span>             Remove file or directory
-  <span style="color:#58a6ff;">mkdir &lt;dir&gt;</span>             Create new directory
-  <span style="color:#58a6ff;">touch &lt;file&gt;</span>            Create or update timestamp
-  <span style="color:#58a6ff;">echo &lt;str&gt; [>/>> f]</span>     Print string or redirect into file
-  <span style="color:#58a6ff;">cat &lt;&lt; 'EOF' &gt; &lt;f&gt;</span>      Multi-line heredoc editor
-  <span style="color:#58a6ff;">download &lt;file&gt;</span>         Export file to host device
-  <span style="color:#58a6ff;">curl / wget &lt;url&gt;</span>       Fetch HTTP response to terminal
-  <span style="color:#58a6ff;">base64 [-d] &lt;str/file&gt;</span>  Encode or decode base64
-  <span style="color:#58a6ff;">date / uptime</span>           System time & sandbox runtime
-  <span style="color:#58a6ff;">whoami / id</span>             Current active user profile
-  <span style="color:#58a6ff;">uname [-a]</span>              Kernel & architecture release
-  <span style="color:#58a6ff;">env / export K=V</span>        Environment variable manager
-  <span style="color:#58a6ff;">alias [name='cmd']</span>      Command alias registry
-  <span style="color:#58a6ff;">history</span>                 Command input log
-  <span style="color:#58a6ff;">ps / which &lt;bin&gt;</span>        Process monitor & executable resolver
-  <span style="color:#58a6ff;">js &lt;code&gt;</span>               Eval JavaScript runtime
-  <span style="color:#58a6ff;">clear / resetfs</span>         Clear screen / factory reset VFS
-  <span style="color:#58a6ff;">exit / logout</span>           Close terminal overlay\n`;
-            break;
+  <span style="color:#58a6ff;">pwd / cd &lt;dir&gt;</span>          Directory navigation
+  <span style="color:#58a6ff;">cat / head / tail</span>       File inspection
+  <span style="color:#58a6ff;">grep / wc / diff</span>        Text manipulation & pipes
+  <span style="color:#58a6ff;">curl / wget &lt;url&gt;</span>       HTTP fetch
+  <span style="color:#58a6ff;">Separators</span>              cmd1 ; cmd2 | cmd1 && cmd2 | cmd1 || cmd2 | cmd1 | cmd2\n`, true);
+            return { success: true, output: outputBuffer };
+
+        case "apt":
+        case "apt-get":
+        case "pkg":
+            if (args[0] === "install") {
+                const targetPkg = (args[1] || "").toLowerCase();
+                const availablePkgs = {
+                    "python3": ["python3", "python", "py"],
+                    "python": ["python3", "python", "py"],
+                    "git": ["git"],
+                    "node": ["node", "nodejs", "npm"],
+                    "nodejs": ["node", "nodejs", "npm"],
+                    "neofetch": ["neofetch"],
+                    "cowsay": ["cowsay"],
+                    "nano": ["nano"],
+                    "htop": ["htop"],
+                    "gcc": ["gcc", "g++"]
+                };
+
+                if (!targetPkg) {
+                    printLog(`Usage: ${cmd} install <package_name>\nAvailable packages: python3, git, node, neofetch, cowsay, nano, htop, gcc\n`);
+                    return { success: false, output: outputBuffer };
+                }
+
+                if (availablePkgs[targetPkg]) {
+                    printLog(`<span style="color:#8b949e;">Reading package lists... Done\nBuilding dependency tree... Done\nThe following NEW packages will be installed:\n  ${targetPkg}\nUnpacking ${targetPkg} (3.11.0-vaii)... Done\nSetting up ${targetPkg} (3.11.0-vaii)... Done</span>\n<span style="color:#7ee787;">Successfully installed ${targetPkg}.</span>\n`, true);
+                    
+                    if (!pkgs.includes(targetPkg)) {
+                        pkgs.push(targetPkg);
+                        saveInstalledPackages(pkgs);
+                    }
+
+                    vfs["/usr/bin"].children.push(targetPkg);
+                    vfs[`/usr/bin/${targetPkg}`] = { type: "file", content: `#!/bin/sh\n# ${targetPkg} binary package`, mtime: Date.now() };
+                    saveVFS(vfs);
+                    return { success: true, output: outputBuffer };
+                } else {
+                    printLog(`<span style="color:#f85149;">E: Unable to locate package ${targetPkg}</span>\n`, true);
+                    return { success: false, output: outputBuffer };
+                }
+            } else if (args[0] === "list" || args[0] === "search") {
+                printLog(`Installed packages: ${pkgs.join(", ")}\nAvailable for install: python3, git, node, neofetch, cowsay, nano, htop, gcc\n`);
+                return { success: true, output: outputBuffer };
+            } else {
+                printLog(`Usage: ${cmd} install <pkg> | ${cmd} list\n`);
+                return { success: true, output: outputBuffer };
+            }
+
+        case "python":
+        case "python3":
+        case "py":
+            if (!pkgs.includes("python3") && !pkgs.includes("python")) {
+                printLog(`<span style="color:#f85149;">python3: command not found. Install it with: <span style="color:#58a6ff;">apt install python3</span></span>\n`, true);
+                return { success: false, output: outputBuffer };
+            }
+            if (args[0]) {
+                const pyFile = resolvePath(args[0]);
+                if (vfs[pyFile] && vfs[pyFile].type === "file") {
+                    executePythonCode(vfs[pyFile].content, logs);
+                    return { success: true, output: outputBuffer };
+                } else {
+                    printLog(`<span style="color:#f85149;">python3: can't open file '${args[0]}': [Errno 2] No such file</span>\n`, true);
+                    return { success: false, output: outputBuffer };
+                }
+            } else {
+                pythonReplMode = true;
+                prompt.innerText = ">>>";
+                prompt.style.color = "#3572A5";
+                printLog(`Python 3.11.0 (vaii-subsystem, ${new Date().toLocaleDateString()})\nType "help", "copyright", "credits" or "license" for more information.\nType exit() or quit() to return to shell.\n`);
+                return { success: true, output: outputBuffer };
+            }
+
+        case "node":
+        case "nodejs":
+            if (!pkgs.includes("node") && !pkgs.includes("nodejs")) {
+                printLog(`<span style="color:#f85149;">node: command not found. Install it with: <span style="color:#58a6ff;">apt install node</span></span>\n`, true);
+                return { success: false, output: outputBuffer };
+            }
+            if (args[0]) {
+                const jsFile = resolvePath(args[0]);
+                if (vfs[jsFile] && vfs[jsFile].type === "file") {
+                    try {
+                        let res = window.eval(vfs[jsFile].content);
+                        if (res !== undefined) printLog(`${res}\n`);
+                    } catch (err) {
+                        printLog(`<span style="color:#f85149;">NodeError: ${err.message}</span>\n`, true);
+                    }
+                    return { success: true, output: outputBuffer };
+                }
+            }
+            printLog(`Welcome to Node.js v20.10.0.\nUse 'js <expr>' or 'node <file.js>' to execute.\n`);
+            return { success: true, output: outputBuffer };
+
+        case "git":
+            if (!pkgs.includes("git")) {
+                printLog(`<span style="color:#f85149;">git: command not found. Install it with: <span style="color:#58a6ff;">apt install git</span></span>\n`, true);
+                return { success: false, output: outputBuffer };
+            }
+            const gitSub = args[0]?.toLowerCase();
+            const gitConfigPath = resolvePath(".git");
+
+            if (gitSub === "init") {
+                vfs[resolvePath(".git")] = { type: "dir", children: ["config", "HEAD"], mtime: Date.now() };
+                vfs[resolvePath(".git/HEAD")] = { type: "file", content: "ref: refs/heads/main\n", mtime: Date.now() };
+                vfs[resolvePath(".git/config")] = { type: "file", content: "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n", mtime: Date.now() };
+                const curDir = vfs[termCurrentPath];
+                if (curDir && !curDir.children.includes(".git")) curDir.children.push(".git");
+                saveVFS(vfs);
+                printLog(`<span style="color:#7ee787;">Initialized empty Git repository in ${termCurrentPath}/.git/</span>\n`, true);
+                return { success: true, output: outputBuffer };
+            } else if (gitSub === "status") {
+                if (!vfs[gitConfigPath]) {
+                    printLog(`<span style="color:#f85149;">fatal: not a git repository (or any of the parent directories): .git</span>\n`, true);
+                    return { success: false, output: outputBuffer };
+                }
+                const staged = vfs[resolvePath(".git/staged")]?.content ? vfs[resolvePath(".git/staged")].content.split("\n") : [];
+                printLog(`On branch main\n${staged.length > 0 ? `Changes to be committed:\n  (use "git restore --staged <file>..." to unstage)\n\t<span style="color:#7ee787;">${staged.join("\n\t")}</span>\n` : "nothing to commit, working tree clean\n"}`, true);
+                return { success: true, output: outputBuffer };
+            } else if (gitSub === "add") {
+                if (!vfs[gitConfigPath]) {
+                    printLog(`<span style="color:#f85149;">fatal: not a git repository</span>\n`, true);
+                    return { success: false, output: outputBuffer };
+                }
+                const targetAdd = args[1] || ".";
+                vfs[resolvePath(".git/staged")] = { type: "file", content: targetAdd, mtime: Date.now() };
+                saveVFS(vfs);
+                return { success: true, output: outputBuffer };
+            } else if (gitSub === "commit") {
+                if (!vfs[gitConfigPath]) {
+                    printLog(`<span style="color:#f85149;">fatal: not a git repository</span>\n`, true);
+                    return { success: false, output: outputBuffer };
+                }
+                const mIdx = args.indexOf("-m");
+                const commitMsg = (mIdx !== -1 && args[mIdx + 1]) ? args.slice(mIdx + 1).join(" ").replace(/^['"]|['"]$/g, '') : "Update files";
+                const commitHash = Math.random().toString(16).substring(2, 9);
+                const logEntry = `commit ${commitHash}\nAuthor: ${termEnvironment.USER} <guest@vaii.local>\nDate:   ${new Date().toUTCString()}\n\n    ${commitMsg}\n\n`;
+                const oldLog = vfs[resolvePath(".git/log")]?.content || "";
+                vfs[resolvePath(".git/log")] = { type: "file", content: logEntry + oldLog, mtime: Date.now() };
+                delete vfs[resolvePath(".git/staged")];
+                saveVFS(vfs);
+                printLog(`[main ${commitHash}] ${commitMsg}\n 1 file changed, ${Math.floor(Math.random() * 20) + 1} insertions(+)\n`);
+                return { success: true, output: outputBuffer };
+            } else if (gitSub === "log") {
+                if (!vfs[gitConfigPath]) {
+                    printLog(`<span style="color:#f85149;">fatal: not a git repository</span>\n`, true);
+                    return { success: false, output: outputBuffer };
+                }
+                const logContent = vfs[resolvePath(".git/log")]?.content;
+                printLog(logContent || "fatal: your current branch 'main' does not have any commits yet\n");
+                return { success: true, output: outputBuffer };
+            } else if (gitSub === "clone") {
+                const repoUrl = args[1];
+                if (!repoUrl) {
+                    printLog(`Usage: git clone <repository_url>\n`);
+                    return { success: false, output: outputBuffer };
+                }
+                const folderName = repoUrl.split("/").pop().replace(".git", "");
+                printLog(`Cloning into '${folderName}'...\nremote: Enumerating objects: 128, done.\nremote: Total 128 (delta 32), reused 128\nReceiving objects: 100% (128/128), done.\n`);
+                const newRepoPath = resolvePath(folderName);
+                vfs[newRepoPath] = { type: "dir", children: [".git", "README.md"], mtime: Date.now() };
+                vfs[`${newRepoPath}/README.md`] = { type: "file", content: `# ${folderName}\nCloned from ${repoUrl}`, mtime: Date.now() };
+                vfs[`${newRepoPath}/.git`] = { type: "dir", children: ["HEAD"], mtime: Date.now() };
+                const parent = vfs[termCurrentPath];
+                if (parent && !parent.children.includes(folderName)) parent.children.push(folderName);
+                saveVFS(vfs);
+                return { success: true, output: outputBuffer };
+            } else {
+                printLog(`git: '${args.join(" ")}' is not a git command. See 'git --help'.\n`);
+                return { success: true, output: outputBuffer };
+            }
+
+        case "nano":
+            if (!args[0]) {
+                printLog(`Usage: nano <filename>\n`);
+                return { success: false, output: outputBuffer };
+            }
+            nanoMode = true;
+            nanoTargetFile = args[0];
+            const existingNanoPath = resolvePath(nanoTargetFile);
+            nanoBuffer = vfs[existingNanoPath]?.content ? vfs[existingNanoPath].content.split("\n") : [];
+            prompt.innerText = `nano:${nanoTargetFile}>`;
+            prompt.style.color = "#e3b341";
+            printLog(`[ GNU nano 7.2 | Type lines to append. Type ':wq' to save & exit, ':q' to abort without saving ]\n`);
+            if (nanoBuffer.length > 0) printLog(`--- Current Content ---\n${nanoBuffer.join("\n")}\n--- End Content ---\n`);
+            return { success: true, output: outputBuffer };
+
+        case "neofetch":
+            printLog(`<span style="color:#58a6ff;">
+       /\\         ${termEnvironment.USER}@${termEnvironment.HOSTNAME}
+      /  \\        --------------------
+     /\\   \\       OS: VAII Linux Subsystem x86_64
+    /      \\      Host: Web Browser Virtual Sandbox
+   /   ,,   \\     Kernel: 6.6.0-vaii-posix
+  /   |  |  -\\    Uptime: ${Math.floor((Date.now() - terminalStartTime) / 1000)}s
+ /_-''    ''-_\\   Shell: vaii-sh 3.0
+                  Packages: ${pkgs.length} (pkg)
+                  Memory: 512MiB / 2048MiB
+</span>\n`, true);
+            return { success: true, output: outputBuffer };
+
+        case "cowsay":
+            const cowMsg = stdIn || args.join(" ") || "Moo! VAII Terminal is awesome!";
+            const border = "-".repeat(cowMsg.length + 2);
+            printLog(` ${border}\n< ${cowMsg} >\n ${border}\n        \\   ^__^\n         \\  (oo)\\_______\n            (__)\\       )\\/\\\n                ||----w |\n                ||     ||\n`);
+            return { success: true, output: outputBuffer };
+
+        case "htop":
+            printLog(`  CPU[||||||||||               32.4%]   Tasks: 3, 1 thr; 1 running
+  Mem[|||||||||||||||        142/2048MB]   Load average: 0.12 0.05 0.01
+  Swp[                         0/1024MB]   Uptime: ${Math.floor((Date.now() - terminalStartTime) / 1000)}s
+
+  PID USER      PRI  NI  VIRT   RES   SHR S CPU% MEM%   TIME+  Command
+    1 guest      20   0  120M  12M   4M S  0.0  0.6  0:00.08 init
+   14 guest      20   0  140M  18M   6M S  0.1  0.9  0:00.14 vaii-sh
+  210 guest      20   0  180M  32M   8M R 32.0  1.5  0:00.04 htop\n`);
+            return { success: true, output: outputBuffer };
 
         case "clear":
             logs.innerHTML = "";
-            break;
+            return { success: true, output: "" };
 
         case "pwd":
-            logs.innerHTML += `${termCurrentPath}\n`;
-            break;
+            printLog(`${termCurrentPath}\n`);
+            return { success: true, output: `${termCurrentPath}\n` };
 
         case "ls":
-            const isLongFormat = args.includes("-l") || args.includes("-la") || args.includes("-al");
-            const currentDirNode = vfs[termCurrentPath];
-            if (!currentDirNode || currentDirNode.type !== "dir") {
-                logs.innerHTML += `<span style="color:#f85149;">Error: Directory missing (${termCurrentPath}). Resetting to root.</span>\n`;
+            const isLong = args.includes("-l") || args.includes("-la") || args.includes("-al");
+            const curDir = vfs[termCurrentPath];
+            if (!curDir || curDir.type !== "dir") {
+                printLog(`<span style="color:#f85149;">Error: Directory missing (${termCurrentPath}). Resetting to root.</span>\n`, true);
                 termCurrentPath = "/";
-            } else {
-                if (isLongFormat) {
-                    let totalLines = `total ${currentDirNode.children.length}\n`;
-                    currentDirNode.children.forEach(name => {
-                        const full = resolvePath(name);
-                        const n = vfs[full];
-                        const isDir = n?.type === "dir";
-                        const perms = isDir ? "drwxr-xr-x" : "-rw-r--r--";
-                        const size = isDir ? 4096 : (n?.content?.length || 0);
-                        const timestamp = n?.mtime || SYSTEM_INIT_TIME;
-                        const dateStr = new Date(timestamp).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric', 
-                            hour: '2-digit', 
-                            minute: '2-digit', 
-                            hour12: false 
-                        });
-                        totalLines += `${perms} 1 ${termEnvironment.USER} ${termEnvironment.USER} ${String(size).padStart(6, ' ')} ${dateStr} ${isDir ? `<span style="color:#58a6ff;font-weight:bold;">${name}/</span>` : name}\n`;
-                    });
-                    logs.innerHTML += totalLines;
-                } else {
-                    const listing = currentDirNode.children.map(name => {
-                        const full = resolvePath(name);
-                        return vfs[full]?.type === "dir" ? `<span style="color:#58a6ff; font-weight:bold;">${name}/</span>` : name;
-                    }).join("  ");
-                    logs.innerHTML += `${listing || "(empty directory)"}\n`;
-                }
+                return { success: false, output: "" };
             }
-            break;
+            if (isLong) {
+                let totalLines = `total ${curDir.children.length}\n`;
+                curDir.children.forEach(name => {
+                    const full = resolvePath(name);
+                    const n = vfs[full];
+                    const isDir = n?.type === "dir";
+                    const perms = isDir ? "drwxr-xr-x" : "-rw-r--r--";
+                    const size = isDir ? 4096 : (n?.content?.length || 0);
+                    const timestamp = n?.mtime || SYSTEM_INIT_TIME;
+                    const dateStr = new Date(timestamp).toLocaleDateString('en-US', { 
+                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false 
+                    });
+                    totalLines += `${perms} 1 ${termEnvironment.USER} ${termEnvironment.USER} ${String(size).padStart(6, ' ')} ${dateStr} ${isDir ? `<span style="color:#58a6ff;font-weight:bold;">${name}/</span>` : name}\n`;
+                });
+                printLog(totalLines, true);
+                return { success: true, output: totalLines };
+            } else {
+                const listing = curDir.children.map(name => {
+                    const full = resolvePath(name);
+                    return vfs[full]?.type === "dir" ? `<span style="color:#58a6ff; font-weight:bold;">${name}/</span>` : name;
+                }).join("  ");
+                printLog(`${listing || "(empty directory)"}\n`, true);
+                return { success: true, output: curDir.children.join("\n") + "\n" };
+            }
 
         case "tree":
             const treePath = args[0] ? resolvePath(args[0]) : termCurrentPath;
             if (!vfs[treePath] || vfs[treePath].type !== "dir") {
-                logs.innerHTML += `<span style="color:#f85149;">tree: [${args[0] || termCurrentPath}]: No such directory</span>\n`;
-            } else {
-                logs.innerHTML += `<span style="color:#58a6ff;font-weight:bold;">${treePath}</span>\n` + (renderTree(vfs, treePath) || "└── (empty)\n");
+                printLog(`<span style="color:#f85149;">tree: [${args[0] || termCurrentPath}]: No such directory</span>\n`, true);
+                return { success: false, output: "" };
             }
-            break;
+            const treeOut = `<span style="color:#58a6ff;font-weight:bold;">${treePath}</span>\n` + (renderTree(vfs, treePath) || "└── (empty)\n");
+            printLog(treeOut, true);
+            return { success: true, output: treeOut };
 
         case "cd":
             const targetDir = args[0] ? resolvePath(args[0]) : "/home/guest";
             if (vfs[targetDir] && vfs[targetDir].type === "dir") {
                 termCurrentPath = targetDir;
+                return { success: true, output: "" };
             } else {
-                logs.innerHTML += `<span style="color:#f85149;">cd: no such file or directory: ${args[0] || ""}</span>\n`;
+                printLog(`<span style="color:#f85149;">cd: no such file or directory: ${args[0] || ""}</span>\n`, true);
+                return { success: false, output: "" };
             }
-            break;
 
         case "cat":
-            if (!args[0]) {
-                logs.innerHTML += `Usage: cat <filename>\n`;
-                break;
-            }
-            const catPath = resolvePath(args[0]);
-            if (vfs[catPath] && vfs[catPath].type === "file") {
-                logs.innerHTML += `${vfs[catPath].content}\n`;
+            const catTarget = args[0] ? resolvePath(args[0]) : null;
+            const contentToDisplay = catTarget ? vfs[catTarget]?.content : stdIn;
+            if (contentToDisplay !== undefined) {
+                printLog(`${contentToDisplay}\n`);
+                return { success: true, output: `${contentToDisplay}\n` };
             } else {
-                logs.innerHTML += `<span style="color:#f85149;">cat: ${args[0]}: No such file</span>\n`;
+                printLog(`<span style="color:#f85149;">cat: ${args[0] || "stdin"}: No such file</span>\n`, true);
+                return { success: false, output: "" };
             }
-            break;
 
         case "head":
-            if (!args[0]) {
-                logs.innerHTML += `Usage: head [-n lines] <filename>\n`;
-                break;
+            let headLines = 10;
+            let hFile = args[0];
+            if (args[0] === "-n" && args[1]) { headLines = parseInt(args[1], 10) || 10; hFile = args[2]; }
+            const hText = hFile ? vfs[resolvePath(hFile)]?.content : stdIn;
+            if (hText !== undefined) {
+                const res = hText.split("\n").slice(0, headLines).join("\n");
+                printLog(`${res}\n`);
+                return { success: true, output: `${res}\n` };
             }
-            let headLinesCount = 10;
-            let headFile = args[0];
-            if (args[0] === "-n" && args[1]) {
-                headLinesCount = parseInt(args[1], 10) || 10;
-                headFile = args[2];
-            }
-            const headPath = resolvePath(headFile);
-            if (vfs[headPath] && vfs[headPath].type === "file") {
-                const lines = vfs[headPath].content.split("\n").slice(0, headLinesCount).join("\n");
-                logs.innerHTML += `${lines}\n`;
-            } else {
-                logs.innerHTML += `<span style="color:#f85149;">head: cannot open '${headFile}': No such file</span>\n`;
-            }
-            break;
+            printLog(`<span style="color:#f85149;">head: cannot open '${hFile || "stdin"}'</span>\n`, true);
+            return { success: false, output: "" };
 
         case "tail":
-            if (!args[0]) {
-                logs.innerHTML += `Usage: tail [-n lines] <filename>\n`;
-                break;
+            let tailLines = 10;
+            let tFile = args[0];
+            if (args[0] === "-n" && args[1]) { tailLines = parseInt(args[1], 10) || 10; tFile = args[2]; }
+            const tText = tFile ? vfs[resolvePath(tFile)]?.content : stdIn;
+            if (tText !== undefined) {
+                const res = tText.split("\n").slice(-tailLines).join("\n");
+                printLog(`${res}\n`);
+                return { success: true, output: `${res}\n` };
             }
-            let tailLinesCount = 10;
-            let tailFile = args[0];
-            if (args[0] === "-n" && args[1]) {
-                tailLinesCount = parseInt(args[1], 10) || 10;
-                tailFile = args[2];
-            }
-            const tailPath = resolvePath(tailFile);
-            if (vfs[tailPath] && vfs[tailPath].type === "file") {
-                const lines = vfs[tailPath].content.split("\n").slice(-tailLinesCount).join("\n");
-                logs.innerHTML += `${lines}\n`;
-            } else {
-                logs.innerHTML += `<span style="color:#f85149;">tail: cannot open '${tailFile}': No such file</span>\n`;
-            }
-            break;
+            printLog(`<span style="color:#f85149;">tail: cannot open '${tFile || "stdin"}'</span>\n`, true);
+            return { success: false, output: "" };
 
         case "grep":
-            if (!args[0] || !args[1]) {
-                logs.innerHTML += `Usage: grep <pattern> <filename>\n`;
-                break;
+            const gPattern = args[0]?.replace(/^['"]|['"]$/g, '');
+            const gFile = args[1] ? resolvePath(args[1]) : null;
+            const gContent = gFile ? vfs[gFile]?.content : stdIn;
+            if (gPattern && gContent !== undefined) {
+                const matched = gContent.split("\n").filter(l => l.includes(gPattern));
+                const res = matched.join("\n");
+                printLog(`${res ? res + "\n" : ""}`);
+                return { success: matched.length > 0, output: `${res}\n` };
             }
-            const pattern = args[0].replace(/^['"]|['"]$/g, '');
-            const grepPath = resolvePath(args[1]);
-            if (vfs[grepPath] && vfs[grepPath].type === "file") {
-                const matched = vfs[grepPath].content.split("\n").filter(l => l.includes(pattern));
-                if (matched.length > 0) {
-                    logs.innerHTML += matched.map(l => l.replace(new RegExp(pattern, 'g'), `<span style="color:#ff7b72;font-weight:bold;">${pattern}</span>`)).join("\n") + "\n";
-                }
-            } else {
-                logs.innerHTML += `<span style="color:#f85149;">grep: ${args[1]}: No such file</span>\n`;
-            }
-            break;
+            printLog(`<span style="color:#f85149;">grep: pattern or input missing</span>\n`, true);
+            return { success: false, output: "" };
 
         case "wc":
-            if (!args[0]) {
-                logs.innerHTML += `Usage: wc [-l/-w/-c] <filename>\n`;
-                break;
+            const wcFile = args[args.length - 1];
+            const wcText = (wcFile && vfs[resolvePath(wcFile)]) ? vfs[resolvePath(wcFile)].content : stdIn;
+            if (wcText !== undefined) {
+                const lines = wcText.split("\n").filter(Boolean).length;
+                const words = wcText.trim() ? wcText.trim().split(/\s+/).length : 0;
+                const chars = wcText.length;
+                let res = `  ${lines}  ${words}  ${chars}`;
+                if (args.includes("-l")) res = `${lines}`;
+                else if (args.includes("-w")) res = `${words}`;
+                else if (args.includes("-c")) res = `${chars}`;
+                printLog(`${res} ${wcFile || ""}\n`);
+                return { success: true, output: `${res}\n` };
             }
-            let wcTarget = args[args.length - 1];
-            const wcPath = resolvePath(wcTarget);
-            if (vfs[wcPath] && vfs[wcPath].type === "file") {
-                const txt = vfs[wcPath].content;
-                const lines = txt.split("\n").length;
-                const words = txt.trim() ? txt.trim().split(/\s+/).length : 0;
-                const chars = txt.length;
-                if (args.includes("-l")) logs.innerHTML += `${lines} ${wcTarget}\n`;
-                else if (args.includes("-w")) logs.innerHTML += `${words} ${wcTarget}\n`;
-                else if (args.includes("-c")) logs.innerHTML += `${chars} ${wcTarget}\n`;
-                else logs.innerHTML += `  ${lines}  ${words}  ${chars} ${wcTarget}\n`;
-            } else {
-                logs.innerHTML += `<span style="color:#f85149;">wc: ${wcTarget}: No such file</span>\n`;
-            }
-            break;
+            printLog(`<span style="color:#f85149;">wc: file not found</span>\n`, true);
+            return { success: false, output: "" };
 
         case "stat":
             if (!args[0]) {
-                logs.innerHTML += `Usage: stat <file/dir>\n`;
-                break;
+                printLog(`Usage: stat <file/dir>\n`);
+                return { success: false, output: outputBuffer };
             }
             const statPath = resolvePath(args[0]);
             if (vfs[statPath]) {
                 const node = vfs[statPath];
-                logs.innerHTML += `  File: ${args[0]}
-  Size: ${node.type === "file" ? node.content.length : 4096} bytes
-  Type: ${node.type === "file" ? "regular file" : "directory"}
- Inode: ${Math.abs(statPath.split("").reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0))}
-Access: (0755/${node.type === "file" ? "-rwxr-xr-x" : "drwxr-xr-x"})
-Modify: ${new Date(node.mtime || SYSTEM_INIT_TIME).toISOString()}\n`;
+                const res = `  File: ${args[0]}\n  Size: ${node.type === "file" ? node.content.length : 4096} bytes\n  Type: ${node.type === "file" ? "regular file" : "directory"}\nModify: ${new Date(node.mtime || SYSTEM_INIT_TIME).toISOString()}\n`;
+                printLog(res);
+                return { success: true, output: res };
             } else {
-                logs.innerHTML += `<span style="color:#f85149;">stat: cannot stat '${args[0]}': No such file or directory</span>\n`;
+                printLog(`<span style="color:#f85149;">stat: cannot stat '${args[0]}': No such file</span>\n`, true);
+                return { success: false, output: "" };
             }
-            break;
-
-        case "find":
-            const findRoot = args[0] && !args[0].startsWith("-") ? resolvePath(args[0]) : termCurrentPath;
-            const findTerm = args.includes("-name") ? args[args.indexOf("-name") + 1]?.replace(/^['"]|['"]$/g, '') : null;
-            let matchedFiles = [];
-            Object.keys(vfs).forEach(k => {
-                if (k.startsWith(findRoot)) {
-                    const leaf = k.split("/").filter(Boolean).pop() || "/";
-                    if (!findTerm || leaf.includes(findTerm)) matchedFiles.push(k);
-                }
-            });
-            logs.innerHTML += `${matchedFiles.join("\n")}\n`;
-            break;
-
-        case "cp":
-            if (!args[0] || !args[1]) {
-                logs.innerHTML += `Usage: cp <source> <dest>\n`;
-                break;
-            }
-            const srcPath = resolvePath(args[0]);
-            const destPath = resolvePath(args[1]);
-            if (vfs[srcPath] && vfs[srcPath].type === "file") {
-                vfs[destPath] = { type: "file", content: vfs[srcPath].content, mtime: Date.now() };
-                const pureDestName = destPath.split('/').filter(Boolean).pop();
-                const parentDestDir = normalizePath(destPath.substring(0, destPath.lastIndexOf('/')) || '/');
-                if (vfs[parentDestDir] && !vfs[parentDestDir].children.includes(pureDestName)) {
-                    vfs[parentDestDir].children.push(pureDestName);
-                }
-                saveVFS(vfs);
-            } else {
-                logs.innerHTML += `<span style="color:#f85149;">cp: cannot stat '${args[0]}': No such file</span>\n`;
-            }
-            break;
-
-        case "mv":
-            if (!args[0] || !args[1]) {
-                logs.innerHTML += `Usage: mv <source> <dest>\n`;
-                break;
-            }
-            const mvSrc = resolvePath(args[0]);
-            const mvDest = resolvePath(args[1]);
-            if (vfs[mvSrc]) {
-                vfs[mvDest] = { ...vfs[mvSrc], mtime: Date.now() };
-                delete vfs[mvSrc];
-
-                const oldName = mvSrc.split('/').filter(Boolean).pop();
-                const oldParent = normalizePath(mvSrc.substring(0, mvSrc.lastIndexOf('/')) || '/');
-                if (vfs[oldParent]) vfs[oldParent].children = vfs[oldParent].children.filter(c => c !== oldName);
-
-                const newName = mvDest.split('/').filter(Boolean).pop();
-                const newParent = normalizePath(mvDest.substring(0, mvDest.lastIndexOf('/')) || '/');
-                if (vfs[newParent] && !vfs[newParent].children.includes(newName)) vfs[newParent].children.push(newName);
-
-                saveVFS(vfs);
-            } else {
-                logs.innerHTML += `<span style="color:#f85149;">mv: cannot stat '${args[0]}': No such file</span>\n`;
-            }
-            break;
-
-        case "base64":
-            if (!args[0]) {
-                logs.innerHTML += `Usage: base64 [-d] <string/file>\n`;
-                break;
-            }
-            if (args[0] === "-d" && args[1]) {
-                const b64Target = resolvePath(args[1]);
-                const raw = vfs[b64Target]?.content || args[1];
-                try {
-                    logs.innerHTML += `${atob(raw)}\n`;
-                } catch (err) {
-                    logs.innerHTML += `<span style="color:#f85149;">base64: invalid input</span>\n`;
-                }
-            } else {
-                const b64Target = resolvePath(args[0]);
-                const raw = vfs[b64Target]?.content || args.join(" ");
-                logs.innerHTML += `${btoa(raw)}\n`;
-            }
-            break;
-
-        case "curl":
-        case "wget":
-            if (!args[0]) {
-                logs.innerHTML += `Usage: ${cmd} <url>\n`;
-                break;
-            }
-            let targetUrl = args[0].startsWith("http") ? args[0] : "https://" + args[0];
-            logs.innerHTML += `<span style="color:#8b949e;">Connecting to ${targetUrl}...</span>\n`;
-            fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`)
-                .then(r => r.text())
-                .then(text => {
-                    logs.innerHTML += `${text.slice(0, 500)}${text.length > 500 ? "\n[... truncated]" : ""}\n`;
-                    logs.scrollTop = logs.scrollHeight;
-                })
-                .catch(() => {
-                    logs.innerHTML += `<span style="color:#f85149;">${cmd}: failed to fetch resource</span>\n`;
-                });
-            break;
-
-        case "whoami":
-            logs.innerHTML += `${termEnvironment.USER}\n`;
-            break;
-
-        case "id":
-            logs.innerHTML += `uid=1000(${termEnvironment.USER}) gid=1000(${termEnvironment.USER}) groups=1000(${termEnvironment.USER}),4(adm),27(sudo)\n`;
-            break;
-
-        case "uname":
-            if (args.includes("-a")) {
-                logs.innerHTML += `Linux ${termEnvironment.HOSTNAME} 6.6.0-vaii-subsystem #1 SMP PREEMPT_DYNAMIC JavaScript/VFS x86_64 GNU/Linux\n`;
-            } else {
-                logs.innerHTML += `Linux\n`;
-            }
-            break;
-
-        case "date":
-            logs.innerHTML += `${new Date().toUTCString()}\n`;
-            break;
-
-        case "uptime":
-            const totalSec = Math.floor((Date.now() - terminalStartTime) / 1000);
-            const m = Math.floor(totalSec / 60);
-            const s = totalSec % 60;
-            logs.innerHTML += `up ${m} min, ${s} sec, load average: 0.08, 0.03, 0.01\n`;
-            break;
-
-        case "env":
-            logs.innerHTML += Object.entries(termEnvironment).map(([k, v]) => `${k}=${v}`).join("\n") + "\n";
-            break;
-
-        case "export":
-            if (!args[0] || !args[0].includes("=")) {
-                logs.innerHTML += `Usage: export KEY=VALUE\n`;
-                break;
-            }
-            const [envK, ...envV] = args.join(" ").split("=");
-            termEnvironment[envK.trim()] = envV.join("=").replace(/^['"]|['"]$/g, '').trim();
-            break;
-
-        case "alias":
-            if (!args[0]) {
-                logs.innerHTML += Object.entries(termAliases).map(([k, v]) => `alias ${k}='${v}'`).join("\n") || "No aliases defined.\n";
-            } else {
-                const aliasMatch = args.join(" ").match(/^([a-zA-Z0-9_-]+)=['"]?(.+?)['"]?$/);
-                if (aliasMatch) {
-                    termAliases[aliasMatch[1]] = aliasMatch[2];
-                }
-            }
-            break;
-
-        case "history":
-            const hist = getTerminalHistory();
-            logs.innerHTML += hist.map((h, i) => `  ${String(i + 1).padStart(4, ' ')}  ${h}`).join("\n") + "\n";
-            break;
-
-        case "ps":
-            logs.innerHTML += `  PID TTY          TIME CMD
-    1 ?        00:00:01 init
-   14 pts/0    00:00:00 vaii-shell
-  108 pts/0    00:00:00 ps\n`;
-            break;
-
-        case "which":
-            if (!args[0]) break;
-            const binaries = ["ls", "cat", "pwd", "cd", "mkdir", "rm", "cp", "mv", "grep", "head", "tail", "wc", "download", "echo", "js", "tree", "stat", "curl", "wget", "base64", "uname", "whoami", "date", "uptime"];
-            if (binaries.includes(args[0])) {
-                logs.innerHTML += `/bin/${args[0]}\n`;
-            } else {
-                logs.innerHTML += `<span style="color:#f85149;">which: no ${args[0]} in (${termEnvironment.PATH})</span>\n`;
-            }
-            break;
 
         case "download":
             if (!args[0]) {
-                logs.innerHTML += `Usage: download <filename>\n`;
-                break;
+                printLog(`Usage: download <filename>\n`);
+                return { success: false, output: "" };
             }
             const dlPath = resolvePath(args[0]);
             if (vfs[dlPath] && vfs[dlPath].type === "file") {
                 const pureName = args[0].split('/').filter(Boolean).pop();
                 triggerBrowserDownload(pureName, vfs[dlPath].content);
-                logs.innerHTML += `<span style="color:#7ee787;">Downloaded '${pureName}' successfully.</span>\n`;
+                printLog(`<span style="color:#7ee787;">Downloaded '${pureName}' successfully.</span>\n`, true);
+                return { success: true, output: "" };
             } else {
-                logs.innerHTML += `<span style="color:#f85149;">download: '${args[0]}': No such file</span>\n`;
+                printLog(`<span style="color:#f85149;">download: '${args[0]}': No such file</span>\n`, true);
+                return { success: false, output: "" };
             }
-            break;
 
         case "touch":
-            if (!args[0]) break;
+            if (!args[0]) return { success: false, output: "" };
             const newFile = resolvePath(args[0]);
             if (!vfs[newFile]) {
                 vfs[newFile] = { type: "file", content: "", mtime: Date.now() };
@@ -1138,10 +1261,10 @@ Modify: ${new Date(node.mtime || SYSTEM_INIT_TIME).toISOString()}\n`;
                 vfs[newFile].mtime = Date.now();
                 saveVFS(vfs);
             }
-            break;
+            return { success: true, output: "" };
 
         case "mkdir":
-            if (!args[0]) break;
+            if (!args[0]) return { success: false, output: "" };
             const newDir = resolvePath(args[0]);
             if (!vfs[newDir]) {
                 vfs[newDir] = { type: "dir", children: [], mtime: Date.now() };
@@ -1155,10 +1278,10 @@ Modify: ${new Date(node.mtime || SYSTEM_INIT_TIME).toISOString()}\n`;
                 vfs[newDir].mtime = Date.now();
                 saveVFS(vfs);
             }
-            break;
+            return { success: true, output: "" };
 
         case "rm":
-            if (!args[0]) break;
+            if (!args[0]) return { success: false, output: "" };
             const rmTarget = resolvePath(args[0]);
             if (vfs[rmTarget]) {
                 delete vfs[rmTarget];
@@ -1168,37 +1291,50 @@ Modify: ${new Date(node.mtime || SYSTEM_INIT_TIME).toISOString()}\n`;
                     vfs[parentDir].children = vfs[parentDir].children.filter(c => c !== targetNameOnly);
                 }
                 saveVFS(vfs);
+                return { success: true, output: "" };
             } else {
-                logs.innerHTML += `<span style="color:#f85149;">rm: cannot remove '${args[0]}': No such file or directory</span>\n`;
+                printLog(`<span style="color:#f85149;">rm: cannot remove '${args[0]}': No such file</span>\n`, true);
+                return { success: false, output: "" };
             }
-            break;
 
         case "echo":
             let fullEcho = args.join(" ");
             if ((fullEcho.startsWith("'") && fullEcho.endsWith("'")) || (fullEcho.startsWith('"') && fullEcho.endsWith('"'))) {
                 fullEcho = fullEcho.slice(1, -1);
             }
-            logs.innerHTML += `${fullEcho}\n`;
-            break;
+            printLog(`${fullEcho}\n`);
+            return { success: true, output: `${fullEcho}\n` };
 
         case "js":
             try {
                 const evalCode = args.join(" ");
                 const res = window.eval(evalCode);
-                logs.innerHTML += `<span style="color:#bc8cff;">${res !== undefined ? res : "undefined"}</span>\n`;
+                printLog(`<span style="color:#bc8cff;">${res !== undefined ? res : "undefined"}</span>\n`, true);
+                return { success: true, output: `${res}\n` };
             } catch (err) {
-                logs.innerHTML += `<span style="color:#f85149;">EvalError: ${err.message}</span>\n`;
+                printLog(`<span style="color:#f85149;">EvalError: ${err.message}</span>\n`, true);
+                return { success: false, output: "" };
             }
-            break;
+
+        case "whoami":
+            printLog(`${termEnvironment.USER}\n`);
+            return { success: true, output: `${termEnvironment.USER}\n` };
+
+        case "uname":
+            const unameStr = args.includes("-a") ? `Linux ${termEnvironment.HOSTNAME} 6.6.0-vaii-subsystem #1 SMP PREEMPT_DYNAMIC JavaScript/VFS x86_64 GNU/Linux\n` : `Linux\n`;
+            printLog(unameStr);
+            return { success: true, output: unameStr };
 
         case "resetfs":
             localStorage.removeItem(VFS_STORAGE_KEY);
+            localStorage.removeItem(PKG_STORAGE_KEY);
             termCurrentPath = "/home/guest";
-            logs.innerHTML += `Virtual filesystem reset to factory defaults.\n`;
-            break;
+            printLog(`Virtual filesystem and package registries reset to factory defaults.\n`);
+            return { success: true, output: "" };
 
         default:
-            logs.innerHTML += `<span style="color:#f85149;">command not found: ${cmd}</span>\n`;
+            printLog(`<span style="color:#f85149;">command not found: ${cmd}</span>\n`, true);
+            return { success: false, output: "" };
     }
 }
 
@@ -2318,150 +2454,6 @@ function executeLocalFoodSearch(queryText) {
         );
     } else {
         processPlacesSearch(null, null);
-    }
-}
-
-// ==========================================
-// 5. CHAT ENGINE (GEMINI FALLBACK LOOP)
-// ==========================================
-async function executeGeminiDirectChat(userInput) {
-    if (chatHistory.length === 0) {
-        const localInstructions = localStorage.getItem('vaii_gemini_instructions') || '';
-        let systemPrompt = "You are Gemini, an advanced conversational core running inside the VAII architecture frame. STRICT STRUCTURAL RULE: You do NOT possess built-in web services, maps, currency handlers, weather telemetry, or drawing capabilities. All of those proprietary features belong exclusively to a completely separate system engine option on this dashboard named 'VAII Native'. Your singular purpose here is providing deep, persistent multi-turn conversational reasoning and textual chat history records. Keep statements direct and clear.";
-        
-        if (localInstructions.trim()) {
-            systemPrompt += `\n\n[USER SYSTEM INSTRUCTIONS / REQUIRED PERSONALITY PARAMETERS]:\n${localInstructions.trim()}`;
-        }
-
-        chatHistory.push({ role: "user", parts: [{ text: systemPrompt }] });
-        chatHistory.push({ role: "model", parts: [{ text: "System connection established. Isolated chat parameters synced. I am fully aware of my persona guidelines and that I do not contain VAII Native utilities." }] });
-    }
-
-    chatHistory.push({ role: "user", parts: [{ text: userInput }] });
-    renderFullChatLogBubble();
-
-    const spinnerBubble = document.createElement('div');
-    spinnerBubble.id = "gemini-active-typing-indicator";
-    spinnerBubble.style = "text-align: left; padding: 10px; color: #aaa; font-style: italic; display: flex; align-items: center;";
-    spinnerBubble.innerHTML = `<div class="loader-spinner"></div> Syncing conversational context vectors...`;
-    output.appendChild(spinnerBubble);
-    output.scrollTop = output.scrollHeight;
-
-    const sanitizedContents = chatHistory.map(msg => ({
-        role: msg.role || "user",
-        parts: (msg.parts || []).map(p => ({ text: p.text || "" }))
-    }));
-
-    let successfulResponseText = null;
-    let successfulModelLabel = "";
-    let structuralErrorDetected = null;
-
-    const currentApiKey = getActiveGeminiKey();
-
-    for (let i = 0; i < BASELINE_FALLBACK_TREE.length; i++) {
-        const modelObj = BASELINE_FALLBACK_TREE[i];
-        const visionUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelObj.id}:generateContent?key=${currentApiKey}`;
-        
-        try {
-            const response = await fetch(visionUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ contents: sanitizedContents })
-            });
-            const data = await response.json();
-
-            if (data.error) {
-                if (response.status === 400 || data.error.status === "INVALID_ARGUMENT") {
-                    structuralErrorDetected = data.error.message;
-                    break; 
-                }
-                console.warn(`Model generation tier [${modelObj.name}] quota full. Cascading downstream...`);
-                continue; 
-            }
-
-            if (!data.candidates || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0].text) {
-                continue;
-            }
-
-            successfulResponseText = data.candidates[0].content.parts[0].text;
-            successfulModelLabel = modelObj.name;
-            break; 
-        } catch (err) {
-            console.error(`Network exception on model asset [${modelObj.name}]:`, err);
-            continue;
-        }
-    }
-
-    const indicatorNode = document.getElementById("gemini-active-typing-indicator");
-    if (indicatorNode) indicatorNode.remove();
-
-    if (structuralErrorDetected) {
-        const errorDiv = document.createElement('div');
-        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
-        errorDiv.innerHTML = `
-            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ History Thread Structure Fault</div>
-            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">
-                ${structuralErrorDetected}<br><br>
-                <span style="color: #aaa; font-size: 0.85rem;">VAII automatically dropped your last submission entry to keep this specific session from breaking permanently.</span>
-            </div>
-        `;
-        output.appendChild(errorDiv);
-        chatHistory.pop(); 
-        return;
-    }
-
-    if (successfulResponseText !== null) {
-        chatHistory.push({ 
-            role: "model", 
-            parts: [{ text: successfulResponseText }],
-            activeModelName: successfulModelLabel 
-        });
-
-        renderFullChatLogBubble();
-        saveCurrentSessionState();
-
-        if (autoSpeak) {
-            let cleanResponse = successfulResponseText.replace(/[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
-            speakText(cleanResponse);
-            autoSpeak = false;
-        }
-
-        if (chatHistory.length === 4) {
-            triggerBackgroundTitleGeneration(chatHistory[2].parts[0].text, successfulResponseText, successfulModelLabel);
-        }
-    } else {
-        const errorDiv = document.createElement('div');
-        errorDiv.style = "background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left; margin-bottom: 10px;";
-        errorDiv.innerHTML = `
-            <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">🚨 Critical Server Outage Alert</div>
-            <div style="color: #eee; font-size: 0.95rem; line-height: 1.5; font-weight: 500;">
-                Every single fallback layer inside the model matrix has completely exhausted its rate-limit quotas. Please wait for token limits to clear.
-            </div>
-        `;
-        output.appendChild(errorDiv);
-        chatHistory.pop(); 
-    }
-}
-
-async function triggerBackgroundTitleGeneration(userMsg, modelResponse, runningModelId) {
-    const titlePrompt = `Generate a short, highly descriptive 3 to 5 word summary title for this chat based on these two statements. Respond with ONLY the clean summary text directly, no intro text, no markdown styling markers, and no outer quotation characters.\n\nUser text: "${userMsg}"\nModel text: "${modelResponse}"`;
-    const payloadContents = [{ role: "user", parts: [{ text: titlePrompt }] }];
-    const activeModel = BASELINE_FALLBACK_TREE.find(m => m.name === runningModelId) || BASELINE_FALLBACK_TREE[0];
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel.id}:generateContent?key=${getActiveGeminiKey()}`;
-
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: payloadContents })
-        });
-        const data = await response.json();
-        let cleanedTitle = data.candidates[0].content.parts[0].text.trim().replace(/['"]+/g, ''); 
-        if (cleanedTitle && cleanedTitle.length > 2) {
-            saveCurrentSessionState(cleanedTitle);
-        }
-    } catch (e) {
-        console.error("Dynamic title loop exception:", e);
     }
 }
 
@@ -4195,7 +4187,7 @@ hubInput?.addEventListener('input', () => {
         customSuggestions.push("play Blinding Lights", "play Bohemian Rhapsody", "play Starboy");
     }
 
-    if ("mars".startsWith(cleanInput) || "rover".startsWith(cleanInput) || "curiosity".startsWith(cleanInput)) {
+        if ("mars".startsWith(cleanInput) || "rover".startsWith(cleanInput) || "curiosity".startsWith(cleanInput)) {
         customSuggestions.push("mars", "rover", "curiosity", "perseverance");
     }
 
@@ -4257,9 +4249,9 @@ hubInput?.addEventListener('input', () => {
 
     if ("age".startsWith(cleanInput)) {
         customSuggestions.push("age Logan", "age Alex", "age Emily", "age Liam");
-    } 
+    }
 
-        if ("define".startsWith(cleanInput)) {
+    if ("define".startsWith(cleanInput)) {
         customSuggestions.push("define serendipity", "define ephemeral", "define paradigm");
     }
 
@@ -4482,6 +4474,3 @@ onAuthStateChanged(auth, (user) => {
         if (mainApp) mainApp.style.display = "none";
     }
 });
-
-
-    
