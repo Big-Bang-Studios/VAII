@@ -603,7 +603,7 @@
                             </div>
                             <div>
                                 <strong style="color:#fff;">v3.0</strong><br>
-                                <span style="color:#aaa;">Added the Gemini Ecosystem fallback tree, Gemini Vision API, Google Maps, CoinGecko Crypto, MyMemory Translations, and Pollinations AI Art.</span>
+                                <span style="color:#aaa;">Added the Gemini Ecosystem fallback tree, Gemini Vision API, OpenStreetMap GIS maps, CoinGecko Crypto, MyMemory Translations, and Pollinations AI Art.</span>
                             </div>
                             <div>
                                 <strong style="color:#fff;">v2.0</strong><br>
@@ -629,7 +629,7 @@
                             <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant shortcuts (<code>/terminal</code>, <code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>, <code>/note</code>).</li>
                             <li><strong>Live Music Streaming & Spotify Hub:</strong> Type <code>play [song]</code> or <code>stream song [song]</code> (e.g. <code>play Blinding Lights</code>) to load 30s preview audio with Spotify and YouTube Music streaming links.</li>
                             <li><strong>NASA Mars Rover Telemetry:</strong> Type <code>mars</code>, <code>rover</code>, <code>curiosity</code>, or <code>perseverance</code> to fetch live Mars surface photos, Martian Sol dates, and landing telemetry.</li>
-                            <li><strong>YouTube Video Hub & Player:</strong> Type <code>yt [query]</code> or <code>youtube [query]</code> (e.g. <code>yt Veritasium</code>, <code>yt Kurzgesagt</code>) to load an inline video player card.</li>
+                            <li><strong>YouTube Video Hub & Player:</strong> Type <code>yt [query]</code> or <code>youtube [query]</code> (e.g. <code>yt Veritasium</code>, <code>yt Kurzgesagt</code>) to load an inline video player card and channel search routing.</li>
                             <li><strong>In-Card Countdown Timer & Stopwatch:</strong> Type <code>timer [duration]</code> (e.g. <code>timer 5m</code>, <code>timer 1m30s</code>, <code>timer 45s</code>) or <code>stopwatch</code> for interactive controls with audio alerts.</li>
                             <li><strong>GitHub Repository Inspector:</strong> Type <code>repo [owner/repo]</code> or <code>github [owner/repo]</code> (e.g. <code>repo facebook/react</code>, <code>repo vercel/next.js</code>) to view stars, forks, issues, and license details.</li>
                             <li><strong>Movies, Tickets & Streaming:</strong> Type <code>movie [title]</code>, <code>tickets [title]</code>, or <code>stream [title]</code> for IMDb ratings, plot summaries, Fandango tickets, and streaming platforms.</li>
@@ -641,7 +641,7 @@
                             <li><strong>College & University Directory (Hipo):</strong> Type <code>college [name]</code> or <code>university [name]</code> (e.g., <code>university Harvard</code>, <code>college MIT</code>) for official `.edu` portals and campus locations.</li>
                             <li><strong>Live Forex Converter (Frankfurter):</strong> Type <code>convert [amount] [from] to [to]</code> (e.g. <code>convert 100 USD to EUR</code>, <code>50 GBP to JPY</code>) for live currency conversions.</li>
                             <li><strong>Dynamic QR Code Generator:</strong> Type <code>qr [text or url]</code> (e.g. <code>qr https://vaii-two.vercel.app</code>) to generate an instant scannable QR card with direct PNG download.</li>
-                            <li><strong>ISS Telemetry (Where the ISS at):</strong> Type <code>iss</code> or <code>orbit</code> for real-time orbital velocity (km/h), altitude, latitude, and longitude coordinates.</li>
+                            <li><strong>ISS Telemetry (Where the ISS at):</strong> Type <code>iss</code> or <code>orbit</code> for real-time orbital velocity (km/h), altitude, and live OpenStreetMap coordinates.</li>
                             <li><strong>NASA APOD (Astronomy):</strong> Type <code>space</code> or <code>nasa</code> to fetch NASA's Astronomy Picture of the Day with celestial explanations.</li>
                             <li><strong>Advice & Quotes (Advice Slip):</strong> Type <code>advice</code> for instant random pearls of wisdom.</li>
                             <li><strong>Age Demographics (Agify):</strong> Type <code>age [name]</code> (e.g., <code>age Logan</code>, <code>age Alex</code>) to predict estimated age and sample size metrics.</li>
@@ -658,7 +658,7 @@
                             <li><strong>Books (Open Library):</strong> Type <code>book [title]</code> to pull cover art and authors.</li>
                             <li><strong>Live News (GNews):</strong> Type <code>top news</code> or <code>news about [topic]</code>.</li>
                             <li><strong>App & Site Launcher:</strong> Type <code>open [site]</code> (e.g., <code>open YouTube</code>, <code>open Minecraft</code>).</li>
-                            <li><strong>Location & Weather:</strong> Type <code>weather [location]</code>, <code>time in [city]</code>, or <code>City, State</code>.</li>
+                            <li><strong>Location & Weather:</strong> Type <code>weather [location]</code>, <code>time in [city]</code>, or <code>City, State</code> for conditions and OpenStreetMap radar previews.</li>
                             <li><strong>Math & Conversions:</strong> Enter equations like <code>(12 * 4) / 2</code> or conversions like <code>193 lbs to kg</code>.</li>
                             <li><strong>Language Translation:</strong> Type <code>[phrase] to [language]</code> (e.g., <code>hello to spanish</code>).</li>
                             <li><strong>Crypto & Stocks:</strong> Type <code>BTC</code>, <code>ETH</code>, or <code>price of AAPL</code>.</li>
@@ -793,8 +793,7 @@
         </main>
     </div>
 
-    <!-- MAPS & ENGINE SCRIPTS -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAJKTkU0nd6ZB_zjIcNQCAQQsffHEp4WH8&callback=initVaiiMap&libraries=places" async defer></script>
+    <!-- ENGINE MODULE -->
     <script type="module" src="script.js"></script>
 </body>
 </html>
