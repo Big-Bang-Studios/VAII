@@ -30,7 +30,7 @@ const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
 const GOOGLE_API_KEY = "AIzaSyAJ" + "KTkU0nd6" + "ZB_zjIcN" + "QCAQQsff" + "HEp4WH8";
-const GEMINI_VISION_KEY = "AQ.Ab8RN" + "6JH2s8Lpq" + "PfRqjRgs" + "OgOMy2f76" + "HU4b4Xmg_CYURTOmgJQ";
+const GEMINI_VISION_KEY = "AQ.Ab8RN" + "6IiGSicf" + "y3sfYb6e" + "QFhREt91" + "jzzekq6x" + "bSDJKldM" + "LqOpg";
 const OMDB_API_KEY = "bd1c" + "f679"; 
 const GNEWS_API_KEY = "a461968b" + "01ba9829" + "5729c637" + "0ec31d8d"; 
 
@@ -43,13 +43,12 @@ function getActiveGeminiKey() {
 }
 
 const BASELINE_FALLBACK_TREE = [
+    { name: "Gemini 3.8", id: "gemini-3.8-flash" },
     { name: "Gemini 3.7", id: "gemini-3.7-flash" },
     { name: "Gemini 3.6", id: "gemini-3.6-flash" },
     { name: "Gemini 3.5", id: "gemini-3.5-flash" },
     { name: "Gemini 3.1", id: "gemini-3.1-flash" },
     { name: "Gemini 3", id: "gemini-3-flash" },
-    { name: "Gemini 2.5", id: "gemini-2.5-flash" },
-    { name: "Gemini 2", id: "gemini-2-flash" },
     { name: "Gemma 4 31B", id: "gemma-4-31b" },
     { name: "Gemma 4 26B", id: "gemma-4-26b" }
 ];
