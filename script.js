@@ -1233,80 +1233,94 @@ function executeLocalFoodSearch(queryText) {
         handleVaiiDataOutput(`Here are your options for ${brandName}.`, htmlOutput);
     };
 
+    let resolved = false;
+    const safeFallback = () => {
+        if (!resolved) {
+            resolved = true;
+            renderFallbackCard(searchBrandName, searchItemName, explicitLocation);
+        }
+    };
+
+    // Safety timeout: if Places API or Geolocation hangs, display fallback within 2.5s
+    const fallbackTimer = setTimeout(safeFallback, 2500);
+
     const processPlacesSearch = (lat, lon) => {
-        if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
-            return renderFallbackCard(searchBrandName, searchItemName, explicitLocation);
+        if (typeof google === "undefined" || !google.maps || !google.maps.places) {
+            clearTimeout(fallbackTimer);
+            return safeFallback();
         }
 
-        const request = { query: placesSearchQuery };
-        if (lat && lon) {
-            request.location = new google.maps.LatLng(lat, lon);
-            request.radius = '16000';
-        }
-
-        const service = new google.maps.places.PlacesService(document.createElement('div'));
-        
-        service.textSearch(request, (results, status) => {
-            if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
-                results.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-                const bestPlace = results[0];
-                
-                const placeName = bestPlace.name;
-                const rating = bestPlace.rating || "N/A";
-                const address = bestPlace.formatted_address || "";
-                
-                const cleanAddressSearch = (placeName + " " + address).replace(/[^a-zA-Z0-9 ,]/g, '');
-                const encQuery = encodeURIComponent(cleanAddressSearch);
-                
-                const googleOrderLink = `https://www.google.com/search?q=Order+delivery+from+${encQuery}`;
-                const doorDashLink = `https://www.doordash.com/search/store/${encQuery}/`;
-                const openTableLink = `https://www.opentable.com/s?term=${encodeURIComponent(placeName + " " + (explicitLocation || address))}`;
-                const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeName + " " + address)}`;
-
-                let suggestionHTML = dbMatch ? `<div style="color: #ccc; font-size: 0.95rem; margin-bottom: 4px;">💡 Suggested: <strong>${searchItemName}</strong></div>` : "";
-
-                const htmlOutput = `
-                    <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff9800; text-align: left; margin-bottom: 15px;">
-                        <div style="font-size: 0.8rem; color: #ff9800; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🍽️ GPS Verified Dining</div>
-                        <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 6px;">${placeName}</div>
-                        ${suggestionHTML}
-                        <div style="color: #ccc; font-size: 0.95rem; margin-bottom: 4px;">⭐ Rating: ${rating} / 5.0</div>
-                        <a href="${mapLink}" target="_blank" style="color: #ff9800; text-decoration: none; font-size: 0.85rem; display: block; margin-bottom: 14px;">📍 ${address} ↗</a>
-                        
-                        <div style="font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">Delivery & Table Reservation Dispatch</div>
-                        <div style="display: flex; flex-direction: column; gap: 8px;">
-                            <a href="${openTableLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #da3743; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                                <span>🍽️ Reserve Table on OpenTable</span><span>➔</span>
-                            </a>
-                            <a href="${doorDashLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #FF3008; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                                <span>🚗 Order Delivery on DoorDash</span><span>➔</span>
-                            </a>
-                            <a href="${googleOrderLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #4285F4; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
-                                <span>🌐 Google Local Order</span><span>➔</span>
-                            </a>
-                        </div>
-                    </div>
-                `;
-                handleVaiiDataOutput(`I found ${placeName}. Rating is ${rating} stars.`, htmlOutput);
-            } else {
-                return renderFallbackCard(searchBrandName, searchItemName, explicitLocation);
+        try {
+            const request = { query: placesSearchQuery };
+            if (lat && lon) {
+                request.location = new google.maps.LatLng(lat, lon);
+                request.radius = 16000;
             }
-        });
+
+            const service = new google.maps.places.PlacesService(document.createElement("div"));
+            service.textSearch(request, (results, status) => {
+                clearTimeout(fallbackTimer);
+                if (resolved) return;
+
+                if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+                    resolved = true;
+                    results.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+                    const bestPlace = results[0];
+                    const placeName = bestPlace.name;
+                    const rating = bestPlace.rating || "N/A";
+                    const address = bestPlace.formatted_address || "";
+                    const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeName + " " + address)}`;
+                    const encBrand = encodeURIComponent(placeName);
+                    const openTableLink = `https://www.opentable.com/s?term=${encBrand}`;
+                    const doorDashLink = `https://www.doordash.com/search/store/${encBrand}/`;
+                    const googleOrderLink = `https://www.google.com/search?q=Order+delivery+from+${encBrand}`;
+                    const suggestionHTML = searchItemName ? `<div style="color: #bbb; font-size: 0.9rem; margin-bottom: 8px;">Suggested item: <strong style="color: #fff;">${searchItemName}</strong></div>` : "";
+
+                    const htmlOutput = `
+                        <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #ff9800; text-align: left; margin-bottom: 15px;">
+                            <div style="font-size: 0.8rem; color: #ff9800; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">📍 GPS Verified Dining</div>
+                            <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 6px;">${placeName}</div>
+                            ${suggestionHTML}
+                            <div style="color: #ccc; font-size: 0.95rem; margin-bottom: 4px;">★ Rating: ${rating} / 5.0</div>
+                            <a href="${mapLink}" target="_blank" style="color: #ff9800; text-decoration: none; font-size: 0.85rem; display: block; margin-bottom: 14px;">📍 ${address}</a>
+                            <div style="font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">Delivery & Table Reservation Dispatch</div>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <a href="${openTableLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #da3743; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
+                                    <span>🍽️ Reserve Table on OpenTable</span><span>→</span>
+                                </a>
+                                <a href="${doorDashLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #FF3008; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
+                                    <span>🚗 Order Delivery on DoorDash</span><span>→</span>
+                                </a>
+                                <a href="${googleOrderLink}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #4285F4; border-radius: 6px; padding: 10px 14px; color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9rem;">
+                                    <span>🌐 Google Local Order</span><span>→</span>
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                    handleVaiiDataOutput(`I found ${placeName}. Rating is ${rating} stars.`, htmlOutput);
+                } else {
+                    safeFallback();
+                }
+            });
+        } catch (e) {
+            clearTimeout(fallbackTimer);
+            safeFallback();
+        }
     };
 
     if (explicitLocation) {
         processPlacesSearch(null, null);
     } else if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-            (position) => { processPlacesSearch(position.coords.latitude, position.coords.longitude); },
-            () => { processPlacesSearch(null, null); }
+            pos => processPlacesSearch(pos.coords.latitude, pos.coords.longitude),
+            () => processPlacesSearch(null, null),
+            { timeout: 2000, enableHighAccuracy: false }
         );
     } else {
         processPlacesSearch(null, null);
     }
 }
 
-// ==========================================
 // 6. UTILITIES (FOREX, QR, ISS, DUCK, COLLEGE, POSTAL, ETC.)
 // ==========================================
 const CURRENCY_SYMBOL_MAP = {
@@ -1845,25 +1859,31 @@ function fetchDrinkRecipe(drinkName) {
 
 function fetchClientIPLookup() {
     output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Querying network parameters...</div>`;
-    fetch('https://ipapi.co/json/')
+    fetch("https://ipwho.is/")
         .then(res => res.json())
         .then(data => {
-            if (data.error) throw new Error("IP API failed");
+            if (data.success === false) throw new Error(data.message || "IP lookup failed");
             const html = `
                 <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #673ab7; text-align: left;">
                     <div style="font-size: 0.75rem; color: #673ab7; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">🌐 Public IP Telemetry</div>
                     <div style="font-size: 1.3rem; font-weight: bold; color: #fff; margin-bottom: 8px;">${data.ip}</div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.85rem; color: #ccc; border-top: 1px solid #2a2a2a; padding-top: 10px;">
-                        <div><strong>🏢 ISP:</strong> ${data.org || data.asn || 'N/A'}</div>
-                        <div><strong>📍 Location:</strong> ${data.city}, ${data.region}</div>
-                        <div><strong>🏳️ Country:</strong> ${data.country_name} (${data.country_code})</div>
-                        <div><strong>📮 Postal:</strong> ${data.postal || 'N/A'}</div>
+                        <div><strong>📡 ISP:</strong> ${data.connection?.isp || data.connection?.org || "N/A"}</div>
+                        <div><strong>📍 Location:</strong> ${data.city || "N/A"}, ${data.region || "N/A"}</div>
+                        <div><strong>🏳️ Country:</strong> ${data.country || "N/A"} (${data.country_code || "N/A"})</div>
+                        <div><strong>📮 Postal:</strong> ${data.postal || "N/A"}</div>
                     </div>
                 </div>
             `;
-            handleVaiiDataOutput(`Your public IP address is ${data.ip}, located in ${data.city}, ${data.region}.`, html);
+            handleVaiiDataOutput(`Your public IP is ${data.ip} (${data.city || "Unknown"}, ${data.country || "Unknown"}).`, html);
         })
-        .catch(() => handleVaiiDataOutput("Could not retrieve IP parameters.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not retrieve IP parameters.</div>`));
+        .catch(err => {
+            handleVaiiDataOutput("Network IP resolution failed.", `
+                <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">
+                    IP address query failed. Please verify network connectivity.
+                </div>
+            `);
+        });
 }
 
 function fetchSongTrack(songQuery) {
