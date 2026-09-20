@@ -2309,6 +2309,99 @@ function launchTargetUrl(url) {
     window.open(url, '_blank');
 }
 
+
+// ==========================================
+// GEMINI DIRECT CHAT ENGINE
+// ==========================================
+async function executeGeminiDirectChat(promptText) {
+    if (!promptText || !promptText.trim()) return;
+
+    chatHistory.push({
+        role: "user",
+        parts: [{ text: promptText }]
+    });
+
+    renderFullChatLogBubble();
+
+    const loadingDiv = document.createElement("div");
+    loadingDiv.className = "generation-status";
+    loadingDiv.innerHTML = `<div class="loader-spinner"></div> Connecting to Gemini Ecosystem...`;
+    if (output) {
+        output.appendChild(loadingDiv);
+        output.scrollTop = output.scrollHeight;
+    }
+
+    const apiKey = getActiveGeminiKey();
+    const customInstructions = localStorage.getItem("vaii_gemini_instructions") || "";
+
+    let responseText = null;
+    let successfulModel = null;
+
+    for (const model of BASELINE_FALLBACK_TREE) {
+        try {
+            const bodyPayload = {
+                contents: chatHistory.map(msg => ({
+                    role: msg.role === "user" ? "user" : "model",
+                    parts: msg.parts
+                }))
+            };
+
+            if (customInstructions.trim()) {
+                bodyPayload.systemInstruction = {
+                    parts: [{ text: customInstructions.trim() }]
+                };
+            }
+
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent?key=${apiKey}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(bodyPayload)
+                }
+            );
+
+            const data = await response.json();
+
+            if (data.error) {
+                console.warn(`Model ${model.id} rejected request:`, data.error.message);
+                continue;
+            }
+
+            if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+                responseText = data.candidates[0].content.parts[0].text;
+                successfulModel = model.name;
+                break;
+            }
+        } catch (err) {
+            console.warn(`Network failure on model ${model.id}:`, err);
+            continue;
+        }
+    }
+
+    loadingDiv.remove();
+
+    if (responseText) {
+        chatHistory.push({
+            role: "model",
+            parts: [{ text: responseText }],
+            activeModelName: successfulModel
+        });
+        renderFullChatLogBubble();
+        saveCurrentSessionState();
+    } else {
+        if (output) {
+            output.innerHTML += `
+                <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; margin-top: 10px; text-align: left;">
+                    <div style="font-weight: bold; color: #ff4d4d;">⚠️ Generation Failure</div>
+                    <div style="color: #ddd; font-size: 0.9rem; margin-top: 4px;">All fallback models failed to respond. Verify that a valid Gemini API key is configured.</div>
+                </div>
+            `;
+            output.scrollTop = output.scrollHeight;
+        }
+    }
+}
+
 // ==========================================
 // 8. MASTER ROUTING PIPELINE (VAII NATIVE)
 // ==========================================
