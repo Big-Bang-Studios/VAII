@@ -2185,52 +2185,88 @@ function fetchDadJoke() {
     .catch(() => handleVaiiDataOutput("Joke lookup failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Joke service error.</div>`));
 }
 
-function executeVisionAnalysis(promptText) {
-    output.innerHTML = `
-        <div class="generation-status">
-            <div class="loader-spinner"></div>
-            <span style="color: #eee; font-size: 0.9rem;">VAII vision engine is processing image parameters...</span>
-        </div>
-    `;
+async function executeVisionAnalysis(promptText) {
+    if (!activeImageBase64) return;
 
-    const payload = {
-        contents: [{
-            parts: [
-                { text: promptText },
-                { inlineData: { mimeType: activeImageMimeType || "image/jpeg", data: activeImageBase64 } }
-            ]
-        }]
-    };
+    const apiKey = getActiveGeminiKey();
+    if (output) {
+        output.innerHTML = `
+            <div class="generation-status">
+                <div class="loader-spinner"></div>
+                <span style="color: #eee; font-size: 0.9rem;">VAII vision engine is processing image parameters...</span>
+            </div>
+        `;
+    }
 
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${getActiveGeminiKey()}`, {
-        method: "POST", 
-        headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify(payload)
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) {
-            output.innerHTML = `
-                <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">
-                    <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ Google API Error</div>
-                    <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">${data.error.message}</div>
-                </div>
-            `;
-            return;
+    let descriptionResult = null;
+    let successfulModel = null;
+
+    // Use Gemini models from baseline fallback tree
+    const visionModels = BASELINE_FALLBACK_TREE.filter(m => m.id.startsWith("gemini"));
+
+    for (const model of visionModels) {
+        try {
+            const bodyPayload = {
+                contents: [{
+                    parts: [
+                        { text: promptText },
+                        {
+                            inline_data: {
+                                mime_type: activeImageMimeType || "image/jpeg",
+                                data: activeImageBase64
+                            }
+                        }
+                    ]
+                }]
+            };
+
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent?key=${apiKey}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(bodyPayload)
+                }
+            );
+
+            const data = await response.json();
+
+            if (data.error) {
+                console.warn(`Vision model ${model.id} rejected:`, data.error.message);
+                continue;
+            }
+
+            if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+                descriptionResult = data.candidates[0].content.parts[0].text;
+                successfulModel = model.name;
+                break;
+            }
+        } catch (err) {
+            console.warn(`Vision network issue on ${model.id}:`, err);
+            continue;
         }
-        const descriptionResult = data.candidates[0].content.parts[0].text;
+    }
+
+    if (descriptionResult) {
         const finalHtml = `
             <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left;">
-                <div style="font-size: 0.75rem; color: #888; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; letter-spacing: 0.5px;">👁️ Image Analysis Output</div>
+                <div style="font-size: 0.75rem; color: #888; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; letter-spacing: 0.5px;">Image Analysis Output (${successfulModel})</div>
                 <div style="color: #eee; font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">${descriptionResult}</div>
             </div>
         `;
         handleVaiiDataOutput(descriptionResult, finalHtml);
-        clearActiveImage();
-    }).catch(err => {
-        handleVaiiDataOutput("Network intercept error connecting to Google vision matrices.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Network intercept error connecting to Google vision matrices.</div>`);
-        console.error(err);
-    });
+        if (typeof clearActiveImage === "function") {
+            clearActiveImage();
+        }
+    } else {
+        const errorHtml = `
+            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">
+                <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ Google API Error</div>
+                <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">All fallback vision models are currently experiencing high demand or rate limits. Please try again in a moment.</div>
+            </div>
+        `;
+        handleVaiiDataOutput("All vision models are currently unavailable.", errorHtml);
+    }
 }
 
 function runMarketExecution(ticker) {
