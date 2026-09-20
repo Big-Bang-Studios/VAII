@@ -657,30 +657,14 @@ function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML =
             handleVaiiDataOutput(spokenSummary, cardHTML, () => {
                 const mapCanvas = document.getElementById('vaii-location-map-canvas');
                 if (!mapCanvas) return;
-
-                const pos = { lat: parseFloat(lat), lng: parseFloat(lon) };
-
-                if (typeof google !== 'undefined' && google.maps && google.maps.Map) {
-                    const locMap = new google.maps.Map(mapCanvas, {
-                        center: pos,
-                        zoom: 12,
-                        disableDefaultUI: false,
-                        styles: [
-                            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] }
-                        ]
-                    });
-                    new google.maps.Marker({
-                        position: pos,
-                        map: locMap,
-                        title: placeName
-                    });
-                } else {
-                    mapCanvas.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0;" src="https://www.google.com/maps/embed/v1/place?key=${GOOGLE_API_KEY}&q=${lat},${lon}&zoom=12" allowfullscreen></iframe>`;
-                }
-            });
-        })
+            const parsedLat = parseFloat(lat);
+            const parsedLon = parseFloat(lon);
+            const delta = 0.04;
+            const bbox = `${parsedLon - delta}%2C${parsedLat - (delta * 0.6)}%2C${parsedLon + delta}%2C${parsedLat + (delta * 0.6)}`;
+            const osmSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${parsedLat}%2C${parsedLon}`;
+            mapCanvas.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0; border-radius: 8px;" src="${osmSrc}"></iframe>`;
+        });
+    })
         .catch(err => {
             console.error("Telemetry fetch failed:", err);
             handleVaiiDataOutput("Telemetry retrieval failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not load telemetry feed for ${placeName}.</div>`);
@@ -1455,21 +1439,20 @@ function fetchISSTelemetry() {
             `;
 
             handleVaiiDataOutput(`The International Space Station is at latitude ${lat}, longitude ${lon}, traveling at ${velocity} kilometers per hour.`, html, () => {
-                if (typeof google !== 'undefined' && google.maps) {
-                    const issPos = { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) };
-                    const issMap = new google.maps.Map(document.getElementById('vaii-iss-map-canvas'), {
-                        center: issPos, 
-                        zoom: 3, 
-                        disableDefaultUI: false,
-                        styles: [
-                            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-                            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] }
-                        ]
-                    });
-                    new google.maps.Marker({ position: issPos, map: issMap, title: "ISS Current Position" });
-                }
-            });
+            const issCanvas = document.getElementById('vaii-iss-map-canvas');
+            if (issCanvas) {
+                const parsedLat = parseFloat(data.latitude);
+                const parsedLon = parseFloat(data.longitude);
+                const delta = 20.0;
+                const minLon = Math.max(-180, parsedLon - delta);
+                const maxLon = Math.min(180, parsedLon + delta);
+                const minLat = Math.max(-85, parsedLat - (delta * 0.5));
+                const maxLat = Math.min(85, parsedLat + (delta * 0.5));
+                const bbox = `${minLon}%2C${minLat}%2C${maxLon}%2C${maxLat}`;
+                const osmSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${parsedLat}%2C${parsedLon}`;
+                issCanvas.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0; border-radius: 8px;" src="${osmSrc}"></iframe>`;
+            }
+        });
         })
         .catch(() => handleVaiiDataOutput("ISS Telemetry unreachable.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not establish link with ISS telemetry feed.</div>`));
 }
@@ -2848,50 +2831,44 @@ function runInfoExecution(query) {
 }
 
 function runUnifiedWikiPipeline(query, wikiData) {
-    const youtubeFetch = GOOGLE_API_KEY
-        ? fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`)
-            .then(res => res.json())
-            .then(searchData => {
-                if (searchData.items?.length > 0) {
-                    const channelId = searchData.items[0].id.channelId;
-                    return Promise.all([
-                        fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${channelId}&key=${GOOGLE_API_KEY}`).then(r => r.json()),
-                        fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&type=video&order=date&maxResults=1&key=${GOOGLE_API_KEY}`).then(r => r.json())
-                    ]).then(([channelData, videoData]) => {
-                        if (channelData.items?.length > 0) {
-                            const item = channelData.items[0];
-                            const latestVid = videoData.items?.[0];
-                            wikiData.youtube = { 
-                                title: item.snippet.title, 
-                                text: item.snippet.description, 
-                                subs: parseInt(item.statistics.subscriberCount, 10).toLocaleString(), 
-                                views: parseInt(item.statistics.viewCount, 10).toLocaleString(), 
-                                customUrl: item.snippet.customUrl || "",
-                                videoId: latestVid?.id?.videoId || null,
-                                videoTitle: latestVid?.snippet?.title || null
-                            };
-                        }
-                    });
-                } else {
-                    return fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`)
-                        .then(r => r.json())
-                        .then(vidData => {
-                            if (vidData.items?.length > 0) {
-                                const v = vidData.items[0];
-                                wikiData.youtube = {
-                                    title: v.snippet.channelTitle,
-                                    text: v.snippet.description,
-                                    subs: null,
-                                    views: null,
-                                    customUrl: "",
-                                    videoId: v.id.videoId,
-                                    videoTitle: v.snippet.title
-                                };
-                            }
-                        });
-                }
-            }).catch(() => null)
-        : Promise.resolve();
+    const youtubeFetch = (GOOGLE_API_KEY ? fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`)
+        .then(res => res.json())
+        .then(searchData => {
+            if (searchData.items && searchData.items.length > 0) {
+                const channelId = searchData.items[0].id.channelId;
+                return Promise.all([
+                    fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${channelId}&key=${GOOGLE_API_KEY}`).then(r => r.json()),
+                    fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&type=video&order=date&maxResults=1&key=${GOOGLE_API_KEY}`).then(r => r.json())
+                ]).then(([channelData, videoData]) => {
+                    if (channelData.items && channelData.items.length > 0) {
+                        const item = channelData.items[0];
+                        const latestVid = videoData.items ? videoData.items[0] : null;
+                        wikiData.youtube = {
+                            title: item.snippet.title,
+                            text: item.snippet.description,
+                            subs: parseInt(item.statistics.subscriberCount, 10).toLocaleString(),
+                            views: parseInt(item.statistics.viewCount, 10).toLocaleString(),
+                            customUrl: item.snippet.customUrl || "",
+                            videoId: latestVid ? latestVid.id.videoId : null,
+                            videoTitle: latestVid ? latestVid.snippet.title : null
+                        };
+                    }
+                });
+            }
+        }).catch(() => null) : Promise.resolve())
+        .then(() => {
+            if (!wikiData.youtube) {
+                wikiData.youtube = {
+                    title: query,
+                    text: `Explore videos, streams, and content for ${query} on YouTube.`,
+                    subs: null,
+                    views: null,
+                    customUrl: `results?search_query=${encodeURIComponent(query)}`,
+                    videoId: null,
+                    videoTitle: null
+                };
+            }
+        });
 
     const wikipediaFetch = fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json&origin=*`)
         .then(res => res.json())
