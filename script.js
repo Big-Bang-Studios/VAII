@@ -2831,31 +2831,24 @@ function runInfoExecution(query) {
 }
 
 function runUnifiedWikiPipeline(query, wikiData) {
-    const youtubeFetch = (GOOGLE_API_KEY ? fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`)
+    const youtubeFetch = fetch(`/api/proxy?q=${encodeURIComponent(query)}`)
         .then(res => res.json())
-        .then(searchData => {
-            if (searchData.items && searchData.items.length > 0) {
-                const channelId = searchData.items[0].id.channelId;
-                return Promise.all([
-                    fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${channelId}&key=${GOOGLE_API_KEY}`).then(r => r.json()),
-                    fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&type=video&order=date&maxResults=1&key=${GOOGLE_API_KEY}`).then(r => r.json())
-                ]).then(([channelData, videoData]) => {
-                    if (channelData.items && channelData.items.length > 0) {
-                        const item = channelData.items[0];
-                        const latestVid = videoData.items ? videoData.items[0] : null;
-                        wikiData.youtube = {
-                            title: item.snippet.title,
-                            text: item.snippet.description,
-                            subs: parseInt(item.statistics.subscriberCount, 10).toLocaleString(),
-                            views: parseInt(item.statistics.viewCount, 10).toLocaleString(),
-                            customUrl: item.snippet.customUrl || "",
-                            videoId: latestVid ? latestVid.id.videoId : null,
-                            videoTitle: latestVid ? latestVid.snippet.title : null
-                        };
-                    }
-                });
+        .then(data => {
+            if (data.videos && data.videos.length > 0) {
+                const primary = data.videos[0];
+                wikiData.youtube = {
+                    title: primary.channelTitle || primary.title,
+                    text: primary.description || `YouTube results for "${query}"`,
+                    subs: null,
+                    views: null,
+                    customUrl: `results?search_query=${encodeURIComponent(query)}`,
+                    videoId: primary.videoId,
+                    videoTitle: primary.title
+                };
+                wikiData.youtubeVideos = data.videos;
             }
-        }).catch(() => null) : Promise.resolve())
+        })
+        .catch(() => null)
         .then(() => {
             if (!wikiData.youtube) {
                 wikiData.youtube = {
@@ -2867,6 +2860,7 @@ function runUnifiedWikiPipeline(query, wikiData) {
                     videoId: null,
                     videoTitle: null
                 };
+                wikiData.youtubeVideos = [];
             }
         });
 
@@ -2916,29 +2910,38 @@ function compileFinalSourceIndexBox(query, wikiData) {
         blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #28a745; text-align: left;"><strong>${wikiData.wiktionary.title}</strong> (${wikiData.wiktionary.pos}): ${wikiData.wiktionary.text}</div>`);
     }
     if (wikiData.youtube && wikiData.youtube.title) {
-        let statsLabel = (wikiData.youtube.subs && wikiData.youtube.views) 
-            ? `<span style="font-size: 0.85rem; color: #aaa;">🔴 Subs: ${wikiData.youtube.subs} | Views: ${wikiData.youtube.views}</span><br><br>`
-            : '';
+            let videosListHtml = "";
+            if (wikiData.youtubeVideos && wikiData.youtubeVideos.length > 0) {
+                videosListHtml = `<div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">` +
+                    wikiData.youtubeVideos.map((vid, idx) => `
+                        <a href="${vid.link}" target="_blank" style="display: flex; gap: 10px; align-items: center; background: #222; padding: 8px; border-radius: 6px; text-decoration: none; border: 1px solid #333; color: #fff; transition: background 0.15s;">
+                            <img src="${vid.thumbnail}" alt="thumbnail" style="width: 72px; height: 48px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
+                            <div style="overflow: hidden; text-align: left;">
+                                <div style="font-size: 0.82rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff;">${vid.title}</div>
+                                <div style="font-size: 0.72rem; color: #aaa; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.25; margin-top: 2px;">${vid.description}</div>
+                            </div>
+                        </a>
+                    `).join("") + `</div>`;
+            } else if (wikiData.youtube.videoId) {
+                videosListHtml = `
+                    <div style="margin-top: 12px; margin-bottom: 8px;">
+                        <div style="font-size: 0.78rem; color: #ff4444; font-weight: bold; margin-bottom: 4px;">▶ Top Result: ${wikiData.youtube.videoTitle || ""}</div>
+                        <div style="position: relative; width: 100%; padding-bottom: 56.25%; height: 0; border-radius: 8px; overflow: hidden; border: 1px solid #333;">
+                            <iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" src="https://www.youtube-nocookie.com/embed/${wikiData.youtube.videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                        </div>
+                    </div>`;
+            }
 
-        let videoEmbedHtml = wikiData.youtube.videoId ? `
-            <div style="margin-top: 12px; margin-bottom: 8px;">
-                <div style="font-size: 0.78rem; color: #ff4444; font-weight: bold; margin-bottom: 4px;">▶️ Latest Video: ${wikiData.youtube.videoTitle || ''}</div>
-                <div style="position: relative; width: 100%; padding-bottom: 56.25%; height: 0; border-radius: 8px; overflow: hidden; border: 1px solid #333;">
-                    <iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" src="https://www.youtube-nocookie.com/embed/${wikiData.youtube.videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            blocksHtml.push(`
+                <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
+                    <strong>📺 ${wikiData.youtube.title}</strong><br>
+                    <em style="color: #bbb; font-size: 0.85rem;">${wikiData.youtube.text}</em>
+                    ${videosListHtml}
                 </div>
-            </div>
-        ` : '';
+            `);
+        }
 
-        blocksHtml.push(`
-            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
-                <strong>📺 ${wikiData.youtube.title}</strong><br>
-                ${statsLabel}
-                <em>${wikiData.youtube.text}</em>
-                ${videoEmbedHtml}
-            </div>
-        `);
-    }
-    if (wikiData.wikipedia && wikiData.wikipedia.text) {
+        if (wikiData.wikipedia && wikiData.wikipedia.text) {
         blocksHtml.push(`<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #007bff; text-align: left;"><strong>${wikiData.wikipedia.title}:</strong> ${wikiData.wikipedia.text}</div>`);
     }
 
