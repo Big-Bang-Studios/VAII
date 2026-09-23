@@ -2912,11 +2912,11 @@ function compileFinalSourceIndexBox(query, wikiData) {
     if (wikiData.youtube && wikiData.youtube.title) {
             let videosListHtml = "";
             if (wikiData.youtubeVideos && wikiData.youtubeVideos.length > 0) {
-                videosListHtml = `<div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">` +
-                    wikiData.youtubeVideos.map((vid, idx) => `
+                videosListHtml = `<div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; padding-right: 4px;">` +
+                    wikiData.youtubeVideos.map(vid => `
                         <a href="${vid.link}" target="_blank" style="display: flex; gap: 10px; align-items: center; background: #222; padding: 8px; border-radius: 6px; text-decoration: none; border: 1px solid #333; color: #fff; transition: background 0.15s;">
                             <img src="${vid.thumbnail}" alt="thumbnail" style="width: 72px; height: 48px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
-                            <div style="overflow: hidden; text-align: left;">
+                            <div style="overflow: hidden; text-align: left; flex: 1;">
                                 <div style="font-size: 0.82rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff;">${vid.title}</div>
                                 <div style="font-size: 0.72rem; color: #aaa; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.25; margin-top: 2px;">${vid.description}</div>
                             </div>
