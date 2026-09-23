@@ -29,7 +29,7 @@ let heredocTargetFile = null;
 let heredocAppend = false;
 
 let pythonReplMode = false;
-let pythonBuffer = [];
+let pythonScope = {};
 
 let nanoMode = false;
 let nanoTargetFile = null;
@@ -44,7 +44,7 @@ export function getDefaultVFS() {
         "/home/guest/welcome.sh": { type: "file", content: "echo 'VAII Matrix Engine Online!'", mtime: SYSTEM_INIT_TIME },
         "/bin": { type: "dir", children: ["sh", "echo", "ls", "cat", "pwd", "apt", "pkg"], mtime: SYSTEM_INIT_TIME },
         "/usr": { type: "dir", children: ["bin"], mtime: SYSTEM_INIT_TIME },
-        "/usr/bin": { type: "dir", children: [], mtime: SYSTEM_INIT_TIME },
+        "/usr/bin": { type: "dir", children: ["python3", "python"], mtime: SYSTEM_INIT_TIME },
         "/etc": { type: "dir", children: ["os-release", "hosts"], mtime: SYSTEM_INIT_TIME },
         "/etc/os-release": { type: "file", content: "NAME=\"VAII Linux-Subsystem\"\nVERSION=\"3.0.0 LTS\"\nID=vaii\nPRETTY_NAME=\"VAII Unix Sandbox 3.0\"", mtime: SYSTEM_INIT_TIME },
         "/etc/hosts": { type: "file", content: "127.0.0.1 localhost\n::1 localhost ip6-localhost", mtime: SYSTEM_INIT_TIME },
@@ -76,9 +76,9 @@ export function saveVFS(vfs) {
 
 export function getInstalledPackages() {
     try {
-        return JSON.parse(localStorage.getItem(PKG_STORAGE_KEY)) || ["coreutils", "apt", "bash"];
+        return JSON.parse(localStorage.getItem(PKG_STORAGE_KEY)) || ["coreutils", "apt", "bash", "python3", "python"];
     } catch (e) {
-        return ["coreutils", "apt", "bash"];
+        return ["coreutils", "apt", "bash", "python3", "python"];
     }
 }
 
@@ -180,17 +180,83 @@ export function parseCommandPipeline(input) {
 }
 
 export function executePythonCode(codeStr, logs) {
+    if (!codeStr || !codeStr.trim()) return;
+
     try {
-        let clean = codeStr.trim();
-        if (clean.startsWith("print(") && clean.endsWith(")")) {
-            let inner = clean.slice(6, -1);
-            let evaluated = window.eval(inner);
-            logs.innerHTML += `${evaluated}\n`;
-        } else if (clean.includes("=")) {
-            window.eval(`window._py_vars = window._py_vars || {}; var ${clean}`);
-        } else {
-            let res = window.eval(clean);
-            if (res !== undefined) logs.innerHTML += `<span style="color:#3572A5;">${res}</span>\n`;
+        const stdout = [];
+        const pyPrint = (...args) => {
+            stdout.push(args.map(a => typeof a === 'object' && a !== null ? JSON.stringify(a) : String(a)).join(" "));
+        };
+
+        const context = {
+            print: pyPrint,
+            len: (obj) => obj ? (obj.length ?? Object.keys(obj).length) : 0,
+            range: (start, stop, step = 1) => {
+                if (stop === undefined) { stop = start; start = 0; }
+                const arr = [];
+                for (let i = start; step > 0 ? i < stop : i > stop; i += step) arr.push(i);
+                return arr;
+            },
+            str: (v) => String(v),
+            int: (v) => parseInt(v, 10) || 0,
+            float: (v) => parseFloat(v) || 0.0,
+            bool: (v) => Boolean(v),
+            True: true,
+            False: false,
+            None: null,
+            ...pythonScope
+        };
+
+        const lines = codeStr.replace(/\r\n/g, "\n").split("\n");
+        const processedLines = lines.map(line => {
+            const trimmed = line.trim();
+            if (trimmed.startsWith("#")) return "";
+
+            let l = line;
+            l = l.replace(/(['"])(.*?)\1/g, (match) => match);
+            l = l.replace(/\bTrue\b/g, "true");
+            l = l.replace(/\bFalse\b/g, "false");
+            l = l.replace(/\bNone\b/g, "null");
+
+            // Python f-strings f"hello {name}" -> `hello ${name}`
+            l = l.replace(/\bf(["'])(.*?)\1/g, '`$2`');
+
+            // Handle bare single line expression in REPL
+            if (!l.includes("=") && !l.includes("print(") && !l.startsWith("def ") && !l.startsWith("for ") && !l.startsWith("if ") && !l.startsWith("while ")) {
+                if (trimmed.length > 0 && !trimmed.endsWith(";")) {
+                    return `__last_eval = (${l});`;
+                }
+            }
+
+            // Assign variables directly to context scope
+            const assignMatch = l.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
+            if (assignMatch && !l.startsWith("def ")) {
+                return `this.${assignMatch[1]} = ${assignMatch[2]};`;
+            }
+
+            return l;
+        });
+
+        const scriptBody = `
+            let __last_eval = undefined;
+            ${processedLines.join("\n")};
+            return __last_eval;
+        `;
+
+        const runner = new Function("context", `
+            with (context) {
+                ${scriptBody}
+            }
+        `);
+
+        const lastEval = runner.call(pythonScope, context);
+        Object.assign(pythonScope, context);
+
+        if (stdout.length > 0) {
+            logs.innerHTML += stdout.join("\n") + "\n";
+        }
+        if (lastEval !== undefined && stdout.length === 0) {
+            logs.innerHTML += `<span style="color:#3572A5;">${typeof lastEval === 'object' ? JSON.stringify(lastEval) : lastEval}</span>\n`;
         }
     } catch (e) {
         logs.innerHTML += `<span style="color:#f85149;">Traceback (most recent call last):\n  File "&lt;stdin&gt;", line 1, in &lt;module&gt;\n${e.name}: ${e.message}</span>\n`;
@@ -272,7 +338,7 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
         case "help":
             printLog(`Extended Unix Shell Utilities & Package Engine:
   <span style="color:#58a6ff;">apt / pkg install &lt;pkg&gt;</span> Install packages (python3, git, node, neofetch, cowsay, nano, htop)
-  <span style="color:#58a6ff;">python3 [file.py]</span>       Interactive REPL or run script
+  <span style="color:#58a6ff;">python3 [file.py]</span>       Interactive REPL, run file, or python3 -c "code"
   <span style="color:#58a6ff;">git &lt;init/status/add/commit/log/clone&gt;</span> Version control engine
   <span style="color:#58a6ff;">nano &lt;file&gt;</span>             Simple text editor (:wq to save, :q to quit)
   <span style="color:#58a6ff;">ls [-l]</span>                 List directory entries
@@ -315,7 +381,9 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
                         saveInstalledPackages(pkgs);
                     }
 
-                    vfs["/usr/bin"].children.push(targetPkg);
+                    if (!vfs["/usr/bin"].children.includes(targetPkg)) {
+                        vfs["/usr/bin"].children.push(targetPkg);
+                    }
                     vfs[`/usr/bin/${targetPkg}`] = { type: "file", content: `#!/bin/sh\n# ${targetPkg} binary package`, mtime: Date.now() };
                     saveVFS(vfs);
                     return { success: true, output: outputBuffer };
@@ -338,6 +406,19 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
                 printLog(`<span style="color:#f85149;">python3: command not found. Install it with: <span style="color:#58a6ff;">apt install python3</span></span>\n`, true);
                 return { success: false, output: outputBuffer };
             }
+
+            // Handle inline command flag: python3 -c "print('hello')"
+            if (args[0] === "-c") {
+                const cIdx = expandedCmd.indexOf("-c");
+                let codeStr = expandedCmd.slice(cIdx + 2).trim();
+                if ((codeStr.startsWith("'") && codeStr.endsWith("'")) || (codeStr.startsWith('"') && codeStr.endsWith('"'))) {
+                    codeStr = codeStr.slice(1, -1);
+                }
+                executePythonCode(codeStr, logs);
+                return { success: true, output: outputBuffer };
+            }
+
+            // Handle executing a python file: python3 script.py
             if (args[0]) {
                 const pyFile = resolvePath(args[0]);
                 if (vfs[pyFile] && vfs[pyFile].type === "file") {
@@ -743,6 +824,7 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
             localStorage.removeItem(VFS_STORAGE_KEY);
             localStorage.removeItem(PKG_STORAGE_KEY);
             termCurrentPath = "/home/guest";
+            pythonScope = {};
             printLog(`Virtual filesystem and package registries reset to factory defaults.\n`);
             return { success: true, output: "" };
 
