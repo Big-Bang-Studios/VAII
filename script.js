@@ -2969,7 +2969,7 @@ function compileFinalSourceIndexBox(query, wikiData) {
     }
     if (wikiData.youtube && wikiData.youtube.title) {
         const channelPath = wikiData.youtube.customUrl ? wikiData.youtube.customUrl : (wikiData.youtube.videoId ? `watch?v=${wikiData.youtube.videoId}` : `@channel`);
-        const ytActionLabel = wikiData.youtube.customUrl ? 'View Channel →' : (wikiData.youtube.videoId ? 'Watch Video →' : 'View Channel →');
+        const ytActionLabel = "Search Results ➔";
         totalHTML += `<a href="https://www.youtube.com/${channelPath}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #ff4444; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">🔴 YouTube Hub</span><span>${ytActionLabel}</span></a>`;
     }
     if (wikiData.wikipedia && wikiData.wikipedia.text) {
