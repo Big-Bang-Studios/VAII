@@ -2554,16 +2554,7 @@ function runInfoExecution(query) {
         }
     }
 
-    if (cleanQuery.includes("calendar") || cleanQuery.includes("calender") || cleanQuery.includes("schedule") || cleanQuery === "agenda" || cleanQuery.includes("email") || cleanQuery.includes("gmail") || cleanQuery.includes("inbox")) {
-        const htmlLayout = greetingHTML + `
-            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ffc107; text-align: left;">
-                ⚠️ <strong>Workspace Elements Disabled:</strong><br><br>
-                <span style="color: #aaa; font-size: 0.9rem;">Private calendar and email protocols remain inactive to preserve a standard authorization route.</span>
-            </div>
-        `;
-        handleVaiiDataOutput("Private calendar and email protocols remain inactive.", htmlLayout);
-        return; 
-    }
+    
 
     if (cleanQuery.startsWith("note:")) {
         let text = query.substring(5).trim();
