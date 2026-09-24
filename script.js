@@ -2445,6 +2445,69 @@ async function executeGeminiDirectChat(promptText) {
 // 8. MASTER ROUTING PIPELINE (VAII NATIVE)
 // ==========================================
 function runInfoExecution(query) {
+    // DEDICATED YOUTUBE HUB (Double content shelf, nothing else)
+    const ytMatch = query.trim().match(/^(?:yt|youtube)\s+(.+)$/i);
+    if (ytMatch) {
+        const ytSearchTerm = ytMatch[1].trim();
+        const outputBox = document.getElementById("info-output") || document.getElementById("output") || document.querySelector(".output-area");
+        if (outputBox) {
+            outputBox.innerHTML = `
+                <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
+                    <span style="color:#aaa; font-size:0.85rem;">Searching YouTube for "${ytSearchTerm}"...</span>
+                </div>
+            `;
+        }
+        fetch(`/api/proxy?q=${encodeURIComponent(ytSearchTerm)}&limit=12`)
+            .then(res => res.json())
+            .then(data => {
+                const videos = data.videos || [];
+                if (!outputBox) return;
+                if (videos.length === 0) {
+                    outputBox.innerHTML = `
+                        <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
+                            <strong>📺 YouTube Search</strong><br>
+                            <p style="color:#aaa; font-size:0.85rem; margin:8px 0;">No direct video results found for "${ytSearchTerm}".</p>
+                            <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(ytSearchTerm)}" target="_blank" style="display:inline-block; margin-top:6px; color:#4da3ff; font-size:0.85rem; text-decoration:none; font-weight:bold;">Search Results ➔</a>
+                        </div>
+                    `;
+                    return;
+                }
+                const rowsHtml = videos.map(vid => `
+                    <a href="${vid.link}" target="_blank" style="display: flex; gap: 10px; align-items: center; background: #222; padding: 8px; border-radius: 6px; text-decoration: none; border: 1px solid #333; color: #fff; transition: background 0.15s;">
+                        <img src="${vid.thumbnail}" alt="thumbnail" style="width: 72px; height: 48px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
+                        <div style="overflow: hidden; text-align: left; flex: 1;">
+                            <div style="font-size: 0.82rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff;">${vid.title}</div>
+                            <div style="font-size: 0.72rem; color: #aaa; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.25; margin-top: 2px;">${vid.description}</div>
+                        </div>
+                    </a>
+                `).join("");
+
+                outputBox.innerHTML = `
+                    <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+                            <strong>📺 YouTube: "${ytSearchTerm}"</strong>
+                            <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(ytSearchTerm)}" target="_blank" style="color: #ff4444; font-size: 0.78rem; text-decoration: none; font-weight: bold;">Search Results ➔</a>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 520px; overflow-y: auto; padding-right: 4px;">
+                            ${rowsHtml}
+                        </div>
+                    </div>
+                `;
+            })
+            .catch(() => {
+                if (outputBox) {
+                    outputBox.innerHTML = `
+                        <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
+                            <strong>📺 YouTube Search</strong><br>
+                            <p style="color:#aaa; font-size:0.85rem; margin:8px 0;">Could not load preview.</p>
+                            <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(ytSearchTerm)}" target="_blank" style="color:#4da3ff; font-size:0.85rem; font-weight:bold; text-decoration:none;">Search Results ➔</a>
+                        </div>
+                    `;
+                }
+            });
+        return;
+    }
+
     const cleanQuery = query.toLowerCase().trim();
     const cryptoMap = { btc: "bitcoin", eth: "ethereum", solana: "solana" };
     const greetingsList = ["hello", "hi", "hey", "sup", "yo", "greetings"];

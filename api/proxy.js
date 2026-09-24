@@ -8,10 +8,9 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing query parameter "q"' });
     }
 
-    const maxResults = Math.min(parseInt(limit, 10) || 6, 12);
+    const maxResults = Math.min(parseInt(limit, 10) || 6, 16);
     const apiKey = process.env.YOUTUBE_API_KEY;
 
-    // 1. If an environment API key is configured in Vercel
     if (apiKey) {
         try {
             const ytUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${maxResults}&q=${encodeURIComponent(q)}&key=${apiKey}`;
@@ -33,7 +32,6 @@ export default async function handler(req, res) {
         }
     }
 
-    // 2. Keyless YouTube Search Initial Shelf Extractor
     try {
         const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
         const ytHtml = await fetch(searchUrl, {
@@ -46,7 +44,6 @@ export default async function handler(req, res) {
         const videos = [];
         const seenIds = new Set();
 
-        // Extract videoRenderer objects from initial search payload
         const regex = /"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{.*?"text":"([^"]+)"\}.*?(?:"detailedMetadataSnippets":\[\{"snippetText":\{"runs":\[\{"text":"([^"]+)"\}|\})/g;
 
         let match;
@@ -71,7 +68,6 @@ export default async function handler(req, res) {
             }
         }
 
-        // Fallback match for raw videoId keys if layout varies
         if (videos.length === 0) {
             const idMatches = ytHtml.match(/"videoId":"([a-zA-Z0-9_-]{11})"/g) || [];
             for (const idStr of idMatches) {
