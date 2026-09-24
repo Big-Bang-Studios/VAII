@@ -8,7 +8,6 @@ export default async function handler(req, res) {
     if (action === "channel_videos" && (channelId || channelName)) {
         try {
             const videos = [];
-            // Target channel via handle if available, or channelId directly
             let target = channelName ? channelName.trim().replace(/\s+/g, '') : '';
             if (target && !target.startsWith('@')) target = '@' + target;
 
@@ -29,20 +28,34 @@ export default async function handler(req, res) {
 
                     if (chanRes.ok) {
                         const html = await chanRes.text();
-                        // Extract richItemRenderer video blocks from page HTML
-                        const itemRegex = /"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"([^"]+)"\}\].*?"publishedTimeText":\{"simpleText":"([^"]+)"\}/g;
-                        let match;
-                        while ((match = itemRegex.exec(html)) !== null && videos.length < 30) {
-                            const vidId = match[1];
-                            const title = match[2];
-                            const pub = match[3];
+                        const idRegex = /"videoId":"([a-zA-Z0-9_-]{11})"/g;
+                        let m;
+                        while ((m = idRegex.exec(html)) !== null && videos.length < 30) {
+                            const vidId = m[1];
                             if (!videos.some(v => v.videoId === vidId)) {
+                                const windowStr = html.slice(m.index, m.index + 5500);
+
+                                const lockupTitleMatch = windowStr.match(/"lockupMetadataViewModel":\{"title":\{"content":"([^"]+)"/);
+                                const legacyRunsMatch = windowStr.match(/"title":\{"runs":\[\{"text":"([^"]+)"\}/);
+                                const simpleTextMatch = windowStr.match(/"title":\{"simpleText":"([^"]+)"\}/);
+                                const labelMatch = windowStr.match(/"accessibility":\{"accessibilityData":\{"label":"([^"]+?)(?:\s+by\s+.*?)?\"\}/);
+
+                                const rawTitle = lockupTitleMatch?.[1] || legacyRunsMatch?.[1] || simpleTextMatch?.[1] || labelMatch?.[1] || "Upload";
+
+                                const timeMatch = windowStr.match(/"metadataParts":\[.*?"text":\{"content":"([^"]+ago)"\}/);
+                                const publishedTime = timeMatch ? timeMatch[1] : "Upload";
+
+                                const title = rawTitle
+                                    .replace(/\\u0026/g, '&')
+                                    .replace(/&amp;/g, '&')
+                                    .replace(/\\"/g, '"');
+
                                 videos.push({
                                     videoId: vidId,
-                                    title: title.replace(/\\u0026/g, '&').replace(/&amp;/g, '&'),
+                                    title,
                                     link: `https://www.youtube.com/watch?v=${vidId}`,
                                     thumbnail: `https://i.ytimg.com/vi/${vidId}/mqdefault.jpg`,
-                                    publishedTime: pub || 'Upload'
+                                    publishedTime
                                 });
                             }
                         }
