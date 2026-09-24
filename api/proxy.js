@@ -3,70 +3,51 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    const { q, limit, channelLimit, action, channelId } = req.query;
+    const { q, limit, channelLimit, action, channelId, channelName } = req.query;
 
-    if (action === "channel_videos" && channelId) {
+    if (action === "channel_videos" && (channelId || channelName)) {
         try {
             const videos = [];
-            
-            // 1. Fetch channel videos page directly
-            const chanUrl = `https://www.youtube.com/channel/${encodeURIComponent(channelId)}/videos`;
-            const chanRes = await fetch(chanUrl, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                    'Accept-Language': 'en-US,en;q=0.9',
-                    'Cookie': 'CONSENT=YES+1'
-                }
-            });
+            // Target channel via handle if available, or channelId directly
+            let target = channelName ? channelName.trim().replace(/\s+/g, '') : '';
+            if (target && !target.startsWith('@')) target = '@' + target;
 
-            if (chanRes.ok) {
-                const html = await chanRes.text();
-                // Match videoId and clean title runs or text
-                const vidRegex = /"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{("runs":\[\{"text":"([^"]+)"\}\]|"simpleText":"([^"]+)")/g;
-                let match;
-                while ((match = vidRegex.exec(html)) !== null && videos.length < 30) {
-                    const vidId = match[1];
-                    const rawTitle = match[3] || match[4] || "Video";
-                    if (!videos.some(v => v.videoId === vidId)) {
-                        videos.push({
-                            videoId: vidId,
-                            title: rawTitle.replace(/\u0026/g, '&').replace(/&amp;/g, '&'),
-                            link: `https://www.youtube.com/watch?v=${vidId}`,
-                            thumbnail: `https://i.ytimg.com/vi/${vidId}/mqdefault.jpg`,
-                            publishedTime: "Recent Upload"
-                        });
-                    }
-                }
-            }
+            const targetUrls = [];
+            if (target) targetUrls.push(`https://www.youtube.com/${encodeURIComponent(target)}/videos`);
+            if (channelId) targetUrls.push(`https://www.youtube.com/channel/${encodeURIComponent(channelId)}/videos`);
 
-            // 2. If videos still empty, fallback to channel search queries
-            if (videos.length === 0) {
-                const searchFallbackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(channelId)}`;
-                const searchRes = await fetch(searchFallbackUrl, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'Cookie': 'CONSENT=YES+1'
-                    }
-                });
-                if (searchRes.ok) {
-                    const searchHtml = await searchRes.text();
-                    const fbRegex = /"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"([^"]+)"\}\]/g;
-                    let fbMatch;
-                    while ((fbMatch = fbRegex.exec(searchHtml)) !== null && videos.length < 20) {
-                        const vidId = fbMatch[1];
-                        const title = fbMatch[2] || "Video";
-                        if (!videos.some(v => v.videoId === vidId)) {
-                            videos.push({
-                                videoId: vidId,
-                                title: title.replace(/\u0026/g, '&').replace(/&amp;/g, '&'),
-                                link: `https://www.youtube.com/watch?v=${vidId}`,
-                                thumbnail: `https://i.ytimg.com/vi/${vidId}/mqdefault.jpg`,
-                                publishedTime: "Upload"
-                            });
+            for (const cUrl of targetUrls) {
+                if (videos.length > 0) break;
+                try {
+                    const chanRes = await fetch(cUrl, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Cookie': 'SOCS=CAESEwgDEgk2MTc3MTA2MjQaAmVuIAEaBgiA_LyaBg;'
+                        }
+                    });
+
+                    if (chanRes.ok) {
+                        const html = await chanRes.text();
+                        // Extract richItemRenderer video blocks from page HTML
+                        const itemRegex = /"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"([^"]+)"\}\].*?"publishedTimeText":\{"simpleText":"([^"]+)"\}/g;
+                        let match;
+                        while ((match = itemRegex.exec(html)) !== null && videos.length < 30) {
+                            const vidId = match[1];
+                            const title = match[2];
+                            const pub = match[3];
+                            if (!videos.some(v => v.videoId === vidId)) {
+                                videos.push({
+                                    videoId: vidId,
+                                    title: title.replace(/\\u0026/g, '&').replace(/&amp;/g, '&'),
+                                    link: `https://www.youtube.com/watch?v=${vidId}`,
+                                    thumbnail: `https://i.ytimg.com/vi/${vidId}/mqdefault.jpg`,
+                                    publishedTime: pub || 'Upload'
+                                });
+                            }
                         }
                     }
-                }
+                } catch (_) {}
             }
 
             return res.status(200).json({ videos });
