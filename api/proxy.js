@@ -87,14 +87,14 @@ export default async function handler(req, res) {
 
         const channels = [];
         const seenChannels = new Set();
-        const chMatches = ytHtml.match(/\{"channelRenderer":\{[\s\S]*?\}\}(?=\s*,\s*\{|\s*\])/g) || [];
+        const chMatches = ytHtml.match(/"channelRenderer":\{[\s\S]*?(?=\}\s*,\s*\{\s*"channelRenderer"|\}\s*\]\s*\}\s*,\s*\{\s*"itemSectionRenderer"|$)/g) || [];
         for (const rawCh of chMatches) {
             if (channels.length >= maxChannels) break;
             try {
                 const idMatch = rawCh.match(/"channelId":"([^"]+)"/);
                 const titleMatch = rawCh.match(/"title":\{"simpleText":"([^"]+)"\}/);
                 const thumbMatch = rawCh.match(/"thumbnails":\[\{"url":"([^"]+)"/);
-                const subsMatch = rawCh.match(/"subscriberCountText":\{[^}]*?"simpleText":"([^"]+)"\}/) || rawCh.match(/"label":"([^"]*?subscribers[^"]*?)"/i);
+                const subsMatch = rawCh.match(/([0-9.]+[KMBkmb]?\s+subscribers?)/i) || rawCh.match(/"label":"([^"]*?subscribers?)"/i);
                 const descMatch = rawCh.match(/"descriptionSnippet":\{"runs":\[\{"text":"([^"]+)"\}/);
 
                 if (idMatch && titleMatch) {
@@ -105,7 +105,7 @@ export default async function handler(req, res) {
                         try { title = JSON.parse(`"${title}"`); } catch(e) {}
                         let desc = descMatch ? descMatch[1] : "Official YouTube Channel";
                         try { desc = JSON.parse(`"${desc}"`); } catch(e) {}
-                        let subs = subsMatch ? subsMatch[1] : "Channel";
+                        let subs = subsMatch ? subsMatch[1] : "";
 
                         let thumb = thumbMatch ? thumbMatch[1] : "";
                         if (thumb.startsWith("//")) thumb = "https:" + thumb;
