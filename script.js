@@ -2515,7 +2515,9 @@ function runInfoExecution(query) {
     const ytMatch = query.trim().match(/^(?:yt|youtube)\s+(.+)$/i);
     if (ytMatch) {
         const ytSearchTerm = ytMatch[1].trim();
-        if (typeof output !== "undefined" && output) {
+        if (typeof handleVaiiDataOutput === "function") {
+            handleVaiiDataOutput("", `<div class="generation-status"><div class="loader-spinner"></div> Searching YouTube for "${ytSearchTerm}"...</div>`);
+        } else if (typeof output !== "undefined" && output) {
             output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching YouTube for "${ytSearchTerm}"...</div>`;
         }
         fetch(`/api/proxy?q=${encodeURIComponent(ytSearchTerm)}&limit=12&channelLimit=3`)
@@ -2523,18 +2525,6 @@ function runInfoExecution(query) {
             .then(data => {
                 const videos = data.videos || [];
                 const channels = data.channels || [];
-                if (typeof output === "undefined" || !output) return;
-
-                if (videos.length === 0 && channels.length === 0) {
-                    output.innerHTML = `
-                        <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
-                            <strong>📺 YouTube Search</strong><br>
-                            <p style="color:#aaa; font-size:0.85rem; margin:8px 0;">No results found for "${ytSearchTerm}".</p>
-                            <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(ytSearchTerm)}" target="_blank" style="display:inline-block; margin-top:6px; color:#4da3ff; font-size:0.85rem; text-decoration:none; font-weight:bold;">Search Results ➔</a>
-                        </div>
-                    `;
-                    return;
-                }
 
                 let channelsHtml = "";
                 if (channels.length > 0) {
@@ -2567,7 +2557,7 @@ function runInfoExecution(query) {
                     </a>
                 `).join("");
 
-                output.innerHTML = `
+                const finalYtHtml = `
                     <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
                             <strong>📺 YouTube: "${ytSearchTerm}"</strong>
@@ -2580,24 +2570,29 @@ function runInfoExecution(query) {
                         </div>
                     </div>
                 `;
+
+                if (typeof handleVaiiDataOutput === "function") {
+                    handleVaiiDataOutput("", finalYtHtml);
+                } else if (typeof output !== "undefined" && output) {
+                    output.innerHTML = finalYtHtml;
+                }
             })
             .catch(() => {
-                if (typeof output !== "undefined" && output) {
-                    output.innerHTML = `
-                        <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
-                            <strong>📺 YouTube Search</strong><br>
-                            <p style="color:#aaa; font-size:0.85rem; margin:8px 0;">Could not load preview.</p>
-                            <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(ytSearchTerm)}" target="_blank" style="color:#4da3ff; font-size:0.85rem; font-weight:bold; text-decoration:none;">Search Results ➔</a>
-                        </div>
-                    `;
+                const errHtml = `
+                    <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
+                        <strong>📺 YouTube Search</strong><br>
+                        <p style="color:#aaa; font-size:0.85rem; margin:8px 0;">Could not load preview.</p>
+                        <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(ytSearchTerm)}" target="_blank" style="color:#4da3ff; font-size:0.85rem; font-weight:bold; text-decoration:none;">Search Results ➔</a>
+                    </div>
+                `;
+                if (typeof handleVaiiDataOutput === "function") {
+                    handleVaiiDataOutput("", errHtml);
+                } else if (typeof output !== "undefined" && output) {
+                    output.innerHTML = errHtml;
                 }
             });
         return;
     }
-
-    
-
-    
 
     const cleanQuery = query.toLowerCase().trim();
     const cryptoMap = { btc: "bitcoin", eth: "ethereum", solana: "solana" };
@@ -2976,7 +2971,7 @@ function runInfoExecution(query) {
 }
 
 function runUnifiedWikiPipeline(query, wikiData) {
-    const youtubeFetch = fetch(`/api/proxy?q=${encodeURIComponent(query)}`)
+    const youtubeFetch = fetch(`/api/proxy?q=${encodeURIComponent(query)}&channelLimit=1`)
         .then(res => res.json())
         .then(data => {
             if (data.videos && data.videos.length > 0) {
