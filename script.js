@@ -1,3 +1,69 @@
+
+// ==========================================
+// VAII CHANNEL DEDICATED VIEWER
+// ==========================================
+window.openVAIIChannelView = function(channelId, title, subs, desc, thumb) {
+    let overlay = document.getElementById("vaii-channel-page");
+    if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "vaii-channel-page";
+        overlay.style = "position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #0f0f0f; color: #fff; z-index: 100000; overflow-y: auto; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; display: flex; flex-direction: column;";
+        document.body.appendChild(overlay);
+    }
+    overlay.style.display = "flex";
+
+    overlay.innerHTML = `
+        <div style="background: #181818; padding: 14px 20px; border-bottom: 1px solid #282828; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button onclick="document.getElementById('vaii-channel-page').style.display='none'" style="background: #2a2a2a; border: none; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">✕ Close</button>
+                <span style="font-size: 1.1rem; font-weight: bold; color: #ff0000;">📺 VAII Channel</span>
+            </div>
+            <a href="https://www.youtube.com/channel/${channelId}" target="_blank" style="color: #4da3ff; text-decoration: none; font-size: 0.85rem; font-weight: bold;">View on YouTube ➔</a>
+        </div>
+
+        <div style="max-width: 900px; width: 100%; margin: 0 auto; padding: 24px 16px; box-sizing: border-box;">
+            <div style="display: flex; gap: 18px; align-items: center; background: #1a1a1a; padding: 18px; border-radius: 12px; border: 1px solid #333; margin-bottom: 24px;">
+                <img src="${thumb || 'https://www.youtube.com/s/desktop/f67cc957/img/favicon_144x144.png'}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #ff0000; flex-shrink: 0;">
+                <div style="overflow: hidden;">
+                    <h2 style="margin: 0 0 6px 0; font-size: 1.3rem;">${decodeURIComponent(title)}</h2>
+                    <div style="font-size: 0.85rem; color: #ff4444; font-weight: bold; margin-bottom: 6px;">${decodeURIComponent(subs)}</div>
+                    <div style="font-size: 0.8rem; color: #aaa; line-height: 1.35;">${decodeURIComponent(desc)}</div>
+                </div>
+            </div>
+
+            <h3 style="margin-bottom: 14px; font-size: 1.05rem; border-bottom: 1px solid #282828; padding-bottom: 8px;">Uploads</h3>
+            <div id="vaii-channel-video-list" style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="color: #888; font-size: 0.9rem;">Fetching channel video index...</div>
+            </div>
+        </div>
+    `;
+
+    fetch(`/api/proxy?action=channel_videos&channelId=${encodeURIComponent(channelId)}`)
+        .then(r => r.json())
+        .then(data => {
+            const list = document.getElementById("vaii-channel-video-list");
+            if (!list) return;
+            const vids = data.videos || [];
+            if (vids.length === 0) {
+                list.innerHTML = "<div style='color:#888;'>No public uploads indexed or channel restricts external listing.</div>";
+                return;
+            }
+            list.innerHTML = vids.map(v => `
+                <a href="${v.link}" target="_blank" style="display: flex; gap: 12px; background: #181818; padding: 10px; border-radius: 8px; text-decoration: none; color: #fff; border: 1px solid #282828; align-items: center; transition: background 0.15s;">
+                    <img src="${v.thumbnail}" style="width: 110px; height: 65px; object-fit: cover; border-radius: 6px; flex-shrink: 0;">
+                    <div style="overflow: hidden; flex: 1;">
+                        <div style="font-size: 0.88rem; font-weight: bold; margin-bottom: 4px; line-height: 1.3;">${v.title}</div>
+                        <div style="font-size: 0.75rem; color: #888;">Published: ${v.publishedTime}</div>
+                    </div>
+                </a>
+            `).join("");
+        })
+        .catch(() => {
+            const list = document.getElementById("vaii-channel-video-list");
+            if (list) list.innerHTML = "<div style='color:#f85149;'>Could not load channel videos.</div>";
+        });
+};
+
 import { LOCAL_FOOD_DB } from "./foodData.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
@@ -2445,29 +2511,53 @@ async function executeGeminiDirectChat(promptText) {
 // 8. MASTER ROUTING PIPELINE (VAII NATIVE)
 // ==========================================
 function runInfoExecution(query) {
-    // DEDICATED YOUTUBE HUB
+    // DEDICATED YOUTUBE HUB (3 channels, double shelf of videos)
     const ytMatch = query.trim().match(/^(?:yt|youtube)\s+(.+)$/i);
     if (ytMatch) {
         const ytSearchTerm = ytMatch[1].trim();
         if (typeof output !== "undefined" && output) {
             output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching YouTube for "${ytSearchTerm}"...</div>`;
         }
-        fetch(`/api/proxy?q=${encodeURIComponent(ytSearchTerm)}&limit=12`)
+        fetch(`/api/proxy?q=${encodeURIComponent(ytSearchTerm)}&limit=12&channelLimit=3`)
             .then(res => res.json())
             .then(data => {
                 const videos = data.videos || [];
+                const channels = data.channels || [];
                 if (typeof output === "undefined" || !output) return;
-                if (videos.length === 0) {
+
+                if (videos.length === 0 && channels.length === 0) {
                     output.innerHTML = `
                         <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
                             <strong>📺 YouTube Search</strong><br>
-                            <p style="color:#aaa; font-size:0.85rem; margin:8px 0;">No direct video results found for "${ytSearchTerm}".</p>
+                            <p style="color:#aaa; font-size:0.85rem; margin:8px 0;">No results found for "${ytSearchTerm}".</p>
                             <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(ytSearchTerm)}" target="_blank" style="display:inline-block; margin-top:6px; color:#4da3ff; font-size:0.85rem; text-decoration:none; font-weight:bold;">Search Results ➔</a>
                         </div>
                     `;
                     return;
                 }
-                const rowsHtml = videos.map(vid => `
+
+                let channelsHtml = "";
+                if (channels.length > 0) {
+                    channelsHtml = `
+                        <div style="margin-bottom: 12px;">
+                            <div style="font-size: 0.8rem; font-weight: bold; color: #ff4444; margin-bottom: 6px; text-transform: uppercase;">Channels</div>
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                ${channels.map(ch => `
+                                    <div onclick="window.openVAIIChannelView('${ch.channelId}', '${encodeURIComponent(ch.title)}', '${encodeURIComponent(ch.subscribers)}', '${encodeURIComponent(ch.description)}', '${encodeURIComponent(ch.thumbnail)}')" style="display: flex; gap: 10px; align-items: center; background: #252525; padding: 8px 12px; border-radius: 8px; cursor: pointer; border: 1px solid #383838; transition: border-color 0.2s;">
+                                        <img src="${ch.thumbnail || 'https://www.youtube.com/s/desktop/f67cc957/img/favicon_144x144.png'}" style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
+                                        <div style="overflow: hidden; flex: 1;">
+                                            <div style="font-size: 0.85rem; font-weight: bold; color: #fff;">${ch.title} <span style="font-size: 0.72rem; color: #ff8888; font-weight: normal; margin-left: 4px;">${ch.subscribers}</span></div>
+                                            <div style="font-size: 0.72rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${ch.description}</div>
+                                        </div>
+                                        <span style="color: #4da3ff; font-size: 0.75rem; font-weight: bold;">View ➔</span>
+                                    </div>
+                                `).join("")}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const videosHtml = videos.map(vid => `
                     <a href="${vid.link}" target="_blank" style="display: flex; gap: 10px; align-items: center; background: #222; padding: 8px; border-radius: 6px; text-decoration: none; border: 1px solid #333; color: #fff; transition: background 0.15s;">
                         <img src="${vid.thumbnail}" alt="thumbnail" style="width: 72px; height: 48px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
                         <div style="overflow: hidden; text-align: left; flex: 1;">
@@ -2483,8 +2573,10 @@ function runInfoExecution(query) {
                             <strong>📺 YouTube: "${ytSearchTerm}"</strong>
                             <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(ytSearchTerm)}" target="_blank" style="color: #ff4444; font-size: 0.78rem; text-decoration: none; font-weight: bold;">Search Results ➔</a>
                         </div>
+                        ${channelsHtml}
+                        <div style="font-size: 0.8rem; font-weight: bold; color: #ff4444; margin: 10px 0 6px 0; text-transform: uppercase;">Videos</div>
                         <div style="display: flex; flex-direction: column; gap: 8px; max-height: 520px; overflow-y: auto; padding-right: 4px;">
-                            ${rowsHtml}
+                            ${videosHtml}
                         </div>
                     </div>
                 `;
@@ -2502,6 +2594,8 @@ function runInfoExecution(query) {
             });
         return;
     }
+
+    
 
     
 
