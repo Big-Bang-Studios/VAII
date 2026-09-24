@@ -2974,8 +2974,11 @@ function runUnifiedWikiPipeline(query, wikiData) {
     const youtubeFetch = fetch(`/api/proxy?q=${encodeURIComponent(query)}&channelLimit=1`)
         .then(res => res.json())
         .then(data => {
-            if (data.videos && data.videos.length > 0) {
-                const primary = data.videos[0];
+            if (data.channels && data.channels.length > 0) {
+                    wikiData.channel = data.channels[0];
+                }
+                if (data.videos && data.videos.length > 0) {
+                    const primary = data.videos[0];
                 wikiData.youtube = {
                     title: primary.channelTitle || primary.title,
                     text: primary.description || `YouTube results for "${query}"`,
