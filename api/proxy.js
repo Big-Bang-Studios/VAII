@@ -5,36 +5,73 @@ export default async function handler(req, res) {
 
     const { q, limit, channelLimit, action, channelId } = req.query;
 
-    if (action === 'channel_videos' && channelId) {
+    if (action === "channel_videos" && channelId) {
         try {
-            const url = `https://www.youtube.com/channel/${encodeURIComponent(channelId)}/videos`;
-            const html = await fetch(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                    'Accept-Language': 'en-US,en;q=0.9'
-                }
-            }).then(r => r.text());
-
             const videos = [];
-            const regex = /"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{.*?"text":"([^"]+)"\}.*?"publishedTimeText":\{"simpleText":"([^"]+)"\}/g;
-            let match;
-            while ((match = regex.exec(html)) !== null && videos.length < 30) {
-                const vidId = match[1];
-                let title = match[2];
-                const publishedTime = match[3] || 'Recently';
-                try { title = JSON.parse(`"${title}"`); } catch (e) {}
+            
+            // 1. Fetch channel videos page directly
+            const chanUrl = `https://www.youtube.com/channel/${encodeURIComponent(channelId)}/videos`;
+            const chanRes = await fetch(chanUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Cookie': 'CONSENT=YES+1'
+                }
+            });
 
-                videos.push({
-                    videoId: vidId,
-                    title,
-                    link: `https://www.youtube.com/watch?v=${vidId}`,
-                    thumbnail: `https://i.ytimg.com/vi/${vidId}/mqdefault.jpg`,
-                    publishedTime
-                });
+            if (chanRes.ok) {
+                const html = await chanRes.text();
+                // Match videoId and clean title runs or text
+                const vidRegex = /"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{("runs":\[\{"text":"([^"]+)"\}\]|"simpleText":"([^"]+)")/g;
+                let match;
+                while ((match = vidRegex.exec(html)) !== null && videos.length < 30) {
+                    const vidId = match[1];
+                    const rawTitle = match[3] || match[4] || "Video";
+                    if (!videos.some(v => v.videoId === vidId)) {
+                        videos.push({
+                            videoId: vidId,
+                            title: rawTitle.replace(/\u0026/g, '&').replace(/&amp;/g, '&'),
+                            link: `https://www.youtube.com/watch?v=${vidId}`,
+                            thumbnail: `https://i.ytimg.com/vi/${vidId}/mqdefault.jpg`,
+                            publishedTime: "Recent Upload"
+                        });
+                    }
+                }
             }
+
+            // 2. If videos still empty, fallback to channel search queries
+            if (videos.length === 0) {
+                const searchFallbackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(channelId)}`;
+                const searchRes = await fetch(searchFallbackUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Cookie': 'CONSENT=YES+1'
+                    }
+                });
+                if (searchRes.ok) {
+                    const searchHtml = await searchRes.text();
+                    const fbRegex = /"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"([^"]+)"\}\]/g;
+                    let fbMatch;
+                    while ((fbMatch = fbRegex.exec(searchHtml)) !== null && videos.length < 20) {
+                        const vidId = fbMatch[1];
+                        const title = fbMatch[2] || "Video";
+                        if (!videos.some(v => v.videoId === vidId)) {
+                            videos.push({
+                                videoId: vidId,
+                                title: title.replace(/\u0026/g, '&').replace(/&amp;/g, '&'),
+                                link: `https://www.youtube.com/watch?v=${vidId}`,
+                                thumbnail: `https://i.ytimg.com/vi/${vidId}/mqdefault.jpg`,
+                                publishedTime: "Upload"
+                            });
+                        }
+                    }
+                }
+            }
+
             return res.status(200).json({ videos });
         } catch (err) {
-            return res.status(500).json({ error: 'Failed to fetch channel videos', message: err.message });
+            return res.status(500).json({ error: "Failed to fetch channel videos", message: err.message, videos: [] });
         }
     }
 

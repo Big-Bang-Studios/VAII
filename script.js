@@ -23,7 +23,7 @@ window.openVAIIChannelView = function(channelId, title, subs, desc, thumb) {
 
         <div style="max-width: 900px; width: 100%; margin: 0 auto; padding: 24px 16px; box-sizing: border-box;">
             <div style="display: flex; gap: 18px; align-items: center; background: #1a1a1a; padding: 18px; border-radius: 12px; border: 1px solid #333; margin-bottom: 24px;">
-                <img src="${thumb || 'https://www.youtube.com/s/desktop/f67cc957/img/favicon_144x144.png'}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #ff0000; flex-shrink: 0;">
+                <img src="${decodeURIComponent(thumb) || 'https://www.youtube.com/s/desktop/f67cc957/img/favicon_144x144.png'}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #ff0000; flex-shrink: 0;">
                 <div style="overflow: hidden;">
                     <h2 style="margin: 0 0 6px 0; font-size: 1.3rem;">${decodeURIComponent(title)}</h2>
                     <div style="font-size: 0.85rem; color: #ff4444; font-weight: bold; margin-bottom: 6px;">${decodeURIComponent(subs)}</div>
