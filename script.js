@@ -2445,25 +2445,20 @@ async function executeGeminiDirectChat(promptText) {
 // 8. MASTER ROUTING PIPELINE (VAII NATIVE)
 // ==========================================
 function runInfoExecution(query) {
-    // DEDICATED YOUTUBE HUB (Double content shelf, nothing else)
+    // DEDICATED YOUTUBE HUB
     const ytMatch = query.trim().match(/^(?:yt|youtube)\s+(.+)$/i);
     if (ytMatch) {
         const ytSearchTerm = ytMatch[1].trim();
-        const outputBox = document.getElementById("info-output") || document.getElementById("output") || document.querySelector(".output-area");
-        if (outputBox) {
-            outputBox.innerHTML = `
-                <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
-                    <span style="color:#aaa; font-size:0.85rem;">Searching YouTube for "${ytSearchTerm}"...</span>
-                </div>
-            `;
+        if (typeof output !== "undefined" && output) {
+            output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching YouTube for "${ytSearchTerm}"...</div>`;
         }
         fetch(`/api/proxy?q=${encodeURIComponent(ytSearchTerm)}&limit=12`)
             .then(res => res.json())
             .then(data => {
                 const videos = data.videos || [];
-                if (!outputBox) return;
+                if (typeof output === "undefined" || !output) return;
                 if (videos.length === 0) {
-                    outputBox.innerHTML = `
+                    output.innerHTML = `
                         <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
                             <strong>📺 YouTube Search</strong><br>
                             <p style="color:#aaa; font-size:0.85rem; margin:8px 0;">No direct video results found for "${ytSearchTerm}".</p>
@@ -2482,7 +2477,7 @@ function runInfoExecution(query) {
                     </a>
                 `).join("");
 
-                outputBox.innerHTML = `
+                output.innerHTML = `
                     <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
                             <strong>📺 YouTube: "${ytSearchTerm}"</strong>
@@ -2495,8 +2490,8 @@ function runInfoExecution(query) {
                 `;
             })
             .catch(() => {
-                if (outputBox) {
-                    outputBox.innerHTML = `
+                if (typeof output !== "undefined" && output) {
+                    output.innerHTML = `
                         <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff0000; text-align: left;">
                             <strong>📺 YouTube Search</strong><br>
                             <p style="color:#aaa; font-size:0.85rem; margin:8px 0;">Could not load preview.</p>
@@ -2507,6 +2502,8 @@ function runInfoExecution(query) {
             });
         return;
     }
+
+    
 
     const cleanQuery = query.toLowerCase().trim();
     const cryptoMap = { btc: "bitcoin", eth: "ethereum", solana: "solana" };
