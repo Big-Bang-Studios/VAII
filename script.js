@@ -38,7 +38,7 @@ window.openVAIIChannelView = function(channelId, title, subs, desc, thumb, handl
         </div>
     `;
 
-    fetch(`/api/proxy?action=channel_videos&channelId=${encodeURIComponent(channelId)}&channelName=${encodeURIComponent(decodeURIComponent(title))}&handle=${encodeURIComponent(handle || '')}`)
+    fetch(`/api/proxy?action=channel_videos&channelId=${encodeURIComponent(channelId)}&channelName=${encodeURIComponent(decodeURIComponent(title))}&handle=${encodeURIComponent(decodeURIComponent(handle || ''))}`)
         .then(r => r.json())
         .then(data => {
             const list = document.getElementById("vaii-channel-video-list");
