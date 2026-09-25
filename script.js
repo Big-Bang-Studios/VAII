@@ -3107,8 +3107,6 @@ function compileFinalSourceIndexBox(query, wikiData) {
             ${(() => {
                       const ch = (window._vaiiCurrentWikiChannel = wikiData.channel);
                       return `<div onclick="const c = window._vaiiCurrentWikiChannel; window.openVAIIChannelView(c.channelId, c.title, c.subscribers, '', c.thumbnail, c.handle);" style="display: flex; gap: 10px; align-items: center; background: #222; padding: 8px 10px; border-radius: 8px; cursor: pointer; border: 1px solid #333; margin: 10px 0 6px 0; text-align: left;">`
-                const ch = wikiData.channel;
-                return `<div onclick="window.openVAIIChannelView('${ch.channelId}', '${encodeURIComponent(ch.title)}', '${encodeURIComponent(ch.subscribers)}', '${encodeURIComponent(ch.description)}', '${encodeURIComponent(ch.thumbnail)}', '${encodeURIComponent(ch.handle || "")}')" style="display: flex; gap: 10px; align-items: center; background: #222; padding: 8px 10px; border-radius: 8px; cursor: pointer; border: 1px solid #333; margin: 10px 0 6px 0; text-align: left;">
                     <img src="${ch.thumbnail || "https://www.youtube.com/s/desktop/f67cc957/img/favicon_144x144.png"}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
                     <div style="overflow: hidden; flex: 1;">
                         <div style="font-size: 0.85rem; font-weight: bold; color: #fff;">${ch.title} <span style="font-size: 0.72rem; color: #ff8888; font-weight: normal; margin-left: 4px;">${ch.subscribers}</span></div>
