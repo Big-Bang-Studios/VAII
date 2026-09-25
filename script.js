@@ -2545,7 +2545,7 @@ function runInfoExecution(query) {
         } else if (typeof output !== "undefined" && output) {
             output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Searching YouTube for "${ytSearchTerm}"...</div>`;
         }
-        fetch(`/api/proxy?q=${encodeURIComponent(ytSearchTerm)}&limit=12&channelLimit=3`)
+        fetch(`/api/proxy?action=youtube&q=${encodeURIComponent(ytSearchTerm)}&limit=12&channelLimit=3`)
             .then(res => res.json())
             .then(data => {
                 const videos = data.videos || [];
@@ -2999,9 +2999,9 @@ function runUnifiedWikiPipeline(query, wikiData) {
     const youtubeFetch = fetch(`/api/proxy?q=${encodeURIComponent(query)}&channelLimit=1`)
         .then(res => res.json())
         .then(data => {
-            if (data.channels && data.channels.length > 0) {
-                    wikiData.channel = data.channels[0];
-                }
+            if (data.channels) {
+        wikiData.channel = Array.isArray(data.channels) ? data.channels[0] : data.channels;
+      }
                 if (data.videos && data.videos.length > 0) {
                     const primary = data.videos[0];
                 wikiData.youtube = {
