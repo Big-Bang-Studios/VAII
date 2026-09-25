@@ -2532,8 +2532,8 @@ function runInfoExecution(query) {
                         <div style="margin-bottom: 12px;">
                             <div style="font-size: 0.8rem; font-weight: bold; color: #ff4444; margin-bottom: 6px; text-transform: uppercase;">Channels</div>
                             <div style="display: flex; flex-direction: column; gap: 6px;">
-                                ${channels.map(ch => `
-                                    <div onclick="window.openVAIIChannelView('${ch.channelId}', '${encodeURIComponent(ch.title)}', '${encodeURIComponent(ch.subscribers)}', '${encodeURIComponent(ch.description)}', '${encodeURIComponent(ch.thumbnail)}', '${encodeURIComponent(ch.handle || "")}')" style="display: flex; gap: 10px; align-items: center; background: #252525; padding: 8px 12px; border-radius: 8px; cursor: pointer; border: 1px solid #383838; transition: border-color 0.2s;">
+                                ${(window._vaiiSearchChannels = channels).map((ch, idx) => `
+                                    <div onclick="const c = window._vaiiSearchChannels[idx]; window.openVAIIChannelView(c.channelId, c.title, c.subscribers, c.description, c.thumbnail, c.handle);" style="display: flex; gap: 10px; align-items: center; background: #252525; padding: 8px 12px; border-radius: 8px; cursor: pointer; border: 1px solid #383838; transition: border-color 0.2s;">
                                         <img src="${ch.thumbnail || 'https://www.youtube.com/s/desktop/f67cc957/img/favicon_144x144.png'}" style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
                                         <div style="overflow: hidden; flex: 1;">
                                             <div style="font-size: 0.85rem; font-weight: bold; color: #fff;">${ch.title} <span style="font-size: 0.72rem; color: #ff8888; font-weight: normal; margin-left: 4px;">${ch.subscribers}</span></div>
