@@ -3,17 +3,29 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    const { q, limit, channelLimit, action, channelId, channelName } = req.query;
+    const { q, limit, channelLimit, action, channelId, channelName, handle } = req.query;
 
-    if (action === "channel_videos" && (channelId || channelName)) {
+    if (action === "channel_videos" && (channelId || channelName || handle)) {
         try {
             const videos = [];
-            let target = channelName ? channelName.trim().replace(/\s+/g, '') : '';
-            if (target && !target.startsWith('@')) target = '@' + target;
-
             const targetUrls = [];
-            if (target) targetUrls.push(`https://www.youtube.com/${encodeURIComponent(target)}/videos`);
-            if (channelId) targetUrls.push(`https://www.youtube.com/channel/${encodeURIComponent(channelId)}/videos`);
+
+            // 1. If we have the exact handle, that is the most reliable URL on modern YouTube
+            const cleanHandle = handle ? (handle.startsWith('@') ? handle : '@' + handle) : (channelName && channelName.startsWith('@') ? channelName : '');
+            if (cleanHandle) {
+                targetUrls.push(`https://www.youtube.com/${encodeURIComponent(cleanHandle)}/videos`);
+            }
+
+            // 2. Direct channel ID fallback
+            if (channelId) {
+                targetUrls.push(`https://www.youtube.com/channel/${encodeURIComponent(channelId)}/videos`);
+            }
+
+            // 3. Fallback: guess handle by removing spaces if cleanHandle wasn't available
+            if (!cleanHandle && channelName) {
+                const guessed = '@' + channelName.trim().replace(/\s+/g, '');
+                targetUrls.push(`https://www.youtube.com/${encodeURIComponent(guessed)}/videos`);
+            }
 
             for (const cUrl of targetUrls) {
                 if (videos.length > 0) break;
@@ -93,6 +105,7 @@ export default async function handler(req, res) {
             try {
                 const idMatch = rawCh.match(/"channelId":"([^"]+)"/);
                 const titleMatch = rawCh.match(/"title":\{"simpleText":"([^"]+)"\}/);
+                const handleMatch = rawCh.match(/"canonicalBaseUrl":"\/(@[^"]+)"/);
                 const thumbMatch = rawCh.match(/"thumbnails":\[\{"url":"([^"]+)"/);
                 const subsMatch = rawCh.match(/([0-9.]+[KMBkmb]?\s+subscribers?)/i) || rawCh.match(/"label":"([^"]*?subscribers?)"/i);
                 const descMatch = rawCh.match(/"descriptionSnippet":\{"runs":\[\{"text":"([^"]+)"\}/);
@@ -106,6 +119,7 @@ export default async function handler(req, res) {
                         let desc = descMatch ? descMatch[1] : "Official YouTube Channel";
                         try { desc = JSON.parse(`"${desc}"`); } catch(e) {}
                         let subs = subsMatch ? subsMatch[1] : "";
+                        let handleStr = handleMatch ? handleMatch[1] : "";
 
                         let thumb = thumbMatch ? thumbMatch[1] : "";
                         if (thumb.startsWith("//")) thumb = "https:" + thumb;
@@ -113,6 +127,7 @@ export default async function handler(req, res) {
                         channels.push({
                             channelId: chId,
                             title,
+                            handle: handleStr,
                             subscribers: subs,
                             description: desc,
                             thumbnail: thumb
