@@ -1,50 +1,69 @@
+function safeStr(s) {
+  if (!s) return "";
+  try {
+    return decodeURIComponent(s);
+  } catch (e) {
+    return String(s);
+  }
+}
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 function safeDecode(val) { if (!val) return ''; try { return decodeURIComponent(val); } catch(e) { return val; } }
 
 // ==========================================
 // VAII CHANNEL DEDICATED VIEWER
 // ==========================================
 window.openVAIIChannelView = function(channelId, title, subs, desc, thumb, handle) {
-  title = safeDecode(title);
-  subs = safeDecode(subs);
-  thumb = safeDecode(thumb);
-  handle = safeDecode(handle);
-  desc = safeDecode(desc) || "Channel details loading...";
-    let overlay = document.getElementById("vaii-channel-page");
-    if (!overlay) {
-        overlay = document.createElement("div");
-        overlay.id = "vaii-channel-page";
-        overlay.style = "position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #0f0f0f; color: #fff; z-index: 100000; overflow-y: auto; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; display: flex; flex-direction: column;";
-        document.body.appendChild(overlay);
-    }
-    overlay.style.display = "flex";
+  channelId = safeStr(channelId);
+  title = safeStr(title);
+  subs = safeStr(subs);
+  desc = safeStr(desc);
+  thumb = safeStr(thumb);
+  handle = safeStr(handle);
 
-    overlay.innerHTML = `
-        <div style="background: #181818; padding: 14px 20px; border-bottom: 1px solid #282828; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <button onclick="document.getElementById('vaii-channel-page').style.display='none'" style="background: #2a2a2a; border: none; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">✕ Close</button>
-                <span style="font-size: 1.1rem; font-weight: bold; color: #ff0000;">📺 VAII Channel</span>
-            </div>
-            <a href="https://www.youtube.com/channel/${channelId}" target="_blank" style="color: #4da3ff; text-decoration: none; font-size: 0.85rem; font-weight: bold;">View on YouTube ➔</a>
+  let overlay = document.getElementById("vaii-channel-page");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "vaii-channel-page";
+    overlay.style = "position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #0f0f0f; color: #fff; z-index: 100000; overflow-y: auto; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; display: flex; flex-direction: column;";
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = "flex";
+
+  overlay.innerHTML = `
+    <div style="background: #181818; padding: 14px 20px; border-bottom: 1px solid #282828; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button onclick="document.getElementById('vaii-channel-page').style.display='none'" style="background: #2a2a2a; border: none; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">✕ Close</button>
+        <span style="font-weight: bold; color: #ff0000;">VAII Channel</span>
+      </div>
+      <div>
+        <a href="https://www.youtube.com/channel/${channelId}" target="_blank" style="color: #4da3ff; text-decoration: none; font-size: 0.85rem; font-weight: bold;">View on YouTube ↗</a>
+      </div>
+    </div>
+    <div style="max-width: 900px; width: 100%; margin: 0 auto; padding: 24px 16px; box-sizing: border-box;">
+      <div style="display: flex; gap: 18px; align-items: center; background: #1a1a1a; padding: 18px; border-radius: 12px; border: 1px solid #333; margin-bottom: 24px;">
+        <img src="${thumb || 'https://www.youtube.com/s/desktop/f67cc957/img/favicon_144x144.png'}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #ff0000; flex-shrink: 0;">
+        <div style="overflow: hidden;">
+          <h2 style="margin: 0 0 6px 0; font-size: 1.3rem;">${escapeHtml(title)}</h2>
+          <div style="font-size: 0.85rem; color: #ff4444; font-weight: bold; margin-bottom: 6px;">${escapeHtml(subs)}</div>
+          <div style="font-size: 0.8rem; color: #aaa; line-height: 1.35;">${escapeHtml(desc)}</div>
         </div>
+      </div>
+      <h3 style="margin-bottom: 14px; font-size: 1.05rem; border-bottom: 1px solid #282828; padding-bottom: 8px;">Uploads</h3>
+      <div id="vaii-channel-video-list" style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="color: #888; font-size: 0.9rem;">Fetching channel video index...</div>
+      </div>
+    </div>
+  `;
 
-        <div style="max-width: 900px; width: 100%; margin: 0 auto; padding: 24px 16px; box-sizing: border-box;">
-            <div style="display: flex; gap: 18px; align-items: center; background: #1a1a1a; padding: 18px; border-radius: 12px; border: 1px solid #333; margin-bottom: 24px;">
-                <img src="${decodeURIComponent(thumb) || 'https://www.youtube.com/s/desktop/f67cc957/img/favicon_144x144.png'}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #ff0000; flex-shrink: 0;">
-                <div style="overflow: hidden;">
-                    <h2 style="margin: 0 0 6px 0; font-size: 1.3rem;">${decodeURIComponent(title)}</h2>
-                    <div style="font-size: 0.85rem; color: #ff4444; font-weight: bold; margin-bottom: 6px;">${decodeURIComponent(subs)}</div>
-                    <div style="font-size: 0.8rem; color: #aaa; line-height: 1.35;">${decodeURIComponent(desc)}</div>
-                </div>
-            </div>
-
-            <h3 style="margin-bottom: 14px; font-size: 1.05rem; border-bottom: 1px solid #282828; padding-bottom: 8px;">Uploads</h3>
-            <div id="vaii-channel-video-list" style="display: flex; flex-direction: column; gap: 10px;">
-                <div style="color: #888; font-size: 0.9rem;">Fetching channel video index...</div>
-            </div>
-        </div>
-    `;
-
-    fetch(`/api/proxy?action=channel_videos&channelId=${encodeURIComponent(channelId)}&channelName=${encodeURIComponent(decodeURIComponent(title))}&handle=${encodeURIComponent(decodeURIComponent(handle || ''))}`)
+  fetch(`/api/proxy?action=channel_videos&channelId=${encodeURIComponent(channelId)}&channelName=${encodeURIComponent(decodeURIComponent(title))}&handle=${encodeURIComponent(decodeURIComponent(handle || ''))}`)
         .then(r => r.json())
         .then(data => {
             const list = document.getElementById("vaii-channel-video-list");
@@ -2543,7 +2562,7 @@ function runInfoExecution(query) {
                                         <img src="${ch.thumbnail || 'https://www.youtube.com/s/desktop/f67cc957/img/favicon_144x144.png'}" style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
                                         <div style="overflow: hidden; flex: 1;">
                                             <div style="font-size: 0.85rem; font-weight: bold; color: #fff;">${ch.title} <span style="font-size: 0.72rem; color: #ff8888; font-weight: normal; margin-left: 4px;">${ch.subscribers}</span></div>
-                                            <div style="font-size: 0.72rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${ch.description}</div>
+                                            <div style="font-size: 0.72rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(ch.description || '')}</div>
                                         </div>
                                         <span style="color: #4da3ff; font-size: 0.75rem; font-weight: bold;">View ➔</span>
                                     </div>
@@ -3092,7 +3111,7 @@ function compileFinalSourceIndexBox(query, wikiData) {
                     <img src="${ch.thumbnail || "https://www.youtube.com/s/desktop/f67cc957/img/favicon_144x144.png"}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
                     <div style="overflow: hidden; flex: 1;">
                         <div style="font-size: 0.85rem; font-weight: bold; color: #fff;">${ch.title} <span style="font-size: 0.72rem; color: #ff8888; font-weight: normal; margin-left: 4px;">${ch.subscribers}</span></div>
-                        <div style="font-size: 0.72rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${ch.description}</div>
+                        <div style="font-size: 0.72rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(ch.description || '')}</div>
                     </div>
                     <span style="color: #4da3ff; font-size: 0.75rem; font-weight: bold;">View ➔</span>
                 </div>`;
