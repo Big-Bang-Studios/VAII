@@ -631,6 +631,7 @@
                         <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
                             <li><strong>Phone Dialer & Calls:</strong> Type <code>call [number]</code> or <code>dial [number]</code> (e.g. <code>call 555-0199</code>) to launch the device's native phone dialer with the number ready to dial.</li>
                             <li><strong>SMS Messaging:</strong> Type <code>text [number] [message]</code> or <code>sms [number] [message]</code> (e.g. <code>text 555-0199 on my way</code>) to launch the default messaging app with the recipient and body pre-filled.</li>
+                            <li><strong>HTML Sandbox & Viewer:</strong> Type <code>html</code>, <code>editor</code>, <code>htmleditor</code>, or <code>/editor</code> to open an interactive code editor and previewer with automatic full-screen takeover and theme injection alerts.</li>
                             <li><strong>Terminal Sandbox:</strong> Type <code>terminal</code>, <code>/terminal</code>, or <code>shell</code> to open an interactive Unix-style shell environment with a persistent localStorage virtual file system. Type <code>exit</code> or <code>logout</code> to return.</li>
                             <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant shortcuts (<code>/terminal</code>, <code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>, <code>/note</code>).</li>
                             <li><strong>Hacker News Discussions:</strong> Type any topic or keyword (or queries like <code>javascript</code>, <code>ai</code>, <code>linux</code>) to fetch top community stories, scores, and comment counts. Click any card to launch the reader overlay with nested comment trees.</li>
@@ -767,6 +768,7 @@
                     <div id="command-palette">
                         <div class="palette-item" data-cmd="/call "><span>📞 /call</span><span style="color:#666; font-size:0.75rem;">Dial phone number</span></div>
                         <div class="palette-item" data-cmd="/text "><span>💬 /text</span><span style="color:#666; font-size:0.75rem;">Send SMS text</span></div>
+                        <div class="palette-item" data-cmd="/editor"><span>📝 /editor</span><span style="color:#666; font-size:0.75rem;">HTML live sandbox</span></div>
                         <div class="palette-item" data-cmd="/terminal"><span>💻 /terminal</span><span style="color:#666; font-size:0.75rem;">Launch sandbox</span></div>
                         <div class="palette-item" data-cmd="/weather "><span>🌦️ /weather</span><span style="color:#666; font-size:0.75rem;">Get local weather</span></div>
                         <div class="palette-item" data-cmd="/play "><span>🎵 /play</span><span style="color:#666; font-size:0.75rem;">Music stream</span></div>

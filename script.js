@@ -89,6 +89,123 @@ window.openVAIIChannelView = function(channelId, title, subs, desc, thumb, handl
         });
 };
 
+
+// ==========================================
+// VAII LIVE HTML SANDBOX & VIEWER
+// ==========================================
+window.openVAIIHtmlEditor = function(initialCode = "") {
+    let overlay = document.getElementById("vaii-html-editor-overlay");
+    if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "vaii-html-editor-overlay";
+        overlay.style = "position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #121212; color: #fff; z-index: 10001; display: flex; flex-direction: column; font-family: system-ui, -apple-system, sans-serif; overflow: hidden;";
+        document.body.appendChild(overlay);
+    }
+    overlay.style.display = "flex";
+
+    const defaultSnippet = initialCode || '<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: sans-serif; background: #222; color: #fff; padding: 20px; text-align: center; }\n    h1 { color: #28a745; }\n  </style>\n</head>\n<body>\n  <h1>Hello from VAII HTML Viewer!</h1>\n  <p>Edit this code in the editor panel.</p>\n</body>\n</html>';
+
+    overlay.innerHTML = `
+        <div style="background: #1e1e1e; padding: 10px 16px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="vaii-html-close-btn" style="background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">✕ Close</button>
+                <span style="font-weight: bold; color: #28a745; font-size: 0.95rem;">⚡ VAII HTML Sandbox</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button id="vaii-html-render-btn" style="background: #28a745; border: none; color: #fff; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 0.82rem; cursor: pointer;">▶ Run Code</button>
+            </div>
+        </div>
+
+        <div id="vaii-html-warning-bar" style="display: none; background: #2a1f00; border-bottom: 1px solid #ffc107; padding: 10px 16px; font-size: 0.8rem; color: #ffc107; justify-content: space-between; align-items: center; flex-shrink: 0;">
+            <div id="vaii-html-warning-text" style="line-height: 1.4;"></div>
+            <div id="vaii-html-warning-actions" style="display: flex; gap: 6px; margin-left: 12px;"></div>
+        </div>
+
+        <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+            <div style="flex: 1; display: flex; flex-direction: column; border-bottom: 2px solid #333; background: #181818; padding: 8px; box-sizing: border-box;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.75rem; color: #888; font-weight: bold;">
+                    <span>HTML / CSS / JS SOURCE</span>
+                    <button id="vaii-html-clear-btn" style="background: none; border: none; color: #888; cursor: pointer; text-decoration: underline;">Clear</button>
+                </div>
+                <textarea id="vaii-html-code-input" style="flex: 1; width: 100%; background: #141414; color: #eee; border: 1px solid #333; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 0.85rem; resize: none; box-sizing: border-box; outline: none;"></textarea>
+            </div>
+
+            <div style="flex: 1.3; display: flex; flex-direction: column; background: #fff; position: relative;">
+                <div style="background: #222; color: #aaa; font-size: 0.72rem; padding: 4px 10px; border-top: 1px solid #333; display: flex; justify-content: space-between;">
+                    <span>PREVIEW CONTAINER</span>
+                    <span id="vaii-html-status-msg" style="color: #28a745;">Ready</span>
+                </div>
+                <iframe id="vaii-html-preview-frame" sandbox="allow-scripts allow-modals allow-forms allow-popups" style="flex: 1; width: 100%; height: 100%; border: none; background: #ffffff;"></iframe>
+            </div>
+        </div>
+    `;
+
+    const codeInput = document.getElementById("vaii-html-code-input");
+    const previewFrame = document.getElementById("vaii-html-preview-frame");
+    const renderBtn = document.getElementById("vaii-html-render-btn");
+    const closeBtn = document.getElementById("vaii-html-close-btn");
+    const clearBtn = document.getElementById("vaii-html-clear-btn");
+    const warningBar = document.getElementById("vaii-html-warning-bar");
+    const warningText = document.getElementById("vaii-html-warning-text");
+    const warningActions = document.getElementById("vaii-html-warning-actions");
+    const statusMsg = document.getElementById("vaii-html-status-msg");
+
+    codeInput.value = defaultSnippet;
+
+    const executeRender = (rawContent) => {
+        warningBar.style.display = "none";
+        previewFrame.srcdoc = rawContent;
+        statusMsg.innerText = "Rendered at " + new Date().toLocaleTimeString();
+    };
+
+    const processCode = () => {
+        const content = codeInput.value;
+        const coversEntirePage = /(?:100v[wh]|100dvh|position\s*:\s*fixed|position\s*:\s*absolute[\s\S]*?width\s*:\s*100%|top\s*:\s*0[\s\S]*?bottom\s*:\s*0)/i.test(content);
+        const hasCustomThemes = /(?:<style|<link[\s\S]*?rel=["']stylesheet["']|--[a-zA-Z0-9_-]+\s*:)/i.test(content);
+
+        if (coversEntirePage) {
+            warningBar.style.display = "flex";
+            let warningNotice = "⚠️ <strong>Full-Page Takeover Warning:</strong> This HTML contains full-screen viewport/fixed styling that may cover or expand past the preview. Proceed to load it anyway?";
+            if (hasCustomThemes) {
+                warningNotice += "<br><span style='color: #4da3ff;'>💡 Note: Custom styling/theme detected. If elements bleed into VAII, refresh the page after viewing.</span>";
+            }
+            warningText.innerHTML = warningNotice;
+            warningActions.innerHTML = `
+                <button id="vaii-warn-confirm" style="background: #ffc107; color: #111; border: none; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; cursor: pointer;">Yes, Load</button>
+                <button id="vaii-warn-cancel" style="background: #333; color: #fff; border: 1px solid #555; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">Cancel</button>
+            `;
+            document.getElementById("vaii-warn-confirm").onclick = () => executeRender(content);
+            document.getElementById("vaii-warn-cancel").onclick = () => {
+                warningBar.style.display = "none";
+                statusMsg.innerText = "Render cancelled by user";
+            };
+            return;
+        }
+
+        if (hasCustomThemes) {
+            warningBar.style.display = "flex";
+            warningText.innerHTML = "💡 <strong>Theme & Style Advisory:</strong> This snippet includes custom styles. If anything appears unusual inside VAII afterward, refresh the tab to restore styling.";
+            warningActions.innerHTML = `
+                <button id="vaii-warn-dismiss" style="background: #333; color: #aaa; border: 1px solid #555; padding: 3px 8px; border-radius: 4px; font-size: 0.72rem; cursor: pointer;">Got it</button>
+            `;
+            document.getElementById("vaii-warn-dismiss").onclick = () => {
+                warningBar.style.display = "none";
+            };
+        } else {
+            warningBar.style.display = "none";
+        }
+
+        executeRender(content);
+    };
+
+    renderBtn.onclick = processCode;
+    clearBtn.onclick = () => { codeInput.value = ""; codeInput.focus(); };
+    closeBtn.onclick = () => { overlay.style.display = "none"; };
+
+    // Initial render
+    processCode();
+};
+
 // ==========================================
 // VAII HACKER NEWS DEDICATED VIEWER
 // ==========================================
@@ -2675,6 +2792,32 @@ async function executeGeminiDirectChat(promptText) {
 // 8. MASTER ROUTING PIPELINE (VAII NATIVE)
 // ==========================================
 function runInfoExecution(query) {
+
+    // ==========================================
+    // HTML VIEWER & LIVE SANDBOX ROUTER
+    // ==========================================
+    const trimmedQ = query.trim();
+    const isEditorCmd = /^(?:\/)?(?:html|editor|htmleditor)(?:\s+([\s\S]*))?$/i.exec(trimmedQ);
+    if (isEditorCmd) {
+        const payload = isEditorCmd[1] ? isEditorCmd[1].trim() : "";
+        window.openVAIIHtmlEditor(payload);
+        const card = '<div style="background: #181818; border: 1px solid #28a745; border-radius: 12px; padding: 16px; margin: 12px 0; color: #fff;">' +
+            '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">' +
+                '<span style="background: #28a745; color: #fff; font-size: 0.75rem; font-weight: bold; padding: 3px 8px; border-radius: 4px;">HTML VIEWER</span>' +
+                '<span style="font-size: 0.75rem; color: #28a745; font-weight: bold;">● Active Sandbox</span>' +
+            '</div>' +
+            '<div style="font-size: 0.95rem; font-weight: bold; color: #fff; margin-bottom: 6px;">HTML Sandbox Opened</div>' +
+            '<div style="font-size: 0.8rem; color: #888; margin-bottom: 12px;">Interactive HTML editor and viewer is active. Check full-screen/theme warning advisories when rendering external code.</div>' +
+            '<button onclick="window.openVAIIHtmlEditor()" style="width: 100%; background: #28a745; color: #fff; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer;">Open HTML Sandbox View</button>' +
+        '</div>';
+        if (typeof handleVaiiDataOutput === "function") {
+            handleVaiiDataOutput("", card);
+        } else if (typeof output !== "undefined" && output) {
+            output.innerHTML = card;
+        }
+        return;
+    }
+
 
     // ==========================================
     // NATIVE TELEPHONY & MESSAGING PROTOCOLS
