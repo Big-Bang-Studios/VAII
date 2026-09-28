@@ -44,7 +44,7 @@ window.openVAIIChannelView = function(channelId, title, subs, desc, thumb, handl
         <span style="font-weight: bold; color: #ff0000;">VAII Channel</span>
       </div>
       <div>
-        <a href="https://www.youtube.com/channel/${channelId}" target="_blank" style="color: #4da3ff; text-decoration: none; font-size: 0.85rem; font-weight: bold;">View on YouTube ↗</a>
+        <a href="https://www.youtube.com/channel/${channelId}" target="_blank" style="color: #4da3ff; text-decoration: none; font-size: 0.85rem; font-weight: bold;">View ➔</span>
       </div>
     </div>
     <div style="max-width: 900px; width: 100%; margin: 0 auto; padding: 24px 16px; box-sizing: border-box;">
@@ -2565,7 +2565,7 @@ function runInfoExecution(query) {
                                             <div style="font-size: 0.85rem; font-weight: bold; color: #fff;">${ch.title} <span style="font-size: 0.72rem; color: #ff8888; font-weight: normal; margin-left: 4px;">${ch.subscribers}</span></div>
                                             <div style="font-size: 0.72rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(ch.description || '')}</div>
                                         </div>
-                                        <span style="color: #4da3ff; font-size: 0.75rem; font-weight: bold;">View ➔</span>
+                        <span style="color: #4da3ff; font-size: 0.75rem; font-weight: bold;">View ➔</span>
                                     </div>
                                 `).join("")}
                             </div>
