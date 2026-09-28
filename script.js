@@ -2675,6 +2675,75 @@ async function executeGeminiDirectChat(promptText) {
 // 8. MASTER ROUTING PIPELINE (VAII NATIVE)
 // ==========================================
 function runInfoExecution(query) {
+
+    // ==========================================
+    // NATIVE TELEPHONY & MESSAGING PROTOCOLS
+    // ==========================================
+    const callMatch = query.trim().match(/^(?:call|dial)\s+([\d\+\-\(\)\s\.\#\*]+)$/i);
+    if (callMatch) {
+        const rawNum = callMatch[1].trim();
+        const cleanNum = rawNum.replace(/[^\d\+\#\*]/g, "");
+        const telUri = "tel:" + cleanNum;
+        
+        try { window.location.href = telUri; } catch(e) {}
+
+        const card = '<div style="background: #181818; border: 1px solid #28a745; border-radius: 12px; padding: 16px; margin: 12px 0; color: #fff;">' +
+            '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">' +
+                '<div style="display: flex; align-items: center; gap: 8px;">' +
+                    '<span style="background: #28a745; color: #fff; font-size: 0.75rem; font-weight: bold; padding: 3px 8px; border-radius: 4px;">PHONE</span>' +
+                    '<span style="font-weight: bold; font-size: 0.95rem;">Outgoing Call</span>' +
+                '</div>' +
+                '<span style="font-size: 0.75rem; color: #28a745; font-weight: bold;">● Active Hand-off</span>' +
+            '</div>' +
+            '<div style="font-size: 1.4rem; font-weight: 800; letter-spacing: 0.5px; color: #fff; margin-bottom: 6px;">' + escapeHtml(rawNum) + '</div>' +
+            '<div style="font-size: 0.8rem; color: #888; margin-bottom: 14px;">Launching system dialer via native <code>tel:</code> protocol...</div>' +
+            '<a href="' + telUri + '" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; background: #28a745; color: #fff; text-decoration: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 0.95rem; text-align: center;">' +
+                '<span>📞 Dial ' + escapeHtml(cleanNum) + '</span>' +
+            '</a>' +
+        '</div>';
+
+        if (typeof handleVaiiDataOutput === "function") {
+            handleVaiiDataOutput("", card);
+        } else if (typeof output !== "undefined" && output) {
+            output.innerHTML = card;
+        }
+        return;
+    }
+
+    const smsMatch = query.trim().match(/^(?:text|sms|msg)\s+([\d\+\-\(\)\s\.\#\*]+)(?:\s+(.+))?$/i);
+    if (smsMatch) {
+        const rawNum = smsMatch[1].trim();
+        const cleanNum = rawNum.replace(/[^\d\+\#\*]/g, "");
+        const rawBody = (smsMatch[2] || "").trim();
+        const encodedBody = encodeURIComponent(rawBody);
+        const smsUri = "sms:" + cleanNum + (rawBody ? ("?body=" + encodedBody) : "");
+
+        try { window.location.href = smsUri; } catch(e) {}
+
+        const card = '<div style="background: #181818; border: 1px solid #007bff; border-radius: 12px; padding: 16px; margin: 12px 0; color: #fff;">' +
+            '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">' +
+                '<div style="display: flex; align-items: center; gap: 8px;">' +
+                    '<span style="background: #007bff; color: #fff; font-size: 0.75rem; font-weight: bold; padding: 3px 8px; border-radius: 4px;">MESSAGES</span>' +
+                    '<span style="font-weight: bold; font-size: 0.95rem;">Compose SMS</span>' +
+                '</div>' +
+                '<span style="font-size: 0.75rem; color: #007bff; font-weight: bold;">● Active Hand-off</span>' +
+            '</div>' +
+            '<div style="font-size: 1.15rem; font-weight: bold; color: #fff; margin-bottom: 8px;">To: ' + escapeHtml(rawNum) + '</div>' +
+            (rawBody ? ('<div style="background: #222; border-left: 3px solid #007bff; padding: 10px 12px; border-radius: 4px; font-size: 0.88rem; color: #ddd; margin-bottom: 12px; line-height: 1.4;">' + escapeHtml(rawBody) + '</div>') : '<div style="font-size: 0.8rem; color: #777; margin-bottom: 12px;">(No pre-filled body)</div>') +
+            '<div style="font-size: 0.8rem; color: #888; margin-bottom: 14px;">Launching system SMS client via native <code>sms:</code> protocol...</div>' +
+            '<a href="' + smsUri + '" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; background: #007bff; color: #fff; text-decoration: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 0.95rem; text-align: center;">' +
+                '<span>💬 Open Messages</span>' +
+            '</a>' +
+        '</div>';
+
+        if (typeof handleVaiiDataOutput === "function") {
+            handleVaiiDataOutput("", card);
+        } else if (typeof output !== "undefined" && output) {
+            output.innerHTML = card;
+        }
+        return;
+    }
+
     // DEDICATED YOUTUBE HUB (3 channels, double shelf of videos)
     const ytMatch = query.trim().match(/^(?:yt|youtube)\s+(.+)$/i);
     if (ytMatch) {
