@@ -4,6 +4,9 @@
 const VFS_STORAGE_KEY = 'vaii_terminal_vfs';
 const HISTORY_STORAGE_KEY = 'vaii_terminal_history';
 const PKG_STORAGE_KEY = 'vaii_terminal_pkgs';
+const GH_TOKEN_KEY = 'vaii_gh_token';
+const GH_REPO_KEY = 'vaii_gh_repo';
+const GH_SHA_CACHE_KEY = 'vaii_gh_sha_cache';
 
 const SYSTEM_INIT_TIME = Date.now() - 86400000;
 
@@ -35,12 +38,39 @@ let nanoMode = false;
 let nanoTargetFile = null;
 let nanoBuffer = [];
 
+export function getGhConfig() {
+    return {
+        token: localStorage.getItem(GH_TOKEN_KEY) || "",
+        repo: localStorage.getItem(GH_REPO_KEY) || "",
+        shas: JSON.parse(localStorage.getItem(GH_SHA_CACHE_KEY) || "{}")
+    };
+}
+
+export function saveGhConfig(token, repo) {
+    if (token !== undefined) localStorage.setItem(GH_TOKEN_KEY, token);
+    if (repo !== undefined) localStorage.setItem(GH_REPO_KEY, repo);
+}
+
+export function cacheGhSha(path, sha) {
+    const shas = JSON.parse(localStorage.getItem(GH_SHA_CACHE_KEY) || "{}");
+    shas[path] = sha;
+    localStorage.setItem(GH_SHA_CACHE_KEY, JSON.stringify(shas));
+}
+
+export function utf8ToBase64(str) {
+    return window.btoa(unescape(encodeURIComponent(str)));
+}
+
+export function base64ToUtf8(str) {
+    return decodeURIComponent(escape(window.atob(str.replace(/\n/g, ""))));
+}
+
 export function getDefaultVFS() {
     return {
         "/": { type: "dir", children: ["home", "bin", "usr", "etc", "var", "tmp"], mtime: SYSTEM_INIT_TIME },
         "/home": { type: "dir", children: ["guest"], mtime: SYSTEM_INIT_TIME },
         "/home/guest": { type: "dir", children: ["readme.txt", "welcome.sh"], mtime: SYSTEM_INIT_TIME },
-        "/home/guest/readme.txt": { type: "file", content: "Welcome to VAII Unix 3.0!\nInstall tools with: apt install python3 git\nTry: python3, git init, neofetch, pipes (|), &&, ||, ;", mtime: SYSTEM_INIT_TIME },
+        "/home/guest/readme.txt": { type: "file", content: "Welcome to VAII Unix 3.0!\nInstall tools with: apt install python3 git\nTry: git ide, python3, neofetch, pipes (|), &&, ||, ;", mtime: SYSTEM_INIT_TIME },
         "/home/guest/welcome.sh": { type: "file", content: "echo 'VAII Matrix Engine Online!'", mtime: SYSTEM_INIT_TIME },
         "/bin": { type: "dir", children: ["sh", "echo", "ls", "cat", "pwd", "apt", "pkg"], mtime: SYSTEM_INIT_TIME },
         "/usr": { type: "dir", children: ["bin"], mtime: SYSTEM_INIT_TIME },
@@ -338,15 +368,16 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
         case "help":
             printLog(`Extended Unix Shell Utilities & Package Engine:
   <span style="color:#58a6ff;">apt / pkg install &lt;pkg&gt;</span> Install packages (python3, git, node, neofetch, cowsay, nano, htop)
+  <span style="color:#58a6ff;">git ide</span>                 GitHub Cloud IDE instructions & connection
+  <span style="color:#58a6ff;">git pull &lt;file&gt;</span>         Download file from repo into VFS
+  <span style="color:#58a6ff;">git push &lt;file&gt;</span>         Commit/upload local file to GitHub repo
   <span style="color:#58a6ff;">python3 [file.py]</span>       Interactive REPL, run file, or python3 -c "code"
-  <span style="color:#58a6ff;">git &lt;init/status/add/commit/log/clone&gt;</span> Version control engine
   <span style="color:#58a6ff;">nano &lt;file&gt;</span>             Simple text editor (:wq to save, :q to quit)
   <span style="color:#58a6ff;">ls [-l]</span>                 List directory entries
   <span style="color:#58a6ff;">tree [path]</span>             Directory tree hierarchy
   <span style="color:#58a6ff;">pwd / cd &lt;dir&gt;</span>          Directory navigation
   <span style="color:#58a6ff;">cat / head / tail</span>       File inspection
   <span style="color:#58a6ff;">grep / wc / diff</span>        Text manipulation & pipes
-  <span style="color:#58a6ff;">curl / wget &lt;url&gt;</span>       HTTP fetch
   <span style="color:#58a6ff;">Separators</span>              cmd1 ; cmd2 | cmd1 && cmd2 | cmd1 || cmd2 | cmd1 | cmd2\n`, true);
             return { success: true, output: outputBuffer };
 
@@ -407,7 +438,6 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
                 return { success: false, output: outputBuffer };
             }
 
-            // Handle inline command flag: python3 -c "print('hello')"
             if (args[0] === "-c") {
                 const cIdx = expandedCmd.indexOf("-c");
                 let codeStr = expandedCmd.slice(cIdx + 2).trim();
@@ -418,7 +448,6 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
                 return { success: true, output: outputBuffer };
             }
 
-            // Handle executing a python file: python3 script.py
             if (args[0]) {
                 const pyFile = resolvePath(args[0]);
                 if (vfs[pyFile] && vfs[pyFile].type === "file") {
@@ -465,6 +494,199 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
             const gitSub = args[0]?.toLowerCase();
             const gitConfigPath = resolvePath(".git");
 
+            // --- GITHUB CLOUD IDE INTEGRATION ---
+            if (gitSub === "ide") {
+                const subArg = args[1];
+                if (!subArg) {
+                    printLog(`<span style="color:#7ee787; font-weight:bold;">⚡ VAII GitHub Cloud IDE Integration</span>
+<span style="color:#c9d1d9;">Connect your GitHub repository to pull and push files directly to/from this VFS sandbox.</span>
+
+<span style="color:#e3b341; font-weight:bold;">1. How to get a Personal Access Token:</span>
+  • Visit: <a href="https://github.com/settings/tokens" target="_blank" style="color:#58a6ff; text-decoration:underline;">https://github.com/settings/tokens</a>
+  • Click <strong>Generate new token (classic)</strong>
+  • Note: <code>VAII Cloud IDE</code>
+  • Select Scopes: Check <strong>[x] repo</strong> (Full control of private repositories)
+  • (Or create Fine-Grained token with Repository Permission: <strong>Contents: Read and Write</strong>)
+  • Click <strong>Generate token</strong> and copy the <code>ghp_...</code> string.
+
+<span style="color:#e3b341; font-weight:bold;">2. Configure IDE in VAII:</span>
+  <span style="color:#58a6ff;">git ide &lt;token&gt; [owner/repo]</span>  Link your token and default repo
+  <span style="color:#58a6ff;">git ide repo &lt;owner/repo&gt;</span>    Change active working repository
+  <span style="color:#58a6ff;">git ide status</span>                  Check current authentication state
+  <span style="color:#58a6ff;">git ide logout</span>                  Remove saved GitHub credentials
+
+<span style="color:#e3b341; font-weight:bold;">3. Sync Files with GitHub:</span>
+  <span style="color:#58a6ff;">git pull &lt;remote_path&gt;</span>         Download file from repo into current directory
+  <span style="color:#58a6ff;">git push &lt;local_file&gt;</span>          Create or update file on GitHub repository\n`, true);
+                    return { success: true, output: outputBuffer };
+                }
+
+                if (subArg === "status") {
+                    const cfg = getGhConfig();
+                    if (!cfg.token) {
+                        printLog(`<span style="color:#8b949e;">GitHub IDE: Not authenticated. Run: git ide &lt;token&gt; [owner/repo]</span>\n`, true);
+                    } else {
+                        printLog(`<span style="color:#7ee787;">GitHub IDE: Authenticated</span>\nRepository: <span style="color:#58a6ff;">${cfg.repo || "(none set - use: git ide repo owner/repo)"}</span>\nToken: ${cfg.token.substring(0, 7)}...***\n`, true);
+                    }
+                    return { success: true, output: outputBuffer };
+                }
+
+                if (subArg === "logout") {
+                    localStorage.removeItem(GH_TOKEN_KEY);
+                    localStorage.removeItem(GH_REPO_KEY);
+                    localStorage.removeItem(GH_SHA_CACHE_KEY);
+                    printLog(`<span style="color:#7ee787;">GitHub credentials cleared successfully.</span>\n`, true);
+                    return { success: true, output: outputBuffer };
+                }
+
+                if (subArg === "repo") {
+                    const newRepo = args[2];
+                    if (!newRepo || !newRepo.includes("/")) {
+                        printLog(`<span style="color:#f85149;">Usage: git ide repo &lt;owner/repository&gt; (e.g. git ide repo octocat/Hello-World)</span>\n`, true);
+                        return { success: false, output: outputBuffer };
+                    }
+                    saveGhConfig(undefined, newRepo.trim());
+                    printLog(`<span style="color:#7ee787;">Active GitHub repository set to: ${newRepo.trim()}</span>\n`, true);
+                    return { success: true, output: outputBuffer };
+                }
+
+                const token = subArg.trim();
+                const repo = args[2] ? args[2].trim() : (localStorage.getItem(GH_REPO_KEY) || "");
+                saveGhConfig(token, repo);
+                printLog(`<span style="color:#7ee787;">GitHub token linked!</span>\nActive repository: <span style="color:#58a6ff;">${repo || "(None set - run: git ide repo owner/repo)"}</span>\nYou can now run: <span style="color:#58a6ff;">git pull &lt;filepath&gt;</span> or <span style="color:#58a6ff;">git push &lt;filename&gt;</span>\n`, true);
+                return { success: true, output: outputBuffer };
+            }
+
+            // --- GIT PULL <FILE> VIA GITHUB API ---
+            if (gitSub === "pull") {
+                const targetFile = args[1];
+                const cfg = getGhConfig();
+                if (!cfg.token) {
+                    printLog(`<span style="color:#f85149;">fatal: GitHub IDE not authenticated. Run: git ide &lt;token&gt; &lt;owner/repo&gt;</span>\n`, true);
+                    return { success: false, output: outputBuffer };
+                }
+                if (!cfg.repo) {
+                    printLog(`<span style="color:#f85149;">fatal: No repository configured. Run: git ide repo &lt;owner/repo&gt;</span>\n`, true);
+                    return { success: false, output: outputBuffer };
+                }
+                if (!targetFile) {
+                    printLog(`Usage: git pull <filepath_in_repo> (e.g. git pull index.html or git pull src/app.js)\n`);
+                    return { success: false, output: outputBuffer };
+                }
+
+                printLog(`<span style="color:#8b949e;">Fetching '${targetFile}' from ${cfg.repo}...</span>\n`, true);
+                fetch(`https://api.github.com/repos/${cfg.repo}/contents/${targetFile}`, {
+                    headers: {
+                        "Authorization": `Bearer ${cfg.token}`,
+                        "Accept": "application/vnd.github.v3+json"
+                    }
+                })
+                .then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+                    return r.json();
+                })
+                .then(data => {
+                    if (!data.content && data.type === "dir") {
+                        printLog(`<span style="color:#f85149;">fatal: '${targetFile}' is a directory. Specify a file path to pull.</span>\n`, true);
+                        return;
+                    }
+                    const rawContent = base64ToUtf8(data.content);
+                    const pureName = targetFile.split("/").pop();
+                    const destPath = resolvePath(pureName);
+                    const parentDir = normalizePath(destPath.substring(0, destPath.lastIndexOf('/')) || '/');
+
+                    let curVfs = getVFS();
+                    curVfs[destPath] = { type: "file", content: rawContent, mtime: Date.now() };
+                    if (curVfs[parentDir] && !curVfs[parentDir].children.includes(pureName)) {
+                        curVfs[parentDir].children.push(pureName);
+                    }
+                    saveVFS(curVfs);
+                    cacheGhSha(targetFile, data.sha);
+
+                    logs.innerHTML += `<span style="color:#7ee787;">Successfully pulled '${targetFile}' into ${termCurrentPath}/${pureName} (${rawContent.length} bytes, sha: ${data.sha.substring(0, 7)})</span>\n`;
+                    logs.scrollTop = logs.scrollHeight;
+                })
+                .catch(err => {
+                    logs.innerHTML += `<span style="color:#f85149;">git pull error: ${err.message}</span>\n`;
+                    logs.scrollTop = logs.scrollHeight;
+                });
+                return { success: true, output: outputBuffer };
+            }
+
+            // --- GIT PUSH <FILE> VIA GITHUB API ---
+            if (gitSub === "push") {
+                const targetFile = args[1];
+                const cfg = getGhConfig();
+                if (!cfg.token) {
+                    printLog(`<span style="color:#f85149;">fatal: GitHub IDE not authenticated. Run: git ide &lt;token&gt; &lt;owner/repo&gt;</span>\n`, true);
+                    return { success: false, output: outputBuffer };
+                }
+                if (!cfg.repo) {
+                    printLog(`<span style="color:#f85149;">fatal: No repository configured. Run: git ide repo &lt;owner/repo&gt;</span>\n`, true);
+                    return { success: false, output: outputBuffer };
+                }
+                if (!targetFile) {
+                    printLog(`Usage: git push <filename> [remote_path] (e.g. git push index.html)\n`);
+                    return { success: false, output: outputBuffer };
+                }
+
+                const localPath = resolvePath(targetFile);
+                if (!vfs[localPath] || vfs[localPath].type !== "file") {
+                    printLog(`<span style="color:#f85149;">fatal: local file '${targetFile}' not found in current directory (${termCurrentPath})</span>\n`, true);
+                    return { success: false, output: outputBuffer };
+                }
+
+                const remotePath = args[2] || targetFile;
+                const fileContent = vfs[localPath].content || "";
+                const b64 = utf8ToBase64(fileContent);
+
+                printLog(`<span style="color:#8b949e;">Checking remote status of '${remotePath}' on ${cfg.repo}...</span>\n`, true);
+
+                fetch(`https://api.github.com/repos/${cfg.repo}/contents/${remotePath}`, {
+                    headers: {
+                        "Authorization": `Bearer ${cfg.token}`,
+                        "Accept": "application/vnd.github.v3+json"
+                    }
+                })
+                .then(r => r.ok ? r.json() : null)
+                .then(existingFile => {
+                    const sha = existingFile?.sha || cfg.shas[remotePath] || undefined;
+                    const commitMsg = sha ? `Update ${remotePath} via VAII Cloud IDE` : `Add ${remotePath} via VAII Cloud IDE`;
+
+                    const body = {
+                        message: commitMsg,
+                        content: b64
+                    };
+                    if (sha) body.sha = sha;
+
+                    return fetch(`https://api.github.com/repos/${cfg.repo}/contents/${remotePath}`, {
+                        method: "PUT",
+                        headers: {
+                            "Authorization": `Bearer ${cfg.token}`,
+                            "Accept": "application/vnd.github.v3+json",
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(body)
+                    });
+                })
+                .then(r => {
+                    if (!r.ok) return r.json().then(j => { throw new Error(j.message || `HTTP ${r.status}`); });
+                    return r.json();
+                })
+                .then(result => {
+                    const newSha = result.content?.sha || "";
+                    cacheGhSha(remotePath, newSha);
+                    logs.innerHTML += `<span style="color:#7ee787;">Successfully pushed '${remotePath}' to ${cfg.repo}!</span>\nCommit: ${result.commit?.sha?.substring(0, 7) || "done"} - "${result.commit?.message || "synced"}"\n`;
+                    logs.scrollTop = logs.scrollHeight;
+                })
+                .catch(err => {
+                    logs.innerHTML += `<span style="color:#f85149;">git push error: ${err.message}</span>\n`;
+                    logs.scrollTop = logs.scrollHeight;
+                });
+                return { success: true, output: outputBuffer };
+            }
+
+            // Standard local git subcommands
             if (gitSub === "init") {
                 vfs[resolvePath(".git")] = { type: "dir", children: ["config", "HEAD"], mtime: Date.now() };
                 vfs[resolvePath(".git/HEAD")] = { type: "file", content: "ref: refs/heads/main\n", mtime: Date.now() };
