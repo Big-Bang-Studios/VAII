@@ -2549,7 +2549,8 @@ function runInfoExecution(query) {
             .then(res => res.json())
             .then(data => {
                 const videos = data.videos || [];
-                const channels = data.channels || [];
+                const rawCh = data.channels;
+        const channels = Array.isArray(rawCh) ? rawCh : (rawCh && (rawCh.channelId || rawCh.title) ? [rawCh] : []);
 
                 let channelsHtml = "";
                 if (channels.length > 0) {
