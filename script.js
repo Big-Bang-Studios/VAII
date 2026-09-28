@@ -89,6 +89,145 @@ window.openVAIIChannelView = function(channelId, title, subs, desc, thumb, handl
         });
 };
 
+// ==========================================
+// VAII HACKER NEWS DEDICATED VIEWER
+// ==========================================
+window.openVAIIHackerNewsView = function(storyId, rawTitle, rawUrl, points, author) {
+    const title = safeStr(rawTitle);
+    const storyUrl = rawUrl || ("https://news.ycombinator.com/item?id=" + storyId);
+    let domain = "news.ycombinator.com";
+    try {
+        if (storyUrl) domain = new URL(storyUrl).hostname.replace(/^www\./, "");
+    } catch(e) {}
+
+    let overlay = document.getElementById("vaii-hn-page");
+    if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "vaii-hn-page";
+        overlay.style = "position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #0f0f0f; color: #fff; z-index: 10000; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; display: flex; flex-direction: column;";
+        document.body.appendChild(overlay);
+    }
+    overlay.style.display = "flex";
+
+    overlay.innerHTML = `
+        <div style="background: #181818; padding: 12px 16px; border-bottom: 1px solid #282828; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button onclick="document.getElementById('vaii-hn-page').style.display='none'" style="background: #2a2a2a; border: none; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">✕ Close</button>
+                <span style="font-weight: bold; color: #ff6600; font-size: 0.95rem; letter-spacing: 0.5px;">Hacker News</span>
+            </div>
+            <div style="display: flex; gap: 6px;">
+                <button id="vaii-hn-btn-split" style="background: #ff6600; border: none; color: #fff; padding: 5px 10px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; font-weight: bold;">Split</button>
+                <button id="vaii-hn-btn-web" style="background: #2a2a2a; border: none; color: #aaa; padding: 5px 10px; border-radius: 5px; font-size: 0.75rem; cursor: pointer;">Story</button>
+                <button id="vaii-hn-btn-comments" style="background: #2a2a2a; border: none; color: #aaa; padding: 5px 10px; border-radius: 5px; font-size: 0.75rem; cursor: pointer;">Comments</button>
+            </div>
+        </div>
+
+        <div id="vaii-hn-body-container" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+            <div id="vaii-hn-top-panel" style="flex: 1; min-height: 120px; overflow-y: auto; background: #141414; border-bottom: 2px solid #282828; padding: 16px; box-sizing: border-box;">
+                <div style="background: #1e1e1e; border: 1px solid #333; border-radius: 10px; padding: 16px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <span style="background: rgba(255,102,0,0.15); color: #ff6600; border: 1px solid rgba(255,102,0,0.3); border-radius: 4px; padding: 2px 6px; font-size: 0.72rem; font-weight: bold;">${domain}</span>
+                        <span style="color: #777; font-size: 0.75rem;">▲ ${points || 0} pts • by ${author || "hn"}</span>
+                    </div>
+                    <div style="font-size: 1.1rem; font-weight: bold; color: #fff; line-height: 1.4; margin-bottom: 12px;">${title}</div>
+                    <a href="${storyUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; background: #ff6600; color: #fff; text-decoration: none; padding: 8px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: bold;">
+                        <span>Open Article</span>
+                        <span>➔</span>
+                    </a>
+                </div>
+            </div>
+
+            <div id="vaii-hn-bottom-panel" style="flex: 1.5; overflow-y: auto; padding: 16px; box-sizing: border-box; background: #0f0f0f;">
+                <div style="font-size: 0.85rem; font-weight: bold; color: #888; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">Discussion Tree</div>
+                <div id="vaii-hn-comments-mount" style="color: #888; font-size: 0.88rem;">Fetching discussion...</div>
+            </div>
+        </div>
+    `;
+
+    const topPanel = document.getElementById("vaii-hn-top-panel");
+    const bottomPanel = document.getElementById("vaii-hn-bottom-panel");
+    const btnSplit = document.getElementById("vaii-hn-btn-split");
+    const btnWeb = document.getElementById("vaii-hn-btn-web");
+    const btnComments = document.getElementById("vaii-hn-btn-comments");
+
+    const setMode = (mode) => {
+        if (mode === "split") {
+            topPanel.style.display = "block";
+            topPanel.style.flex = "1";
+            bottomPanel.style.display = "block";
+            bottomPanel.style.flex = "1.5";
+            btnSplit.style.background = "#ff6600"; btnSplit.style.color = "#fff";
+            btnWeb.style.background = "#2a2a2a"; btnWeb.style.color = "#aaa";
+            btnComments.style.background = "#2a2a2a"; btnComments.style.color = "#aaa";
+        } else if (mode === "web") {
+            topPanel.style.display = "block";
+            topPanel.style.flex = "10";
+            bottomPanel.style.display = "none";
+            btnWeb.style.background = "#ff6600"; btnWeb.style.color = "#fff";
+            btnSplit.style.background = "#2a2a2a"; btnSplit.style.color = "#aaa";
+            btnComments.style.background = "#2a2a2a"; btnComments.style.color = "#aaa";
+        } else if (mode === "comments") {
+            topPanel.style.display = "none";
+            bottomPanel.style.display = "block";
+            bottomPanel.style.flex = "10";
+            btnComments.style.background = "#ff6600"; btnComments.style.color = "#fff";
+            btnSplit.style.background = "#2a2a2a"; btnSplit.style.color = "#aaa";
+            btnWeb.style.background = "#2a2a2a"; btnWeb.style.color = "#aaa";
+        }
+    };
+
+    btnSplit.onclick = () => setMode("split");
+    btnWeb.onclick = () => setMode("web");
+    btnComments.onclick = () => setMode("comments");
+
+    function renderCommentsTree(children, depth = 0) {
+        if (!children || !children.length) return "";
+        return children.map((c, i) => {
+            if (!c || (!c.text && (!c.children || !c.children.length))) return "";
+            const hasChildren = c.children && c.children.length > 0;
+            const commentId = "hn-c-" + (c.id || (depth + "-" + i));
+            return `
+                <div style="margin-left: ${depth > 0 ? "12px" : "0px"}; border-left: ${depth > 0 ? "2px solid #282828" : "none"}; padding-left: ${depth > 0 ? "10px" : "0px"}; margin-bottom: 12px;">
+                    <div style="font-size: 0.75rem; color: #888; margin-bottom: 4px;">
+                        <span style="color: #ff9944; font-weight: bold;">${escapeHtml(c.author || "anon")}</span>
+                    </div>
+                    <div style="font-size: 0.85rem; color: #ddd; line-height: 1.45; word-break: break-word; margin-bottom: 6px;">
+                        ${c.text || "[deleted]"}
+                    </div>
+                    ${hasChildren ? `
+                        <button onclick="
+                            const replyBox = document.getElementById('${commentId}');
+                            const isHidden = replyBox.style.display === 'none';
+                            replyBox.style.display = isHidden ? 'block' : 'none';
+                            this.innerText = isHidden ? 'Hide replies' : '💬 View ${c.children.length} replies';
+                        " style="background: #222; border: 1px solid #333; color: #4da3ff; padding: 4px 8px; border-radius: 4px; font-size: 0.72rem; cursor: pointer; margin-bottom: 6px;">💬 View ${c.children.length} replies</button>
+                        <div id="${commentId}" style="display: none; margin-top: 6px;">
+                            ${renderCommentsTree(c.children, depth + 1)}
+                        </div>
+                    ` : ""}
+                </div>
+            `;
+        }).join("");
+    }
+
+    fetch("https://hn.algolia.com/api/v1/items/" + storyId)
+        .then(r => r.json())
+        .then(data => {
+            const mount = document.getElementById("vaii-hn-comments-mount");
+            if (!mount) return;
+            if (!data.children || !data.children.length) {
+                mount.innerHTML = "<div style='color: #777; font-size: 0.85rem;'>No comments on this story yet.</div>";
+                return;
+            }
+            mount.innerHTML = renderCommentsTree(data.children);
+        })
+        .catch(() => {
+            const mount = document.getElementById("vaii-hn-comments-mount");
+            if (mount) mount.innerHTML = "<div style='color: #f85149; font-size: 0.85rem;'>Could not load discussion.</div>";
+        });
+};
+
+
 import { LOCAL_FOOD_DB } from "./foodData.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
@@ -2997,6 +3136,13 @@ function runInfoExecution(query) {
 }
 
 function runUnifiedWikiPipeline(query, wikiData) {
+    const hackerNewsFetch = fetch("https://hn.algolia.com/api/v1/search?query=" + encodeURIComponent(query) + "&tags=story&hitsPerPage=4")
+        .then(res => res.json())
+        .then(data => {
+            wikiData.hackerNews = (data && data.hits) ? data.hits : [];
+        })
+        .catch(() => { wikiData.hackerNews = []; });
+
     const youtubeFetch = fetch(`/api/proxy?q=${encodeURIComponent(query)}&channelLimit=1`)
         .then(res => res.json())
         .then(data => {
@@ -3067,7 +3213,7 @@ function runUnifiedWikiPipeline(query, wikiData) {
             }
         }).catch(() => null);
 
-    Promise.all([youtubeFetch, wikipediaFetch]).then(() => { 
+    Promise.all([youtubeFetch, wikipediaFetch, hackerNewsFetch]).then(() => { 
         compileFinalSourceIndexBox(query, wikiData); 
     });
 }
@@ -3144,6 +3290,37 @@ function compileFinalSourceIndexBox(query, wikiData) {
 
     totalHTML += `<div class="news-header-msg" style="color: #888; font-style: italic; margin-bottom: 12px; font-size: 0.9rem; line-height: 1.4;">I have provided the most relevant text of each information source related to "${query}".</div>`;
     totalHTML += blocksHtml.join(`<div style="color: #888; font-style: italic; font-size: 0.85rem; margin: 15px 0 8px 0; text-align: left;">This might also be relevant:</div>`);
+
+    
+    if (wikiData.hackerNews && wikiData.hackerNews.length > 0) {
+        window._vaiiHNHits = wikiData.hackerNews;
+        totalHTML += '<div style="margin-top: 18px; margin-bottom: 12px; background: #181818; border: 1px solid #2a2a2a; border-radius: 8px; padding: 14px 14px 10px 14px;">' +
+            '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">' +
+                '<div style="display: flex; align-items: center; gap: 6px;">' +
+                    '<span style="background: #ff6600; color: #fff; font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 3px;">HN</span>' +
+                    '<span style="font-size: 0.85rem; font-weight: bold; color: #fff;">Hacker News Discussions</span>' +
+                '</div>' +
+                '<span style="font-size: 0.72rem; color: #777;">Community Posts</span>' +
+            '</div>' +
+            '<div style="display: flex; flex-direction: column; gap: 8px;">' +
+            wikiData.hackerNews.map((h, idx) => {
+                let domain = "news.ycombinator.com";
+                try {
+                    if (h.url) domain = new URL(h.url).hostname.replace(/^www\./, "");
+                } catch(e) {}
+                return '<div onclick="const item = window._vaiiHNHits && window._vaiiHNHits[' + idx + ']; if(item) window.openVAIIHackerNewsView(item.objectID, item.title, item.url, item.points, item.author);" style="background: #202020; border: 1px solid #333; border-radius: 6px; padding: 10px 12px; cursor: pointer; transition: border-color 0.2s;" onmouseover="this.style.borderColor=\'#ff6600\'" onmouseout="this.style.borderColor=\'#333\'">' +
+                    '<div style="font-size: 0.88rem; font-weight: 500; color: #eee; line-height: 1.35; margin-bottom: 6px;">' + escapeHtml(h.title || "Untitled") + '</div>' +
+                    '<div style="display: flex; align-items: center; gap: 10px; font-size: 0.72rem; color: #888;">' +
+                        '<span style="color: #ff9944; font-weight: bold;">▲ ' + (h.points || 0) + '</span>' +
+                        '<span>💬 ' + (h.num_comments || 0) + ' comments</span>' +
+                        '<span style="color: #666;">• ' + domain + '</span>' +
+                        '<span style="margin-left: auto; color: #4da3ff; font-weight: bold;">Open ➔</span>' +
+                    '</div>' +
+                '</div>';
+            }).join("") +
+            '</div>' +
+        '</div>';
+    }
 
     totalHTML += `<div class="source-box" style="border-top: 1px solid #333; padding-top: 12px; margin-top: 15px;"><span style="display: block; font-size: 0.75rem; color: #777; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Sources Index</span><div class="source-list" style="display: flex; flex-direction: column; gap: 6px;">`;
 
