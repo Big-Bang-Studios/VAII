@@ -172,7 +172,8 @@ window.openVAIIHtmlEditor = function(initialCode = "") {
 
         const renderGhModal = () => {
             const cfg = getEditorGh();
-            if (!cfg.token) {
+            const hasValidToken = !!(cfg.token && cfg.token.trim().length > 5);
+            if (!hasValidToken) {
                 ghContent.innerHTML = `
                     <div style="font-size: 0.8rem; color: #8b949e; margin-bottom: 12px; line-height: 1.4;">
                         Connect your GitHub Personal Access Token to pull and push files directly inside this editor.
@@ -220,10 +221,11 @@ window.openVAIIHtmlEditor = function(initialCode = "") {
                     </div>
 
                     <details style="font-size: 0.75rem; color: #8b949e; cursor: pointer;">
-                        <summary>Change Target Repo</summary>
+                        <summary>Change Repo or Token</summary>
                         <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px;">
-                            <input id="vaii-gh-switch-repo" type="text" placeholder="owner/repo" value="${cfg.repo}" style="background: #0d1117; border: 1px solid #30363d; color: #fff; padding: 6px; border-radius: 4px; font-family: monospace; font-size: 0.75rem;">
-                            <button id="vaii-gh-save-repo-btn" style="background: #30363d; border: none; color: #fff; padding: 5px; border-radius: 4px; cursor: pointer;">Update Repo</button>
+                            <input id="vaii-gh-switch-repo" type="text" placeholder="owner/repo (e.g. Big-Bang-Studios/VAII)" value="${cfg.repo}" style="background: #0d1117; border: 1px solid #30363d; color: #fff; padding: 6px; border-radius: 4px; font-family: monospace; font-size: 0.75rem;">
+                            <input id="vaii-gh-switch-token" type="password" placeholder="new ghp_ token (leave blank to keep current)" style="background: #0d1117; border: 1px solid #30363d; color: #fff; padding: 6px; border-radius: 4px; font-family: monospace; font-size: 0.75rem;">
+                            <button id="vaii-gh-save-settings-btn" style="background: #30363d; border: 1px solid #444; color: #fff; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer;">Save Settings</button>
                         </div>
                     </details>
                     <div id="vaii-gh-modal-status" style="margin-top: 8px; font-size: 0.75rem;"></div>
@@ -235,11 +237,15 @@ window.openVAIIHtmlEditor = function(initialCode = "") {
                     renderGhModal();
                 };
 
-                document.getElementById("vaii-gh-save-repo-btn").onclick = () => {
-                    const rep = document.getElementById("vaii-gh-switch-repo").value.trim();
-                    setEditorGh(undefined, rep);
-                    renderGhModal();
-                };
+                const saveSettingsBtn = document.getElementById("vaii-gh-save-settings-btn");
+                if (saveSettingsBtn) {
+                    saveSettingsBtn.onclick = () => {
+                        const rep = document.getElementById("vaii-gh-switch-repo").value.trim();
+                        const newTok = document.getElementById("vaii-gh-switch-token").value.trim();
+                        setEditorGh(newTok || undefined, rep);
+                        renderGhModal();
+                    };
+                }
 
                 document.getElementById("vaii-gh-pull-btn").onclick = async () => {
                     const filePath = document.getElementById("vaii-gh-pull-path").value.trim();
