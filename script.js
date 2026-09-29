@@ -155,6 +155,170 @@ window.openVAIIHtmlEditor = function(initialCode = "") {
     const renderBtn = document.getElementById("vaii-html-render-btn");
     const closeBtn = document.getElementById("vaii-html-close-btn");
     const clearBtn = document.getElementById("vaii-html-clear-btn");
+        const ghBtn = document.getElementById("vaii-html-gh-btn");
+        const ghModal = document.getElementById("vaii-editor-gh-modal");
+        const ghClose = document.getElementById("vaii-editor-gh-close");
+        const ghContent = document.getElementById("vaii-editor-gh-content");
+
+        const getEditorGh = () => ({
+            token: localStorage.getItem("vaii_gh_token") || "",
+            repo: localStorage.getItem("vaii_gh_repo") || ""
+        });
+
+        const setEditorGh = (token, repo) => {
+            if (token !== undefined) localStorage.setItem("vaii_gh_token", token);
+            if (repo !== undefined) localStorage.setItem("vaii_gh_repo", repo);
+        };
+
+        const renderGhModal = () => {
+            const cfg = getEditorGh();
+            if (!cfg.token) {
+                ghContent.innerHTML = `
+                    <div style="font-size: 0.8rem; color: #8b949e; margin-bottom: 12px; line-height: 1.4;">
+                        Connect your GitHub Personal Access Token to pull and push files directly inside this editor.
+                    </div>
+                    <div style="background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; margin-bottom: 12px; font-size: 0.78rem;">
+                        <div style="color: #e3b341; font-weight: bold; margin-bottom: 4px;">Where to get a key:</div>
+                        1. Visit <a href="https://github.com/settings/tokens" target="_blank" style="color: #58a6ff; text-decoration: underline;">github.com/settings/tokens</a><br>
+                        2. Generate a token (classic) with <strong>repo</strong> scope, or fine-grained with <strong>Contents: Read and Write</strong>.<br>
+                        3. Copy and paste the key below:
+                    </div>
+                    <input id="vaii-gh-token-in" type="password" placeholder="ghp_xxxxxxxxxxxx" style="width: 100%; box-sizing: border-box; background: #0d1117; border: 1px solid #30363d; color: #fff; padding: 8px; border-radius: 6px; margin-bottom: 8px; font-family: monospace; font-size: 0.8rem; outline: none;">
+                    <input id="vaii-gh-repo-in" type="text" placeholder="owner/repository (e.g. Big-Bang-Studios/VAII)" style="width: 100%; box-sizing: border-box; background: #0d1117; border: 1px solid #30363d; color: #fff; padding: 8px; border-radius: 6px; margin-bottom: 12px; font-family: monospace; font-size: 0.8rem; outline: none;">
+                    <button id="vaii-gh-connect-btn" style="width: 100%; background: #238636; border: none; color: #fff; font-weight: bold; padding: 9px; border-radius: 6px; cursor: pointer;">Connect GitHub</button>
+                `;
+                document.getElementById("vaii-gh-connect-btn").onclick = () => {
+                    const tok = document.getElementById("vaii-gh-token-in").value.trim();
+                    const rep = document.getElementById("vaii-gh-repo-in").value.trim();
+                    if (!tok) { alert("Please provide a valid GitHub token."); return; }
+                    setEditorGh(tok, rep);
+                    renderGhModal();
+                };
+            } else {
+                ghContent.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; margin-bottom: 12px;">
+                        <div>
+                            <div style="font-size: 0.72rem; color: #7ee787; font-weight: bold;">● CONNECTED</div>
+                            <div style="font-size: 0.85rem; font-weight: bold; color: #fff;">${cfg.repo || "(no repo configured)"}</div>
+                        </div>
+                        <button id="vaii-gh-logout-btn" style="background: none; border: 1px solid #f85149; color: #f85149; border-radius: 4px; padding: 3px 8px; font-size: 0.72rem; cursor: pointer;">Disconnect</button>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 0.75rem; color: #888; margin-bottom: 4px; font-weight: bold;">PULL FILE FROM REPO</div>
+                        <div style="display: flex; gap: 6px;">
+                            <input id="vaii-gh-pull-path" type="text" placeholder="path/to/file.html" style="flex: 1; background: #0d1117; border: 1px solid #30363d; color: #fff; padding: 6px 8px; border-radius: 4px; font-size: 0.8rem; font-family: monospace; outline: none;">
+                            <button id="vaii-gh-pull-btn" style="background: #1f6feb; border: none; color: #fff; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.78rem;">Pull</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 14px;">
+                        <div style="font-size: 0.75rem; color: #888; margin-bottom: 4px; font-weight: bold;">COMMIT & PUSH EDITOR CONTENT</div>
+                        <input id="vaii-gh-push-path" type="text" placeholder="remote file path (e.g. index.html)" style="width: 100%; box-sizing: border-box; background: #0d1117; border: 1px solid #30363d; color: #fff; padding: 6px 8px; border-radius: 4px; font-size: 0.8rem; font-family: monospace; margin-bottom: 6px; outline: none;">
+                        <input id="vaii-gh-push-msg" type="text" placeholder="commit message" style="width: 100%; box-sizing: border-box; background: #0d1117; border: 1px solid #30363d; color: #fff; padding: 6px 8px; border-radius: 4px; font-size: 0.8rem; margin-bottom: 6px; outline: none;">
+                        <button id="vaii-gh-push-btn" style="width: 100%; background: #238636; border: none; color: #fff; padding: 8px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.8rem;">🚀 Commit & Push</button>
+                    </div>
+
+                    <details style="font-size: 0.75rem; color: #8b949e; cursor: pointer;">
+                        <summary>Change Target Repo</summary>
+                        <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+                            <input id="vaii-gh-switch-repo" type="text" placeholder="owner/repo" value="${cfg.repo}" style="background: #0d1117; border: 1px solid #30363d; color: #fff; padding: 6px; border-radius: 4px; font-family: monospace; font-size: 0.75rem;">
+                            <button id="vaii-gh-save-repo-btn" style="background: #30363d; border: none; color: #fff; padding: 5px; border-radius: 4px; cursor: pointer;">Update Repo</button>
+                        </div>
+                    </details>
+                    <div id="vaii-gh-modal-status" style="margin-top: 8px; font-size: 0.75rem;"></div>
+                `;
+
+                document.getElementById("vaii-gh-logout-btn").onclick = () => {
+                    localStorage.removeItem("vaii_gh_token");
+                    localStorage.removeItem("vaii_gh_repo");
+                    renderGhModal();
+                };
+
+                document.getElementById("vaii-gh-save-repo-btn").onclick = () => {
+                    const rep = document.getElementById("vaii-gh-switch-repo").value.trim();
+                    setEditorGh(undefined, rep);
+                    renderGhModal();
+                };
+
+                document.getElementById("vaii-gh-pull-btn").onclick = async () => {
+                    const filePath = document.getElementById("vaii-gh-pull-path").value.trim();
+                    const statusDiv = document.getElementById("vaii-gh-modal-status");
+                    if (!filePath) { alert("Enter a file path to pull."); return; }
+                    statusDiv.innerHTML = '<span style="color:#58a6ff;">Pulling ' + filePath + '...</span>';
+                    try {
+                        const res = await fetch("https://api.github.com/repos/" + cfg.repo + "/contents/" + filePath, {
+                            headers: { "Authorization": "Bearer " + cfg.token, "Accept": "application/vnd.github.v3+json" }
+                        });
+                        if (!res.ok) throw new Error("HTTP " + res.status);
+                        const data = await res.json();
+                        const decoded = decodeURIComponent(escape(window.atob(data.content.replace(/\n/g, ""))));
+                        codeInput.value = decoded;
+                        document.getElementById("vaii-gh-push-path").value = filePath;
+                        statusDiv.innerHTML = '<span style="color:#7ee787;">Pulled ' + filePath + ' successfully!</span>';
+                        processCode();
+                    } catch (e) {
+                        statusDiv.innerHTML = '<span style="color:#f85149;">Pull error: ' + e.message + '</span>';
+                    }
+                };
+
+                document.getElementById("vaii-gh-push-btn").onclick = async () => {
+                    const filePath = document.getElementById("vaii-gh-push-path").value.trim();
+                    const msg = document.getElementById("vaii-gh-push-msg").value.trim() || ("Update " + filePath + " via VAII Editor");
+                    const statusDiv = document.getElementById("vaii-gh-modal-status");
+                    if (!filePath) { alert("Enter a target remote file path."); return; }
+                    statusDiv.innerHTML = '<span style="color:#58a6ff;">Committing ' + filePath + '...</span>';
+                    try {
+                        let sha = undefined;
+                        const getRes = await fetch("https://api.github.com/repos/" + cfg.repo + "/contents/" + filePath, {
+                            headers: { "Authorization": "Bearer " + cfg.token, "Accept": "application/vnd.github.v3+json" }
+                        });
+                        if (getRes.ok) {
+                            const existing = await getRes.json();
+                            sha = existing.sha;
+                        }
+                        const b64 = window.btoa(unescape(encodeURIComponent(codeInput.value)));
+                        const body = { message: msg, content: b64 };
+                        if (sha) body.sha = sha;
+
+                        const putRes = await fetch("https://api.github.com/repos/" + cfg.repo + "/contents/" + filePath, {
+                            method: "PUT",
+                            headers: {
+                                "Authorization": "Bearer " + cfg.token,
+                                "Accept": "application/vnd.github.v3+json",
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify(body)
+                        });
+                        if (!putRes.ok) {
+                            const errData = await putRes.json();
+                            throw new Error(errData.message || ("HTTP " + putRes.status));
+                        }
+                        const result = await putRes.json();
+                        statusDiv.innerHTML = '<span style="color:#7ee787;">Pushed! Commit: ' + (result.commit?.sha?.substring(0, 7) || "done") + '</span>';
+                    } catch (e) {
+                        statusDiv.innerHTML = '<span style="color:#f85149;">Push error: ' + e.message + '</span>';
+                    }
+                };
+            }
+        };
+
+        if (ghBtn) {
+            ghBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (ghModal) {
+                    ghModal.style.display = (ghModal.style.display === "none" || !ghModal.style.display) ? "block" : "none";
+                    if (ghModal.style.display === "block") renderGhModal();
+                }
+            };
+        }
+
+        if (ghClose) {
+            ghClose.onclick = (e) => {
+                e.stopPropagation();
+                if (ghModal) ghModal.style.display = "none";
+            };
+        }
     const warningBar = document.getElementById("vaii-html-warning-bar");
     const warningText = document.getElementById("vaii-html-warning-text");
     const warningActions = document.getElementById("vaii-html-warning-actions");
