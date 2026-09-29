@@ -111,12 +111,22 @@ window.openVAIIHtmlEditor = function(initialCode = "") {
                 <button id="vaii-html-close-btn" style="background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">✕ Close</button>
                 <span style="font-weight: bold; color: #28a745; font-size: 0.95rem;">⚡ VAII HTML Sandbox</span>
             </div>
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button id="vaii-html-gh-btn" style="background: #24292e; border: 1px solid #444; color: #fff; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">🐙 GitHub IDE</button>
                 <button id="vaii-html-render-btn" style="background: #28a745; border: none; color: #fff; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 0.82rem; cursor: pointer;">▶ Run Code</button>
             </div>
         </div>
 
-        <div id="vaii-html-warning-bar" style="display: none; background: #2a1f00; border-bottom: 1px solid #ffc107; padding: 10px 16px; font-size: 0.8rem; color: #ffc107; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        
+        <!-- GITHUB IDE MODAL -->
+        <div id="vaii-editor-gh-modal" style="display: none; position: absolute; top: 50px; right: 16px; width: min(420px, calc(100vw - 32px)); background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.6); z-index: 10005; font-size: 0.85rem; color: #c9d1d9;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #30363d; padding-bottom: 8px;">
+                <span style="font-weight: bold; color: #58a6ff; font-size: 0.95rem;">🐙 GitHub Cloud IDE</span>
+                <button id="vaii-editor-gh-close" style="background: none; border: none; color: #8b949e; font-size: 1.1rem; cursor: pointer;">✕</button>
+            </div>
+            <div id="vaii-editor-gh-content"></div>
+        </div>
+<div id="vaii-html-warning-bar" style="display: none; background: #2a1f00; border-bottom: 1px solid #ffc107; padding: 10px 16px; font-size: 0.8rem; color: #ffc107; justify-content: space-between; align-items: center; flex-shrink: 0;">
             <div id="vaii-html-warning-text" style="line-height: 1.4;"></div>
             <div id="vaii-html-warning-actions" style="display: flex; gap: 6px; margin-left: 12px;"></div>
         </div>
