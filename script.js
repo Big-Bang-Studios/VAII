@@ -2822,6 +2822,41 @@ function runInfoExecution(query) {
     // ==========================================
     // NATIVE TELEPHONY & MESSAGING PROTOCOLS
     // ==========================================
+    
+    // Catch bare telephony / messaging commands without arguments
+    const bareTrimmed = query.trim().toLowerCase();
+    if (bareTrimmed === "call" || bareTrimmed === "dial" || bareTrimmed === "/call") {
+        const helpCard = '<div style="background: #181818; border: 1px solid #28a745; border-radius: 12px; padding: 16px; margin: 12px 0; color: #fff;">' +
+            '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">' +
+                '<span style="background: #28a745; color: #fff; font-size: 0.75rem; font-weight: bold; padding: 3px 8px; border-radius: 4px;">PHONE HELP</span>' +
+                '<span style="font-size: 0.75rem; color: #888;">Missing Number</span>' +
+            '</div>' +
+            '<div style="font-size: 1.1rem; font-weight: bold; color: #fff; margin-bottom: 6px;">📞 How to make a call</div>' +
+            '<div style="font-size: 0.85rem; color: #aaa; margin-bottom: 12px; line-height: 1.4;">Provide a phone number after the command to trigger your phone dialer:</div>' +
+            '<div style="background: #222; padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 0.85rem; color: #28a745; margin-bottom: 12px;">call 555-0199<br>call (800) 555-0199</div>' +
+            '<button onclick="const el=document.getElementById(\'hub-input\'); if(el){ el.value=\'call \'; el.focus(); }" style="width: 100%; background: #28a745; color: #fff; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer;">Type a Phone Number</button>' +
+        '</div>';
+        if (typeof handleVaiiDataOutput === "function") { handleVaiiDataOutput("", helpCard); }
+        else if (typeof output !== "undefined" && output) { output.innerHTML = helpCard; }
+        return;
+    }
+
+    if (bareTrimmed === "text" || bareTrimmed === "sms" || bareTrimmed === "msg" || bareTrimmed === "/text" || bareTrimmed === "/sms") {
+        const helpCard = '<div style="background: #181818; border: 1px solid #007bff; border-radius: 12px; padding: 16px; margin: 12px 0; color: #fff;">' +
+            '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">' +
+                '<span style="background: #007bff; color: #fff; font-size: 0.75rem; font-weight: bold; padding: 3px 8px; border-radius: 4px;">MESSAGES HELP</span>' +
+                '<span style="font-size: 0.75rem; color: #888;">Missing Parameters</span>' +
+            '</div>' +
+            '<div style="font-size: 1.1rem; font-weight: bold; color: #fff; margin-bottom: 6px;">💬 How to send a text</div>' +
+            '<div style="font-size: 0.85rem; color: #aaa; margin-bottom: 12px; line-height: 1.4;">Provide a phone number and your message after the command:</div>' +
+            '<div style="background: #222; padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 0.85rem; color: #007bff; margin-bottom: 12px;">text 555-0199 on my way!<br>sms 555-0199 running 5 mins late</div>' +
+            '<button onclick="const el=document.getElementById(\'hub-input\'); if(el){ el.value=\'text \'; el.focus(); }" style="width: 100%; background: #007bff; color: #fff; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer;">Type Text Message</button>' +
+        '</div>';
+        if (typeof handleVaiiDataOutput === "function") { handleVaiiDataOutput("", helpCard); }
+        else if (typeof output !== "undefined" && output) { output.innerHTML = helpCard; }
+        return;
+    }
+
     const callMatch = query.trim().match(/^(?:call|dial)\s+([\d\+\-\(\)\s\.\#\*]+)$/i);
     if (callMatch) {
         const rawNum = callMatch[1].trim();
@@ -3713,6 +3748,9 @@ hubInput?.addEventListener('input', () => {
             "/repo facebook/react",
             "/qr https://vaii-two.vercel.app",
             "/timer 5m",
+            "/call 555-0199",
+            "/text 555-0199 on my way",
+            "/editor",
             "/note Check server deployments"
         ];
         customSuggestions = slashCommands.filter(c => c.toLowerCase().startsWith(cleanInput));
@@ -3722,6 +3760,18 @@ hubInput?.addEventListener('input', () => {
 
     if ("terminal".startsWith(cleanInput) || "shell".startsWith(cleanInput) || "sandbox".startsWith(cleanInput)) {
         customSuggestions.push("terminal", "shell", "sandbox");
+    }
+
+    if ("call".startsWith(cleanInput) || "dial".startsWith(cleanInput)) {
+        customSuggestions.push("call", "call 555-0199");
+    }
+
+    if ("text".startsWith(cleanInput) || "sms".startsWith(cleanInput) || "msg".startsWith(cleanInput)) {
+        customSuggestions.push("text", "text 555-0199 on my way", "sms");
+    }
+
+    if ("editor".startsWith(cleanInput) || "html".startsWith(cleanInput) || "htmleditor".startsWith(cleanInput)) {
+        customSuggestions.push("editor", "html", "htmleditor");
     }
 
     if (/^(o|or|ord|orde|order|f|fi|fin|find|r|re|res|rese|reser|reserv|reserve)/i.test(cleanInput)) {
