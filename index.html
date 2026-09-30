@@ -558,7 +558,11 @@
                         <strong style="color: #ffc107; font-size: 1rem;">🚀 VAII Version History</strong>
                         <div style="margin-top: 10px; border-left: 2px solid #444; padding-left: 10px; display: flex; flex-direction: column; gap: 12px;">
                             <div>
-                                <strong style="color:#fff;">v8.5 (Current)</strong><br>
+                                <strong style="color:#fff;">v9.0 (Current)</strong><br>
+                                <span style="color:#aaa;">Added GitHub Cloud IDE integration directly inside the HTML Viewer with token authentication, remote file pulling, and commit/push capabilities. Integrated a native safe arithmetic evaluator with Unicode keyboard normalization (<code>×</code>, <code>÷</code>, <code>x</code>), real-time autocomplete math solutions, and interactive guidance cards for bare telephony/SMS commands.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v8.5</strong><br>
                                 <span style="color:#aaa;">Integrated Hacker News live search cards directly into the Unified Wiki pipeline with point badges, comment tallies, and an interactive dedicated discussion reader overlay with recursive collapsible comment trees and split-view controls.</span>
                             </div>
                             <div>
@@ -629,11 +633,13 @@
 
                         <h4 style="color: #4da3ff; margin-bottom: 8px;">🌐 VAII Native Commands & Syntax</h4>
                         <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
-                            <li><strong>Phone Dialer & Calls:</strong> Type <code>call [number]</code> or <code>dial [number]</code> (e.g. <code>call 555-0199</code>) to launch the device's native phone dialer with the number ready to dial.</li>
-                            <li><strong>SMS Messaging:</strong> Type <code>text [number] [message]</code> or <code>sms [number] [message]</code> (e.g. <code>text 555-0199 on my way</code>) to launch the default messaging app with the recipient and body pre-filled.</li>
+                            <li><strong>Math & Calculator:</strong> Type equations directly (e.g. <code>25 × 4</code>, <code>100 ÷ 2</code>, <code>5 x 5</code>, <code>sqrt(144)</code>, <code>15 * 8</code>). Live answers appear in autocomplete, and pressing Enter loads a dedicated Calculator card with copy and re-use tools.</li>
+                            <li><strong>GitHub Cloud IDE:</strong> Open the HTML editor and tap the <strong>🐙 GitHub IDE</strong> button to link your token, pull repository files into the sandbox, and commit updates directly back to GitHub.</li>
+                            <li><strong>Phone Dialer & Calls:</strong> Type <code>call [number]</code> or <code>dial [number]</code> (e.g. <code>call 555-0199</code>) to launch the dialer. Typing bare <code>call</code> shows an interactive helper card.</li>
+                            <li><strong>SMS Messaging:</strong> Type <code>text [number] [message]</code> or <code>sms [number] [message]</code> (e.g. <code>text 555-0199 on my way</code>). Typing bare <code>text</code> shows an interactive guidance card.</li>
                             <li><strong>HTML Sandbox & Viewer:</strong> Type <code>html</code>, <code>editor</code>, <code>htmleditor</code>, or <code>/editor</code> to open an interactive code editor and previewer with automatic full-screen takeover and theme injection alerts.</li>
                             <li><strong>Terminal Sandbox:</strong> Type <code>terminal</code>, <code>/terminal</code>, or <code>shell</code> to open an interactive Unix-style shell environment with a persistent localStorage virtual file system. Type <code>exit</code> or <code>logout</code> to return.</li>
-                            <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant shortcuts (<code>/terminal</code>, <code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>, <code>/note</code>).</li>
+                            <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant shortcuts (<code>/call</code>, <code>/text</code>, <code>/editor</code>, <code>/terminal</code>, <code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>, <code>/note</code>).</li>
                             <li><strong>Hacker News Discussions:</strong> Type any topic or keyword (or queries like <code>javascript</code>, <code>ai</code>, <code>linux</code>) to fetch top community stories, scores, and comment counts. Click any card to launch the reader overlay with nested comment trees.</li>
                             <li><strong>Live Music Streaming & Spotify Hub:</strong> Type <code>play [song]</code> or <code>stream song [song]</code> (e.g. <code>play Blinding Lights</code>) to load 30s preview audio with Spotify and YouTube Music streaming links.</li>
                             <li><strong>NASA Mars Rover Telemetry:</strong> Type <code>mars</code>, <code>rover</code>, <code>curiosity</code>, or <code>perseverance</code> to fetch live Mars surface photos, Martian Sol dates, and landing telemetry.</li>
@@ -667,7 +673,6 @@
                             <li><strong>Live News (GNews):</strong> Type <code>top news</code> or <code>news about [topic]</code>.</li>
                             <li><strong>App & Site Launcher:</strong> Type <code>open [site]</code> (e.g., <code>open YouTube</code>, <code>open Minecraft</code>).</li>
                             <li><strong>Location & Weather:</strong> Type <code>weather [location]</code>, <code>time in [city]</code>, or <code>City, State</code> for conditions and OpenStreetMap radar previews.</li>
-                            <li><strong>Math & Conversions:</strong> Enter equations like <code>(12 * 4) / 2</code> or conversions like <code>193 lbs to kg</code>.</li>
                             <li><strong>Language Translation:</strong> Type <code>[phrase] to [language]</code> (e.g., <code>hello to spanish</code>).</li>
                             <li><strong>Crypto & Stocks:</strong> Type <code>BTC</code>, <code>ETH</code>, or <code>price of AAPL</code>.</li>
                             <li><strong>Local Food Search:</strong> Type <code>order burger</code> or <code>order from Wendy's</code> for GPS DoorDash routing.</li>
