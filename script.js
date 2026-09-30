@@ -1,6 +1,8 @@
 
 // SAFE IN-HUB MATH EVALUATION ENGINE
 function evaluateSafeMath(expr) {
+    if (!expr || typeof expr !== "string") return null;
+    const originalTyped = expr.trim();
     if (typeof expr === "string") {
         expr = expr.replace(/[×✕✖]/g, "*").replace(/[÷]/g, "/");
         expr = expr.replace(/(\d)\s*x\s*(\d)/gi, "$1 * $2");
@@ -43,7 +45,7 @@ function evaluateSafeMath(expr) {
         if (typeof res === "number" && !isNaN(res) && isFinite(res)) {
             // Clean rounding for floating point quirks (e.g. 0.1 + 0.2)
             const rounded = Math.round(res * 1e10) / 1e10;
-            return { expr: clean, result: rounded };
+            return { expr: (typeof originalTyped !== 'undefined' ? originalTyped : clean), result: rounded };
         }
     } catch (e) {
         return null;
@@ -4017,9 +4019,10 @@ hubInput?.addEventListener('input', () => {
     }
 
     // Live math calculation suggestion
-    const liveMath = evaluateSafeMath(cleanInput);
+    const rawVal = (typeof hubInput !== "undefined" && hubInput ? hubInput.value : cleanInput);
+    const liveMath = evaluateSafeMath(rawVal);
     if (liveMath) {
-        customSuggestions.unshift(liveMath.expr + " = " + liveMath.result);
+        customSuggestions.unshift(rawVal.trim() + " = " + liveMath.result);
     }
 
     if ("call".startsWith(cleanInput) || "dial".startsWith(cleanInput)) {
