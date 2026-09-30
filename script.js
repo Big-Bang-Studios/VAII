@@ -1,6 +1,10 @@
 
 // SAFE IN-HUB MATH EVALUATION ENGINE
 function evaluateSafeMath(expr) {
+    if (typeof expr === "string") {
+        expr = expr.replace(/[×✕✖]/g, "*").replace(/[÷]/g, "/");
+        expr = expr.replace(/(\d)\s*x\s*(\d)/gi, "$1 * $2");
+    }
     if (!expr || typeof expr !== "string") return null;
     let clean = expr.trim().toLowerCase();
     if (clean.startsWith("calc ") || clean.startsWith("math ") || clean.startsWith("calculate ")) {
