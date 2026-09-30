@@ -1,3 +1,52 @@
+
+// SAFE IN-HUB MATH EVALUATION ENGINE
+function evaluateSafeMath(expr) {
+    if (!expr || typeof expr !== "string") return null;
+    let clean = expr.trim().toLowerCase();
+    if (clean.startsWith("calc ") || clean.startsWith("math ") || clean.startsWith("calculate ")) {
+        clean = clean.replace(/^(?:calc|math|calculate)s+/i, "").trim();
+    }
+    // Remove trailing equals sign if typed (e.g. "5 + 5 =")
+    if (clean.endsWith("=")) clean = clean.slice(0, -1).trim();
+    
+    // Must contain at least one math operator or recognized math function
+    const hasMathIndicator = /[\+\-\*/\^%]|(?:sqrt|cbrt|sin|cos|tan|log|abs|round|floor|ceil|pi|e)/i.test(clean);
+    if (!hasMathIndicator) return null;
+
+    // Strict validation: only numbers, operators, parens, spaces, and whitelisted functions
+    const validMathPattern = /^[0-9\.\s\+\-\*/\^%\(\),a-z]+$/;
+    if (!validMathPattern.test(clean)) return null;
+
+    // Reject pure words that aren't math
+    const tokens = clean.match(/[a-z]+/g) || [];
+    const allowedWords = ["sqrt", "cbrt", "sin", "cos", "tan", "log", "abs", "round", "floor", "ceil", "pi", "e", "pow"];
+    for (const token of tokens) {
+        if (!allowedWords.includes(token)) return null;
+    }
+
+    // Convert power symbol '^' to '**'
+    let sanitized = clean.replace(/\^/g, "**");
+    // Replace math constants and functions with Math.* equivalents
+    sanitized = sanitized
+        .replace(/\bpi\b/g, "Math.PI")
+        .replace(/\be\b/g, "Math.E")
+        .replace(/\b(sqrt|cbrt|sin|cos|tan|log|abs|round|floor|ceil)\b/g, "Math.$1");
+
+    try {
+        // Safe evaluation strictly scoped
+        const fn = new Function('"use strict"; return (' + sanitized + ');');
+        const res = fn();
+        if (typeof res === "number" && !isNaN(res) && isFinite(res)) {
+            // Clean rounding for floating point quirks (e.g. 0.1 + 0.2)
+            const rounded = Math.round(res * 1e10) / 1e10;
+            return { expr: clean, result: rounded };
+        }
+    } catch (e) {
+        return null;
+    }
+    return null;
+}
+
 function safeStr(s) {
   if (!s) return "";
   try {
@@ -3003,6 +3052,27 @@ function runInfoExecution(query) {
     // NATIVE TELEPHONY & MESSAGING PROTOCOLS
     // ==========================================
     
+    // Catch math expressions directly
+    const mathAnswer = evaluateSafeMath(query);
+    if (mathAnswer) {
+        const mathCard = '<div style="background: #181818; border: 1px solid #9c27b0; border-radius: 12px; padding: 16px; margin: 12px 0; color: #fff; font-family: sans-serif;">' +
+            '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">' +
+                '<span style="background: #9c27b0; color: #fff; font-size: 0.75rem; font-weight: bold; padding: 3px 8px; border-radius: 4px;">CALCULATOR</span>' +
+                '<span style="font-size: 0.75rem; color: #aaa;">' + mathAnswer.expr + '</span>' +
+            '</div>' +
+            '<div style="font-size: 1.8rem; font-weight: bold; color: #e1bee7; margin-bottom: 12px; font-family: monospace;">' +
+                '= ' + mathAnswer.result +
+            '</div>' +
+            '<div style="display: flex; gap: 8px;">' +
+                '<button onclick="navigator.clipboard.writeText(\'' + mathAnswer.result + '\'); alert(\'Copied result to clipboard!\');" style="flex: 1; background: #333; border: 1px solid #555; color: #fff; padding: 8px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: bold;">📋 Copy Result</button>' +
+                '<button onclick="const el=document.getElementById(\'hub-input\'); if(el){ el.value=\'' + mathAnswer.result + ' \'; el.focus(); }" style="flex: 1; background: #9c27b0; border: none; color: #fff; padding: 8px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: bold;">Use in Next Calc</button>' +
+            '</div>' +
+        '</div>';
+        if (typeof handleVaiiDataOutput === "function") { handleVaiiDataOutput("", mathCard); }
+        else if (typeof output !== "undefined" && output) { output.innerHTML = mathCard; }
+        return;
+    }
+
     // Catch bare telephony / messaging commands without arguments
     const bareTrimmed = query.trim().toLowerCase();
     if (bareTrimmed === "call" || bareTrimmed === "dial" || bareTrimmed === "/call") {
@@ -3940,6 +4010,12 @@ hubInput?.addEventListener('input', () => {
 
     if ("terminal".startsWith(cleanInput) || "shell".startsWith(cleanInput) || "sandbox".startsWith(cleanInput)) {
         customSuggestions.push("terminal", "shell", "sandbox");
+    }
+
+    // Live math calculation suggestion
+    const liveMath = evaluateSafeMath(cleanInput);
+    if (liveMath) {
+        customSuggestions.unshift(liveMath.expr + " = " + liveMath.result);
     }
 
     if ("call".startsWith(cleanInput) || "dial".startsWith(cleanInput)) {
