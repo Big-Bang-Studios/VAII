@@ -2935,11 +2935,33 @@ function launchTargetUrl(url) {
 // GEMINI DIRECT CHAT ENGINE
 // ==========================================
 async function executeGeminiDirectChat(promptText) {
-    if (!promptText || !promptText.trim()) return;
+    const hasImage = !!activeImageBase64;
+    const cleanPrompt = (promptText && promptText.trim()) ? promptText.trim() : (hasImage ? "Describe this image in detail and answer any questions." : "");
+    if (!cleanPrompt && !hasImage) return;
+
+    const userParts = [{ text: cleanPrompt }];
+    if (hasImage) {
+        userParts.push({
+            inlineData: {
+                mimeType: activeImageMimeType || "image/jpeg",
+                data: activeImageBase64
+            }
+        });
+        // Clear preview after attaching to chat turn
+        if (typeof imageClearBtn !== "undefined" && imageClearBtn) {
+            imageClearBtn.click();
+        } else {
+            activeImageBase64 = null;
+            activeImageMimeType = null;
+            if (typeof imagePreviewContainer !== "undefined" && imagePreviewContainer) {
+                imagePreviewContainer.style.display = "none";
+            }
+        }
+    }
 
     chatHistory.push({
         role: "user",
-        parts: [{ text: promptText }]
+        parts: userParts
     });
 
     renderFullChatLogBubble();
