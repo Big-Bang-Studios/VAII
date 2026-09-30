@@ -4285,21 +4285,20 @@ executeActionBtn?.addEventListener('click', () => {
     if (hubInput) hubInput.value = "";
     if (routingWarning) routingWarning.style.display = "none";
     
-    if (activeImageBase64) {
-        executeVisionAnalysis(query || "Describe this image content in clear detail.");
-        return;
-    }
-
-    if (mode === "gemini") {
-        executeGeminiDirectChat(query);
-    } else {
+        if (mode === "gemini") {
+            executeGeminiDirectChat(query);
+            return;
+        }
+        if (activeImageBase64) {
+            executeVisionAnalysis(query || "Describe this image content in clear detail.");
+            return;
+        }
         if (query.toLowerCase().startsWith("draw ")) {
             executeImageGeneration(query.substring(5).trim());
         } else {
             runInfoExecution(query);
         }
-    }
-});
+    });
 
 hubInput?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') executeActionBtn?.click();
