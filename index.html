@@ -505,7 +505,6 @@
             text-align: left;
             display: flex;
             flex-direction: column;
-            justify-content: flex-start;
         }
 
         .mode-desc {
@@ -757,20 +756,20 @@
                         
                         <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 6px;">
                             <div class="mode-box">
-                                <div>
-                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 0.88rem; color: #ccc; font-weight: bold;">
-                                        <input type="radio" name="vaii-mode" value="native" checked style="width: auto !important; height: auto !important; margin: 0; padding: 0;"> VAII Native
-                                    </label>
-                                </div>
+                                <label style="display: flex; align-items: flex-start; gap: 6px; cursor: pointer; user-select: none; font-size: 0.88rem; color: #ccc; font-weight: bold; line-height: 1.25;">
+                                    <input type="radio" name="vaii-mode" value="native" checked style="width: auto !important; height: auto !important; margin: 2px 0 0 0; padding: 0;"> 
+                                    <span>VAII<br>Native Mode</span>
+                                </label>
                                 <div class="mode-desc" style="color: #777;">
                                     Runs web integrations: weather, crypto, maps, arithmetic, QR, and code sandboxes.
                                 </div>
                             </div>
                             
                             <div class="mode-box" style="position: relative;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 0.88rem; color: #ccc; font-weight: bold;">
-                                        <input type="radio" name="vaii-mode" value="gemini" style="width: auto !important; height: auto !important; margin: 0; padding: 0;"> Gemini Ecosystem
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <label style="display: flex; align-items: flex-start; gap: 6px; cursor: pointer; user-select: none; font-size: 0.88rem; color: #ccc; font-weight: bold; line-height: 1.25;">
+                                        <input type="radio" name="vaii-mode" value="gemini" style="width: auto !important; height: auto !important; margin: 2px 0 0 0; padding: 0;"> 
+                                        <span>Gemini<br>Ecosystem</span>
                                     </label>
                                     <span id="prefs-toggle-btn" style="cursor: pointer; font-size: 0.85rem; padding: 2px; color: #888; transition: color 0.2s;" title="System Preferences">⚙️</span>
                                 </div>
@@ -800,7 +799,7 @@
                         <div class="palette-item" data-cmd="/text "><span>💬 /text</span><span style="color:#666; font-size:0.75rem;">Send SMS text</span></div>
                         <div class="palette-item" data-cmd="/editor"><span>📝 /editor</span><span style="color:#666; font-size:0.75rem;">HTML live sandbox</span></div>
                         <div class="palette-item" data-cmd="/terminal"><span>💻 /terminal</span><span style="color:#666; font-size:0.75rem;">Launch sandbox</span></div>
-                        <div class="palette-item" data-cmd="/weather "><span>🌦️️ /weather</span><span style="color:#666; font-size:0.75rem;">Get local weather</span></div>
+                        <div class="palette-item" data-cmd="/weather "><span>🌦 /weather</span><span style="color:#666; font-size:0.75rem;">Get local weather</span></div>
                         <div class="palette-item" data-cmd="/play "><span>🎵 /play</span><span style="color:#666; font-size:0.75rem;">Music stream</span></div>
                         <div class="palette-item" data-cmd="/movie "><span>🎬 /movie</span><span style="color:#666; font-size:0.75rem;">Search films</span></div>
                         <div class="palette-item" data-cmd="/draw "><span>🎨 /draw</span><span style="color:#666; font-size:0.75rem;">Generate AI art</span></div>
