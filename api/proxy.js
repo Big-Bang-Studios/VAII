@@ -3,7 +3,27 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    const { q, limit, channelLimit, action, channelId, channelName, handle } = req.query;
+    const { url, q, limit, channelLimit, action, channelId, channelName, handle } = req.query;
+
+    // Generic JSON / CORS proxy passthrough
+    if (url) {
+        try {
+            const decodedUrl = decodeURIComponent(url);
+            const targetRes = await fetch(decodedUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Accept': 'application/json, text/plain, */*'
+                }
+            });
+            if (!targetRes.ok) {
+                return res.status(targetRes.status).json({ error: `Upstream returned ${targetRes.status}` });
+            }
+            const data = await targetRes.json();
+            return res.status(200).json(data);
+        } catch (err) {
+            return res.status(500).json({ error: 'Proxy fetch failed', message: err.message });
+        }
+    }
 
     if (action === "channel_videos" && (channelId || channelName || handle)) {
         try {

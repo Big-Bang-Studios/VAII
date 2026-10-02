@@ -4497,14 +4497,19 @@ hubInput?.addEventListener('input', () => {
 
 // 1. Astronaut Headcount Telemetry
 async function handleAstronautQuery() {
-    handleVaiiDataOutput("Scanning Orbit...", '<div style="color: #00d4ff; padding: 12px;">🛰️ Intercepting orbital transponders...</div>');
+    handleVaiiDataOutput("Scanning Orbit...", '<div style="color: #00d2ff; padding: 12px;">🛰️ Intercepting orbital transponders...</div>');
     try {
-        const res = await fetch('https://api.open-notify.org/astros.json');
-        if (!res.ok) throw new Error('Orbital feed unreachable');
+        const target = encodeURIComponent('http://api.open-notify.org/astros.json');
+        let res = await fetch('/api/proxy?url=' + target).catch(() => null);
+        if (!res || !res.ok) {
+            res = await fetch('https://api.allorigins.win/raw?url=' + target).catch(() => null);
+        }
+        if (!res || !res.ok) throw new Error('Orbital feed unreachable');
+
         const data = await res.json();
         
         const craftMap = {};
-        data.people.forEach(p => {
+        (data.people || []).forEach(p => {
             if (!craftMap[p.craft]) craftMap[p.craft] = [];
             craftMap[p.craft].push(p.name);
         });
@@ -4512,46 +4517,51 @@ async function handleAstronautQuery() {
         let craftHtml = '';
         for (const [craft, crew] of Object.entries(craftMap)) {
             craftHtml += `
-                <div style="margin-top: 10px; background: #161616; padding: 10px; border-radius: 6px; border-left: 3px solid #00d4ff;">
+                <div style="margin-top: 10px; background: #161616; padding: 10px; border-radius: 6px; border-left: 3px solid #00d2ff;">
                     <div style="font-size: 0.82rem; font-weight: bold; color: #00d4ff; text-transform: uppercase;">🛰️ ${escapeHtml(craft)} Station</div>
                     <div style="font-size: 0.8rem; color: #ddd; margin-top: 4px; line-height: 1.4;">${crew.map(m => escapeHtml(m)).join(' • ')}</div>
                 </div>
             `;
         }
 
+        const count = data.number || (data.people ? data.people.length : 0);
         const card = `
             <div style="background: #181818; border: 1px solid #00d4ff; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="background: #00d4ff22; color: #00d4ff; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid #00d4ff55;">ORBITAL TELEMETRY</span>
                     <span style="font-size: 0.75rem; color: #aaa;">Active Personnel</span>
                 </div>
-                <div style="font-size: 1.4rem; font-weight: 800; color: #fff; margin: 10px 0 4px 0;">${data.number} Humans in Orbit</div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: #fff; margin: 10px 0 4px 0;">${count} Humans in Orbit</div>
                 <div style="font-size: 0.8rem; color: #888;">Detected in Low-Earth Orbit across active space stations.</div>
                 ${craftHtml}
             </div>
         `;
         handleVaiiDataOutput("", card);
     } catch (err) {
-        handleVaiiDataOutput("Orbit Scan Failed", `<div style="color: #ff5555; padding: 12px;">⚠️️ Failed to intercept orbital feed: ${escapeHtml(err.message)}</div>`);
+        handleVaiiDataOutput("Orbit Scan Failed", `<div style="color: #ff5555; padding: 12px;">⚠️ Failed to intercept orbital feed: ${escapeHtml(err.message)}</div>`);
     }
 }
 
 // 2. Flight Radar Telemetry
 async function handleFlightQuery(callsign) {
     const cleanCallsign = callsign.toUpperCase().trim();
-    handleVaiiDataOutput("Radar Intercept...", `<div style="color: #28a745; padding: 12px;">📡 Querying transponder ${escapeHtml(cleanCallsign)}...</div>`);
+    handleVaiiDataOutput("Radar Intercept...", `<div style="color: #28a745; padding: 12px;">📡 Querying ADS-B transponder ${escapeHtml(cleanCallsign)}...</div>`);
     try {
-        const res = await fetch('https://opensky-network.org/api/states/all');
-        if (!res.ok) throw new Error('Aviation network rate-limited or busy');
+        const target = encodeURIComponent('https://opensky-network.org/api/states/all');
+        let res = await fetch('/api/proxy?url=' + target).catch(() => null);
+        if (!res || !res.ok) {
+            res = await fetch('https://api.allorigins.win/raw?url=' + target).catch(() => null);
+        }
+        if (!res || !res.ok) throw new Error('Aviation network busy or rate-limited');
+
         const data = await res.json();
-        
-        const plane = data.states?.find(s => (s[1] || '').trim().toUpperCase() === cleanCallsign);
+        const plane = (data.states || []).find(s => (s[1] || '').trim().toUpperCase() === cleanCallsign);
 
         if (!plane) {
             handleVaiiDataOutput("Flight Radar", `
                 <div style="background: #181818; border: 1px solid #ffaa00; border-radius: 8px; padding: 14px; margin: 10px 0; color: #fff;">
                     <strong style="color: #ffaa00;">✈️ Transponder Radar: ${escapeHtml(cleanCallsign)}</strong>
-                    <p style="color: #aaa; font-size: 0.85rem; margin: 6px 0;">No active airborne ADS-B transponder broadcast detected for this callsign right now.</p>
+                    <p style="color: #aaa; font-size: 0.85rem; margin: 6px 0;">No active airborne ADS-B transponder broadcast detected for this callsign right now. Make sure you use standard ICAO flight callsigns (e.g. <code>UAL420</code>, <code>DAL12</code>, <code>AAL100</code>).</p>
                 </div>
             `);
             return;
