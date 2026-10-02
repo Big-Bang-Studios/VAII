@@ -888,6 +888,20 @@ const welcomeVaiiText = `Welcome to VAII Native! Enter a search query, app routi
 const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent conversational space. Start typing below to begin a continuous chat thread...`;
 
 const defaultAssistantSuggestions = [
+    "call ",
+    "/call",
+    "text ",
+    "/text",
+    "quakes",
+    "/quakes",
+    "earthquakes",
+    "bsky ",
+    "/bsky",
+    "wayback ",
+    "/wayback",
+    "archive ",
+    "npm ",
+    "/npm",
     "terminal",
     "/terminal",
     "Open Gemini", 
