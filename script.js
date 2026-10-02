@@ -4545,45 +4545,56 @@ async function handleAstronautQuery() {
 // 2. Flight Radar Telemetry
 async function handleFlightQuery(callsign) {
     const cleanCallsign = callsign.toUpperCase().trim();
-    handleVaiiDataOutput("Radar Intercept...", `<div style="color: #28a745; padding: 12px;">📡 Querying ADS-B transponder ${escapeHtml(cleanCallsign)}...</div>`);
+    handleVaiiDataOutput("Radar Intercept...", `<div style="color: #28a745; padding: 12px;">📡 Intercepting ADS-B telemetry for <strong>${escapeHtml(cleanCallsign)}</strong>...</div>`);
     try {
-        const target = encodeURIComponent('https://opensky-network.org/api/states/all');
-        let res = await fetch('/api/proxy?url=' + target).catch(() => null);
+        // Query community ADS-B networks with instant callsign resolution
+        const targetUrl = 'https://api.adsb.lol/v2/callsign/' + encodeURIComponent(cleanCallsign);
+        let res = await fetch('/api/proxy?url=' + encodeURIComponent(targetUrl)).catch(() => null);
+        
         if (!res || !res.ok) {
-            res = await fetch('https://api.allorigins.win/raw?url=' + target).catch(() => null);
+            // Backup direct community feed
+            const backupUrl = 'https://opendata.adsb.fi/api/v2/callsign/' + encodeURIComponent(cleanCallsign);
+            res = await fetch('/api/proxy?url=' + encodeURIComponent(backupUrl)).catch(() => null);
         }
-        if (!res || !res.ok) throw new Error('Aviation network busy or rate-limited');
+
+        if (!res || !res.ok) throw new Error('Aviation network unreachable');
 
         const data = await res.json();
-        const plane = (data.states || []).find(s => (s[1] || '').trim().toUpperCase() === cleanCallsign);
+        const plane = (data.ac || [])[0];
 
         if (!plane) {
             handleVaiiDataOutput("Flight Radar", `
                 <div style="background: #181818; border: 1px solid #ffaa00; border-radius: 8px; padding: 14px; margin: 10px 0; color: #fff;">
                     <strong style="color: #ffaa00;">✈️ Transponder Radar: ${escapeHtml(cleanCallsign)}</strong>
-                    <p style="color: #aaa; font-size: 0.85rem; margin: 6px 0;">No active airborne ADS-B transponder broadcast detected for this callsign right now. Make sure you use standard ICAO flight callsigns (e.g. <code>UAL420</code>, <code>DAL12</code>, <code>AAL100</code>).</p>
+                    <p style="color: #aaa; font-size: 0.85rem; margin: 6px 0;">No active airborne ADS-B transponder broadcast detected for this callsign right now.</p>
                 </div>
             `);
             return;
         }
 
-        const [icao24, cs, origin_country, time_position, last_contact, longitude, latitude, baro_altitude, on_ground, velocity, true_track] = plane;
-        const speedKnots = velocity ? Math.round(velocity * 1.94384) : 'N/A';
-        const altFeet = baro_altitude ? Math.round(baro_altitude * 3.28084) : (on_ground ? 'On Ground' : 'N/A');
+        const icao24 = plane.hex || 'N/A';
+        const type = plane.t || plane.desc || 'Aircraft';
+        const altFeet = (plane.alt_baro !== undefined && plane.alt_baro !== "ground") ? Number(plane.alt_baro).toLocaleString() + ' ft' : 'Ground';
+        const speedKnots = plane.gs !== undefined ? Math.round(plane.gs) + ' kts' : 'N/A';
+        const mach = plane.mach !== undefined ? 'Mach ' + plane.mach : (plane.gs ? 'Mach ' + (plane.gs / 661.47).toFixed(2) : 'N/A');
+        const heading = plane.track !== undefined ? Math.round(plane.track) + '°' : 'N/A';
+        const lat = plane.lat !== undefined ? Number(plane.lat).toFixed(2) : 'N/A';
+        const lon = plane.lon !== undefined ? Number(plane.lon).toFixed(2) : 'N/A';
+        const squawk = plane.squawk || 'Standard';
 
         const card = `
             <div style="background: #181818; border: 1px solid #28a745; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="background: #28a74522; color: #28a745; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid #28a74555;">RADAR CONTACT</span>
-                    <span style="font-size: 0.75rem; color: #aaa;">ICAO24: <code>${escapeHtml(icao24 || '')}</code></span>
+                    <span style="font-size: 0.75rem; color: #aaa;">ICAO24: <code>${escapeHtml(icao24.toUpperCase())}</code></span>
                 </div>
                 <div style="font-size: 1.4rem; font-weight: 800; color: #fff; margin: 10px 0 4px 0;">✈️ ${escapeHtml(cleanCallsign)}</div>
-                <div style="font-size: 0.82rem; color: #888; margin-bottom: 12px;">Origin: ${escapeHtml(origin_country || 'Unknown')}</div>
+                <div style="font-size: 0.82rem; color: #888; margin-bottom: 12px;">Type: ${escapeHtml(type)} • Transponder: ${escapeHtml(squawk)}</div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.82rem;">
-                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Altitude:</strong> ${altFeet} ft</div>
-                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Speed:</strong> ${speedKnots} kts</div>
-                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Heading:</strong> ${true_track ? Math.round(true_track) + '°' : 'N/A'}</div>
-                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Coords:</strong> ${latitude ? latitude.toFixed(2) : 'N/A'}, ${longitude ? longitude.toFixed(2) : 'N/A'}</div>
+                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Altitude:</strong> ${altFeet}</div>
+                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Airspeed:</strong> ${speedKnots} (${mach})</div>
+                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Heading:</strong> ${heading}</div>
+                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Telemetry:</strong> ${lat}, ${lon}</div>
                 </div>
             </div>
         `;
