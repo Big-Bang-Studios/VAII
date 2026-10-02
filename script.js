@@ -908,6 +908,11 @@ const defaultAssistantSuggestions = [
             "/bsky ",
             "/wayback ",
             "/npm ",
+            "/space",
+            "/flight ",
+            "/neo",
+            "/dns ",
+            "/barcode ",
     "Open Gemini", 
     "Play Blinding Lights",
     "Mars Rover",
@@ -4234,6 +4239,22 @@ hubInput?.addEventListener('input', () => {
         customSuggestions.push("text ");
     }
 
+    if ("space".startsWith(cleanInput) || "whoisinspace".startsWith(cleanInput) || "astronauts".startsWith(cleanInput)) {
+        customSuggestions.push("space", "whoisinspace");
+    }
+    if ("flight".startsWith(cleanInput)) {
+        customSuggestions.push("flight ");
+    }
+    if ("neo".startsWith(cleanInput) || "asteroid".startsWith(cleanInput)) {
+        customSuggestions.push("neo", "asteroid");
+    }
+    if ("dns".startsWith(cleanInput) || "dig".startsWith(cleanInput) || "nslookup".startsWith(cleanInput)) {
+        customSuggestions.push("dns ");
+    }
+    if ("barcode".startsWith(cleanInput) || "food".startsWith(cleanInput)) {
+        customSuggestions.push("barcode ");
+    }
+
     if ("terminal".startsWith(cleanInput) || "shell".startsWith(cleanInput) || "sandbox".startsWith(cleanInput)) {
         customSuggestions.push("terminal", "shell", "sandbox");
     }
@@ -4473,6 +4494,238 @@ hubInput?.addEventListener('input', () => {
     }, 300);
 });
 
+
+// 1. Astronaut Headcount Telemetry
+async function handleAstronautQuery() {
+    handleVaiiDataOutput("Scanning Orbit...", '<div style="color: #00d4ff; padding: 12px;">🛰️ Intercepting orbital transponders...</div>');
+    try {
+        const res = await fetch('https://api.open-notify.org/astros.json');
+        if (!res.ok) throw new Error('Orbital feed unreachable');
+        const data = await res.json();
+        
+        const craftMap = {};
+        data.people.forEach(p => {
+            if (!craftMap[p.craft]) craftMap[p.craft] = [];
+            craftMap[p.craft].push(p.name);
+        });
+
+        let craftHtml = '';
+        for (const [craft, crew] of Object.entries(craftMap)) {
+            craftHtml += `
+                <div style="margin-top: 10px; background: #161616; padding: 10px; border-radius: 6px; border-left: 3px solid #00d4ff;">
+                    <div style="font-size: 0.82rem; font-weight: bold; color: #00d4ff; text-transform: uppercase;">🛰️ ${escapeHtml(craft)} Station</div>
+                    <div style="font-size: 0.8rem; color: #ddd; margin-top: 4px; line-height: 1.4;">${crew.map(m => escapeHtml(m)).join(' • ')}</div>
+                </div>
+            `;
+        }
+
+        const card = `
+            <div style="background: #181818; border: 1px solid #00d4ff; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="background: #00d4ff22; color: #00d4ff; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid #00d4ff55;">ORBITAL TELEMETRY</span>
+                    <span style="font-size: 0.75rem; color: #aaa;">Active Personnel</span>
+                </div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: #fff; margin: 10px 0 4px 0;">${data.number} Humans in Orbit</div>
+                <div style="font-size: 0.8rem; color: #888;">Detected in Low-Earth Orbit across active space stations.</div>
+                ${craftHtml}
+            </div>
+        `;
+        handleVaiiDataOutput("", card);
+    } catch (err) {
+        handleVaiiDataOutput("Orbit Scan Failed", `<div style="color: #ff5555; padding: 12px;">⚠️️ Failed to intercept orbital feed: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
+// 2. Flight Radar Telemetry
+async function handleFlightQuery(callsign) {
+    const cleanCallsign = callsign.toUpperCase().trim();
+    handleVaiiDataOutput("Radar Intercept...", `<div style="color: #28a745; padding: 12px;">📡 Querying transponder ${escapeHtml(cleanCallsign)}...</div>`);
+    try {
+        const res = await fetch('https://opensky-network.org/api/states/all');
+        if (!res.ok) throw new Error('Aviation network rate-limited or busy');
+        const data = await res.json();
+        
+        const plane = data.states?.find(s => (s[1] || '').trim().toUpperCase() === cleanCallsign);
+
+        if (!plane) {
+            handleVaiiDataOutput("Flight Radar", `
+                <div style="background: #181818; border: 1px solid #ffaa00; border-radius: 8px; padding: 14px; margin: 10px 0; color: #fff;">
+                    <strong style="color: #ffaa00;">✈️ Transponder Radar: ${escapeHtml(cleanCallsign)}</strong>
+                    <p style="color: #aaa; font-size: 0.85rem; margin: 6px 0;">No active airborne ADS-B transponder broadcast detected for this callsign right now.</p>
+                </div>
+            `);
+            return;
+        }
+
+        const [icao24, cs, origin_country, time_position, last_contact, longitude, latitude, baro_altitude, on_ground, velocity, true_track] = plane;
+        const speedKnots = velocity ? Math.round(velocity * 1.94384) : 'N/A';
+        const altFeet = baro_altitude ? Math.round(baro_altitude * 3.28084) : (on_ground ? 'On Ground' : 'N/A');
+
+        const card = `
+            <div style="background: #181818; border: 1px solid #28a745; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="background: #28a74522; color: #28a745; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid #28a74555;">RADAR CONTACT</span>
+                    <span style="font-size: 0.75rem; color: #aaa;">ICAO24: <code>${escapeHtml(icao24 || '')}</code></span>
+                </div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: #fff; margin: 10px 0 4px 0;">✈️ ${escapeHtml(cleanCallsign)}</div>
+                <div style="font-size: 0.82rem; color: #888; margin-bottom: 12px;">Origin: ${escapeHtml(origin_country || 'Unknown')}</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.82rem;">
+                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Altitude:</strong> ${altFeet} ft</div>
+                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Speed:</strong> ${speedKnots} kts</div>
+                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Heading:</strong> ${true_track ? Math.round(true_track) + '°' : 'N/A'}</div>
+                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Coords:</strong> ${latitude ? latitude.toFixed(2) : 'N/A'}, ${longitude ? longitude.toFixed(2) : 'N/A'}</div>
+                </div>
+            </div>
+        `;
+        handleVaiiDataOutput("", card);
+    } catch (err) {
+        handleVaiiDataOutput("Flight Radar", `<div style="color: #ff5555; padding: 12px;">⚠️ Transponder feed error: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
+// 3. Near-Earth Asteroid Radar (NASA NeoWs)
+async function handleNeoQuery() {
+    handleVaiiDataOutput("Planetary Defense Scan...", '<div style="color: #e0ac00; padding: 12px;">🔭 Scanning NASA NeoWs radar feeds...</div>');
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const res = await fetch(`https://api.nasa.gov/neo/rest/v1/feed?start_date=${today}&end_date=${today}&api_key=DEMO_KEY`);
+        if (!res.ok) throw new Error('NASA NeoWs endpoint unavailable');
+        const data = await res.json();
+        
+        const asteroids = data.near_earth_objects[today] || [];
+        asteroids.sort((a, b) => (b.is_potentially_hazardous_asteroid ? 1 : 0) - (a.is_potentially_hazardous_asteroid ? 1 : 0));
+        const topAsteroids = asteroids.slice(0, 4);
+
+        let listHtml = '';
+        topAsteroids.forEach(ast => {
+            const diamMin = Math.round(ast.estimated_diameter?.meters?.estimated_diameter_min || 0);
+            const diamMax = Math.round(ast.estimated_diameter?.meters?.estimated_diameter_max || 0);
+            const missDistKm = Math.round(parseFloat(ast.close_approach_data[0]?.miss_distance?.kilometers || 0)).toLocaleString();
+            const kmh = Math.round(parseFloat(ast.close_approach_data[0]?.relative_velocity?.kilometers_per_hour || 0)).toLocaleString();
+            const hazard = ast.is_potentially_hazardous_asteroid;
+
+            listHtml += `
+                <div style="margin-top: 8px; background: #222; border-left: 3px solid ${hazard ? '#ff4444' : '#28a745'}; padding: 10px; border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: #fff; font-size: 0.88rem;">☄️ ${escapeHtml(ast.name.replace(/[()]/g, ''))}</strong>
+                        <span style="font-size: 0.7rem; font-weight: bold; color: ${hazard ? '#ff4444' : '#28a745'};">${hazard ? '⚠️ HAZARDOUS' : 'SAFE'}</span>
+                    </div>
+                    <div style="font-size: 0.78rem; color: #aaa; margin-top: 4px;">
+                        Diameter: ~${diamMin}-${diamMax}m • Speed: ${kmh} km/h<br>
+                        Miss Distance: ${missDistKm} km
+                    </div>
+                </div>
+            `;
+        });
+
+        const card = `
+            <div style="background: #181818; border: 1px solid #e0ac00; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="background: #e0ac0022; color: #e0ac00; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid #e0ac0055;">PLANETARY DEFENSE</span>
+                    <span style="font-size: 0.75rem; color: #aaa;">NASA NeoWs</span>
+                </div>
+                <div style="font-size: 1.3rem; font-weight: 800; color: #fff; margin: 10px 0 4px 0;">Asteroid Close Approaches</div>
+                <div style="font-size: 0.8rem; color: #888; margin-bottom: 8px;">Tracked objects within Earth's orbital corridor today.</div>
+                ${listHtml}
+            </div>
+        `;
+        handleVaiiDataOutput("", card);
+    } catch (err) {
+        handleVaiiDataOutput("Planetary Defense Error", `<div style="color: #ff5555; padding: 12px;">⚠️ Asteroid radar feed failed: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
+// 4. DNS over HTTPS Resolver
+async function handleDnsQuery(domain) {
+    const cleanDomain = domain.replace(/^(https?:\/\/)/i, '').split('/')[0].trim();
+    handleVaiiDataOutput("DNS Lookup...", `<div style="color: #4285f4; padding: 12px;">🌐 Resolving records for ${escapeHtml(cleanDomain)}...</div>`);
+    try {
+        const [aRes, aaaaRes, mxRes] = await Promise.all([
+            fetch(`https://dns.google/resolve?name=${encodeURIComponent(cleanDomain)}&type=A`).then(r => r.json()).catch(() => ({})),
+            fetch(`https://dns.google/resolve?name=${encodeURIComponent(cleanDomain)}&type=AAAA`).then(r => r.json()).catch(() => ({})),
+            fetch(`https://dns.google/resolve?name=${encodeURIComponent(cleanDomain)}&type=MX`).then(r => r.json()).catch(() => ({}))
+        ]);
+
+        const aRecords = aRes.Answer?.map(a => escapeHtml(a.data)) || ['None'];
+        const aaaaRecords = aaaaRes.Answer?.map(a => escapeHtml(a.data)) || ['None'];
+        const mxRecords = mxRes.Answer?.map(a => escapeHtml(a.data)) || ['None'];
+
+        const card = `
+            <div style="background: #181818; border: 1px solid #4285f4; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff; font-family: monospace;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-family: sans-serif;">
+                    <span style="background: #4285f422; color: #4285f4; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid #4285f455;">DNS TELEMETRY</span>
+                    <span style="font-size: 0.75rem; color: #aaa;">Google DoH</span>
+                </div>
+                <div style="font-size: 1.2rem; font-weight: bold; color: #fff; margin: 10px 0 8px 0; font-family: sans-serif;">🌐 ${escapeHtml(cleanDomain)}</div>
+                
+                <div style="margin-top: 8px; font-size: 0.8rem; background: #111; padding: 10px; border-radius: 6px;">
+                    <strong style="color: #4285f4;">[A Records] (IPv4)</strong><br>
+                    ${aRecords.join('<br>')}<br><br>
+                    <strong style="color: #34a853;">[AAAA Records] (IPv6)</strong><br>
+                    ${aaaaRecords.join('<br>')}<br><br>
+                    <strong style="color: #fbbc05;">[MX Records] (Mail Exchangers)</strong><br>
+                    ${mxRecords.join('<br>')}
+                </div>
+            </div>
+        `;
+        handleVaiiDataOutput("", card);
+    } catch (err) {
+        handleVaiiDataOutput("DNS Lookup Failed", `<div style="color: #ff5555; padding: 12px;">⚠️ DNS resolution failed: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
+// 5. Open Food Facts Barcode Decrypter
+async function handleBarcodeQuery(barcode) {
+    const cleanCode = barcode.replace(/[^\d]/g, '').trim();
+    handleVaiiDataOutput("Scanning Product...", `<div style="color: #ff7043; padding: 12px;">🛒 Querying global food registry for code <code>${escapeHtml(cleanCode)}</code>...</div>`);
+    try {
+        const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${cleanCode}.json`);
+        if (!res.ok) throw new Error('Open Food Facts database offline');
+        const data = await res.json();
+
+        if (data.status !== 1 || !data.product) {
+            handleVaiiDataOutput("Product Not Found", `
+                <div style="background: #181818; border: 1px solid #e91e63; border-radius: 8px; padding: 14px; margin: 10px 0; color: #fff;">
+                    <strong style="color: #e91e63;">🛒 Barcode Unrecognized</strong>
+                    <p style="color: #aaa; font-size: 0.85rem; margin: 6px 0;">Barcode <code>${escapeHtml(cleanCode)}</code> was not located in Open Food Facts.</p>
+                </div>
+            `);
+            return;
+        }
+
+        const prod = data.product;
+        const name = prod.product_name || 'Unknown Product';
+        const brand = prod.brands || 'Generic / Unbranded';
+        const grade = (prod.nutrition_grades || 'unknown').toUpperCase();
+        const palmOil = prod.ingredients_from_palm_oil_n > 0 ? '⚠️ Contains Palm Oil' : '🌿 No Palm Oil';
+        const img = prod.image_front_small_url || prod.image_small_url || '';
+
+        const card = `
+            <div style="background: #181818; border: 1px solid #ff7043; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="background: #ff704322; color: #ff7043; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid #ff704355;">GROCERY TELEMETRY</span>
+                    <span style="font-size: 0.75rem; color: #aaa;"><code>${escapeHtml(cleanCode)}</code></span>
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 12px; align-items: center;">
+                    ${img ? `<img src="${escapeHtml(img)}" style="width: 50px; height: 50px; object-fit: contain; border-radius: 6px; background: #222;">` : ''}
+                    <div>
+                        <div style="font-size: 1.15rem; font-weight: bold; color: #fff;">${escapeHtml(name)}</div>
+                        <div style="font-size: 0.8rem; color: #888;">${escapeHtml(brand)}</div>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; font-size: 0.8rem;">
+                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Nutri-Score:</strong> Grade ${escapeHtml(grade)}</div>
+                    <div style="background: #222; padding: 8px; border-radius: 6px;">${palmOil}</div>
+                </div>
+                ${prod.ingredients_text ? `<div style="font-size: 0.75rem; color: #aaa; margin-top: 10px; background: #111; padding: 8px; border-radius: 6px; line-height: 1.4;"><strong>Ingredients:</strong> ${escapeHtml(prod.ingredients_text.slice(0, 180))}...</div>` : ''}
+            </div>
+        `;
+        handleVaiiDataOutput("", card);
+    } catch (err) {
+        handleVaiiDataOutput("Scan Failed", `<div style="color: #ff5555; padding: 12px;">⚠️ Barcode decryption failed: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
 executeActionBtn?.addEventListener('click', () => {
     const query = (hubInput?.value || "").trim();
     const modeEl = document.querySelector('input[name="vaii-mode"]:checked');
@@ -4546,6 +4799,78 @@ executeActionBtn?.addEventListener('click', () => {
                 return;
             }
             handleNpmQuery(pkg);
+            return;
+        }
+
+        // 5. Astronaut Radar
+        if (lq === "space" || lq === "/space" || lq === "whoisinspace" || lq === "/whoisinspace" || lq === "astronauts") {
+            handleAstronautQuery();
+            return;
+        }
+
+        // 6. Flight Interceptor
+        if (lq === "flight" || lq === "/flight" || lq.startsWith("flight ") || lq.startsWith("/flight ")) {
+            const callsign = query.trim().replace(/^(\/flight|flight)\s*/i, '').trim();
+            if (!callsign) {
+                handleVaiiDataOutput("Flight Radar", `
+                    <div style="background: #181818; border: 1px solid #28a745; border-radius: 8px; padding: 14px; margin-top: 10px;">
+                        <strong style="color: #28a745; font-size: 0.95rem;">✈️ Live Flight Interceptor</strong>
+                        <p style="color: #aaa; font-size: 0.82rem; margin: 8px 0;">Enter an active commercial or private flight callsign.</p>
+                        <div style="font-size: 0.8rem; color: #888;">
+                            Syntax: <code style="color: #28a745;">flight [callsign]</code><br>
+                            Example: <code style="color: #eee;">flight UAL420</code> or <code style="color: #eee;">flight DAL12</code>
+                        </div>
+                    </div>
+                `);
+                return;
+            }
+            handleFlightQuery(callsign);
+            return;
+        }
+
+        // 7. Planetary Defense / Asteroids
+        if (lq === "neo" || lq === "/neo" || lq === "asteroid" || lq === "/asteroid" || lq === "asteroids" || lq === "/asteroids") {
+            handleNeoQuery();
+            return;
+        }
+
+        // 8. DNS & WHOIS Resolver
+        if (lq === "dns" || lq === "/dns" || lq.startsWith("dns ") || lq.startsWith("/dns ") || lq.startsWith("dig ") || lq.startsWith("nslookup ")) {
+            const domain = query.trim().replace(/^(\/dns|dns|dig|nslookup)\s*/i, '').trim();
+            if (!domain) {
+                handleVaiiDataOutput("DNS Resolver", `
+                    <div style="background: #181818; border: 1px solid #4285f4; border-radius: 8px; padding: 14px; margin-top: 10px;">
+                        <strong style="color: #4285f4; font-size: 0.95rem;">🌐 DoH DNS Resolver</strong>
+                        <p style="color: #aaa; font-size: 0.82rem; margin: 8px 0;">Provide a hostname or domain to query A, AAAA, and MX records.</p>
+                        <div style="font-size: 0.8rem; color: #888;">
+                            Syntax: <code style="color: #4285f4;">dns [domain]</code><br>
+                            Example: <code style="color: #eee;">dns google.com</code> or <code style="color: #eee;">dns github.com</code>
+                        </div>
+                    </div>
+                `);
+                return;
+            }
+            handleDnsQuery(domain);
+            return;
+        }
+
+        // 9. Open Food Facts Barcode Decrypter
+        if (lq === "barcode" || lq === "/barcode" || lq === "food" || lq === "/food" || lq.startsWith("barcode ") || lq.startsWith("/barcode ") || lq.startsWith("food ") || lq.startsWith("/food ")) {
+            const codeClean = query.trim().replace(/^(\/barcode|barcode|\/food|food)\s*/i, '').trim();
+            if (!codeClean || !/^\d+$/.test(codeClean)) {
+                handleVaiiDataOutput("Barcode Decrypter", `
+                    <div style="background: #181818; border: 1px solid #ff7043; border-radius: 8px; padding: 14px; margin-top: 10px;">
+                        <strong style="color: #ff7043; font-size: 0.95rem;">🛒 Open Food Facts Barcode Decrypter</strong>
+                        <p style="color: #aaa; font-size: 0.82rem; margin: 8px 0;">Please provide a numeric UPC/EAN barcode from any grocery item.</p>
+                        <div style="font-size: 0.8rem; color: #888;">
+                            Syntax: <code style="color: #ff7043;">barcode [upc-number]</code><br>
+                            Example: <code style="color: #eee;">barcode 737628064502</code> or <code style="color: #eee;">food 3017620422003</code>
+                        </div>
+                    </div>
+                `);
+                return;
+            }
+            handleBarcodeQuery(codeClean);
             return;
         }
     }
