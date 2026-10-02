@@ -3819,7 +3819,8 @@ function compileFinalSourceIndexBox(query, wikiData) {
     
     if (wikiData.hackerNews && wikiData.hackerNews.length > 0) {
         window._vaiiHNHits = wikiData.hackerNews;
-        totalHTML += '<div style="margin-top: 18px; margin-bottom: 12px; background: #181818; border: 1px solid #2a2a2a; border-radius: 8px; padding: 14px 14px 10px 14px;">' +
+        totalHTML += '<div style="color: #888; font-style: italic; font-size: 0.85rem; margin: 15px 0 8px 0; text-align: left;">This might also be relevant:</div>';
+        totalHTML += '<div style="margin-top: 10px; margin-bottom: 12px; background: #181818; border: 1px solid #2a2a2a; border-radius: 8px; padding: 14px 14px 10px 14px;">' +
             '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">' +
                 '<div style="display: flex; align-items: center; gap: 6px;">' +
                     '<span style="background: #ff6600; color: #fff; font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 3px;">HN</span>' +
