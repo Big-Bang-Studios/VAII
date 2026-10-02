@@ -904,6 +904,10 @@ const defaultAssistantSuggestions = [
     "/npm",
     "terminal",
     "/terminal",
+            "/quakes",
+            "/bsky ",
+            "/wayback ",
+            "/npm ",
     "Open Gemini", 
     "Play Blinding Lights",
     "Mars Rover",
@@ -4247,6 +4251,26 @@ hubInput?.addEventListener('input', () => {
         customSuggestions = slashCommands.filter(c => c.toLowerCase().startsWith(cleanInput));
         updateDatalist([], [], [], customSuggestions);
         return;
+    }
+
+    // Dynamic triggers for new integrations
+    if ("quakes".startsWith(cleanInput) || "earthquakes".startsWith(cleanInput) || "seismic".startsWith(cleanInput)) {
+        customSuggestions.push("quakes", "earthquakes");
+    }
+    if ("bsky".startsWith(cleanInput) || "bluesky".startsWith(cleanInput)) {
+        customSuggestions.push("bsky ", "bluesky ");
+    }
+    if ("wayback".startsWith(cleanInput) || "archive".startsWith(cleanInput) || "snapshot".startsWith(cleanInput)) {
+        customSuggestions.push("wayback ", "archive ");
+    }
+    if ("npm".startsWith(cleanInput)) {
+        customSuggestions.push("npm ");
+    }
+    if ("call".startsWith(cleanInput) || "dial".startsWith(cleanInput)) {
+        customSuggestions.push("call ");
+    }
+    if ("text".startsWith(cleanInput) || "sms".startsWith(cleanInput)) {
+        customSuggestions.push("text ");
     }
 
     if ("terminal".startsWith(cleanInput) || "shell".startsWith(cleanInput) || "sandbox".startsWith(cleanInput)) {
