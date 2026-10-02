@@ -4576,18 +4576,8 @@ async function handleFlightQuery(callsign) {
     try {
         let plane = null;
 
-        // If user typed mil, military, or radar, hit live military feed directly
-        if (clean === 'MIL' || clean === 'MILITARY' || clean === 'RADAR' || clean === 'ACTIVE') {
-            const milUrl = 'https://api.adsb.lol/v2/mil';
-            const res = await fetch('/api/proxy?url=' + encodeURIComponent(milUrl)).catch(() => null);
-            if (res && res.ok) {
-                const data = await res.json();
-                if (data.ac && data.ac.length > 0) {
-                    plane = data.ac[Math.floor(Math.random() * Math.min(data.ac.length, 10))];
-                }
-            }
-        } else {
-            // 1. Try exact callsign query
+        // 1. Direct callsign endpoint
+        if (clean !== 'MIL' && clean !== 'PIA' && clean !== 'RADAR') {
             const targetUrl = 'https://api.adsb.lol/v2/callsign/' + encodeURIComponent(clean);
             let res = await fetch('/api/proxy?url=' + encodeURIComponent(targetUrl)).catch(() => null);
             if (res && res.ok) {
@@ -4596,14 +4586,30 @@ async function handleFlightQuery(callsign) {
                     plane = data.ac[0];
                 }
             }
+        }
 
-            // 2. If nothing found and query is a prefix or number, fallback to live airborne vectors
-            if (!plane) {
-                const milUrl = 'https://api.adsb.lol/v2/mil';
-                res = await fetch('/api/proxy?url=' + encodeURIComponent(milUrl)).catch(() => null);
+        // 2. Fallback: Search active airborne feeds (PIA & Military) for matches
+        if (!plane) {
+            const feeds = [
+                'https://api.adsb.lol/v2/pia',
+                'https://api.adsb.lol/v2/mil'
+            ];
+
+            for (const feedUrl of feeds) {
+                if (plane) break;
+                const res = await fetch('/api/proxy?url=' + encodeURIComponent(feedUrl)).catch(() => null);
                 if (res && res.ok) {
                     const data = await res.json();
-                    plane = (data.ac || []).find(p => (p.flight || '').trim().toUpperCase().includes(clean)) || null;
+                    const list = data.ac || [];
+                    if (clean === 'MIL' || clean === 'PIA' || clean === 'RADAR' || !clean) {
+                        plane = list[Math.floor(Math.random() * Math.min(list.length, 10))];
+                    } else {
+                        plane = list.find(p => {
+                            const cs = (p.flight || '').trim().toUpperCase();
+                            const hex = (p.hex || '').trim().toUpperCase();
+                            return cs.includes(clean) || hex === clean;
+                        });
+                    }
                 }
             }
         }
@@ -4613,7 +4619,7 @@ async function handleFlightQuery(callsign) {
                 <div style="background: #181818; border: 1px solid #ffaa00; border-radius: 8px; padding: 14px; margin: 10px 0; color: #fff;">
                     <strong style="color: #ffaa00;">✈️ Transponder Radar: ${escapeHtml(clean)}</strong>
                     <p style="color: #aaa; font-size: 0.85rem; margin: 6px 0;">No active airborne ADS-B transponder broadcast detected for this flight right now.</p>
-                    <div style="font-size: 0.8rem; color: #777;">Tip: Try active military vectors with <code>flight mil</code> or official active callsigns.</div>
+                    <div style="font-size: 0.8rem; color: #777;">Tip: Try active military vectors with <code>flight mil</code> or active transponders like <code>flight FFL1052</code>.</div>
                 </div>
             `);
             return;
