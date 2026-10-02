@@ -4544,7 +4544,7 @@ async function handleAstronautQuery() {
 
 // 2. Flight Radar Telemetry
 async function handleFlightQuery(callsign) {
-    let clean = (callsign || '').trim().toUpperCase();
+    let raw = (callsign || '').trim().toUpperCase();
 
     const airlineMap = {
         'UNITED': 'UAL',
@@ -4565,6 +4565,7 @@ async function handleFlightQuery(callsign) {
         'RYANAIR': 'RYR'
     };
 
+    let clean = raw;
     for (const [name, icao] of Object.entries(airlineMap)) {
         if (clean === name || clean.startsWith(name + ' ')) {
             clean = clean.replace(name, icao).replace(/\s+/g, '');
@@ -4572,12 +4573,40 @@ async function handleFlightQuery(callsign) {
         }
     }
 
+    // High-frequency active flagship daily flights for bare airline queries
+    const activeRouteMap = {
+        'UAL': ['UAL1', 'UAL2', 'UAL100', 'UAL420', 'UAL14', 'UAL200', 'UAL500', 'UAL1100'],
+        'DAL': ['DAL1', 'DAL12', 'DAL100', 'DAL200', 'DAL300', 'DAL400', 'DAL500', 'DAL1200'],
+        'AAL': ['AAL1', 'AAL2', 'AAL100', 'AAL200', 'AAL300', 'AAL400', 'AAL1000'],
+        'SWA': ['SWA1', 'SWA100', 'SWA200', 'SWA300', 'SWA400', 'SWA500', 'SWA1000'],
+        'FDX': ['FDX1', 'FDX10', 'FDX100', 'FDX200', 'FDX500', 'FDX1200'],
+        'UPS': ['UPS1', 'UPS10', 'UPS100', 'UPS200', 'UPS500'],
+        'JBU': ['JBU1', 'JBU100', 'JBU200', 'JBU300', 'JBU400'],
+        'BAW': ['BAW1', 'BAW100', 'BAW117', 'BAW178', 'BAW200']
+    };
+
     handleVaiiDataOutput("Radar Intercept...", `<div style="color: #28a745; padding: 12px;">📡 Intercepting ADS-B transponder for <strong>${escapeHtml(clean)}</strong>...</div>`);
     try {
         let plane = null;
 
-        // 1. Direct callsign endpoint
-        if (clean !== 'MIL' && clean !== 'PIA' && clean !== 'RADAR') {
+        // 1. If it's a bare airline code with no digits, sweep through active routes
+        if (/^[A-Z]{3}$/.test(clean) && activeRouteMap[clean]) {
+            const routes = activeRouteMap[clean];
+            for (const r of routes) {
+                const targetUrl = 'https://api.adsb.lol/v2/callsign/' + encodeURIComponent(r);
+                const res = await fetch('/api/proxy?url=' + encodeURIComponent(targetUrl)).catch(() => null);
+                if (res && res.ok) {
+                    const data = await res.json();
+                    if (data.ac && data.ac.length > 0) {
+                        plane = data.ac[0];
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 2. Direct exact callsign check
+        if (!plane && clean !== 'MIL' && clean !== 'PIA' && clean !== 'RADAR') {
             const targetUrl = 'https://api.adsb.lol/v2/callsign/' + encodeURIComponent(clean);
             let res = await fetch('/api/proxy?url=' + encodeURIComponent(targetUrl)).catch(() => null);
             if (res && res.ok) {
@@ -4588,7 +4617,7 @@ async function handleFlightQuery(callsign) {
             }
         }
 
-        // 2. Fallback: Search active airborne feeds (PIA & Military) for matches
+        // 3. Fallback: Query live air corridors (PIA & Military feeds)
         if (!plane) {
             const feeds = [
                 'https://api.adsb.lol/v2/pia',
@@ -4618,8 +4647,8 @@ async function handleFlightQuery(callsign) {
             handleVaiiDataOutput("Flight Radar", `
                 <div style="background: #181818; border: 1px solid #ffaa00; border-radius: 8px; padding: 14px; margin: 10px 0; color: #fff;">
                     <strong style="color: #ffaa00;">✈️ Transponder Radar: ${escapeHtml(clean)}</strong>
-                    <p style="color: #aaa; font-size: 0.85rem; margin: 6px 0;">No active airborne ADS-B transponder broadcast detected for this flight right now.</p>
-                    <div style="font-size: 0.8rem; color: #777;">Tip: Try active military vectors with <code>flight mil</code> or active transponders like <code>flight FFL1052</code>.</div>
+                    <p style="color: #aaa; font-size: 0.85rem; margin: 6px 0;">No active airborne ADS-B transponder broadcast detected for this flight or carrier right now.</p>
+                    <div style="font-size: 0.8rem; color: #777;">Tip: Try active carrier feeds like <code>flight united</code>, <code>flight delta</code>, <code>flight swa</code>, or active military transponders with <code>flight mil</code>.</div>
                 </div>
             `);
             return;
@@ -4627,7 +4656,7 @@ async function handleFlightQuery(callsign) {
 
         const transponderCallsign = (plane.flight || clean).trim();
         const icao24 = plane.hex || 'N/A';
-        const type = plane.t || plane.desc || 'Airborne Unit';
+        const type = plane.t || plane.desc || 'Commercial / Transport';
         const altFeet = (plane.alt_baro !== undefined && plane.alt_baro !== "ground") ? Number(plane.alt_baro).toLocaleString() + ' ft' : 'Ground';
         const speedKnots = plane.gs !== undefined ? Math.round(plane.gs) + ' kts' : 'N/A';
         const mach = plane.mach !== undefined ? 'Mach ' + plane.mach : (plane.gs ? 'Mach ' + (plane.gs / 661.47).toFixed(2) : 'N/A');
