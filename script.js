@@ -4200,32 +4200,7 @@ hubInput?.addEventListener('input', () => {
     const trimmedQuery = query.trim();
     const lq = trimmedQuery.toLowerCase();
 
-    // 1. Earthquakes
-    if (lq === "earthquake" || lq === "earthquakes" || lq === "quakes" || lq === "/earthquakes" || lq === "seismic") {
-        handleEarthquakeQuery();
-        return;
-    }
-
-    // 2. Bluesky
-    if (lq.startsWith("bsky ") || lq.startsWith("bluesky ") || lq.startsWith("/bsky ")) {
-        const handle = trimmedQuery.replace(/^(\/bsky|bluesky|bsky)\s+/i, '');
-        handleBlueskyQuery(handle);
-        return;
-    }
-
-    // 3. Wayback Machine
-    if (lq.startsWith("wayback ") || lq.startsWith("archive ") || lq.startsWith("/wayback ") || lq.startsWith("snapshot ")) {
-        const url = trimmedQuery.replace(/^(\/wayback|wayback|archive|snapshot)\s+/i, '');
-        handleWaybackQuery(url);
-        return;
-    }
-
-    // 4. npm registry
-    if (lq.startsWith("npm ") || lq.startsWith("/npm ")) {
-        const pkg = trimmedQuery.replace(/^(\/npm|npm)\s+/i, '');
-        handleNpmQuery(pkg);
-        return;
-    }
+    
 
 
     if (routingWarning) routingWarning.style.display = trimmedQuery.toLowerCase().startsWith('open ') ? "block" : "none";
@@ -4518,6 +4493,37 @@ executeActionBtn?.addEventListener('click', () => {
     const mode = modeEl ? modeEl.value : "native";
     
     if (!query && !activeImageBase64) return;
+
+    if (mode === "native") {
+        const lq = query.trim().toLowerCase();
+
+        // 1. Earthquakes
+        if (lq === "earthquake" || lq === "earthquakes" || lq === "quakes" || lq === "/quakes" || lq === "/earthquakes" || lq === "seismic") {
+            handleEarthquakeQuery();
+            return;
+        }
+
+        // 2. Bluesky
+        if (lq.startsWith("bsky ") || lq.startsWith("bluesky ") || lq.startsWith("/bsky ")) {
+            const handle = query.trim().replace(/^(\/bsky|bluesky|bsky)\s+/i, '');
+            handleBlueskyQuery(handle);
+            return;
+        }
+
+        // 3. Wayback Machine
+        if (lq.startsWith("wayback ") || lq.startsWith("archive ") || lq.startsWith("/wayback ") || lq.startsWith("snapshot ")) {
+            const url = query.trim().replace(/^(\/wayback|wayback|archive|snapshot)\s+/i, '');
+            handleWaybackQuery(url);
+            return;
+        }
+
+        // 4. npm registry
+        if (lq.startsWith("npm ") || lq.startsWith("/npm ")) {
+            const pkg = query.trim().replace(/^(\/npm|npm)\s+/i, '');
+            handleNpmQuery(pkg);
+            return;
+        }
+    }
     
     if (hubInput) hubInput.value = "";
     if (routingWarning) routingWarning.style.display = "none";
