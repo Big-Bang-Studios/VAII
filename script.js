@@ -4504,22 +4504,61 @@ executeActionBtn?.addEventListener('click', () => {
         }
 
         // 2. Bluesky
-        if (lq.startsWith("bsky ") || lq.startsWith("bluesky ") || lq.startsWith("/bsky ")) {
-            const handle = query.trim().replace(/^(\/bsky|bluesky|bsky)\s+/i, '');
+        if (lq === "bsky" || lq === "/bsky" || lq === "bluesky" || lq === "/bluesky" || lq.startsWith("bsky ") || lq.startsWith("bluesky ") || lq.startsWith("/bsky ")) {
+            const handle = query.trim().replace(/^(\/bsky|bluesky|bsky)\s*/i, '').trim();
+            if (!handle) {
+                handleVaiiDataOutput("Bluesky Profile Lookup", `
+                    <div style="background: #181818; border: 1px solid #0085ff; border-radius: 8px; padding: 14px; margin-top: 10px;">
+                        <strong style="color: #0085ff; font-size: 0.95rem;">🦋 Bluesky Profile Lookup</strong>
+                        <p style="color: #aaa; font-size: 0.82rem; margin: 8px 0;">Please provide a Bluesky handle to inspect.</p>
+                        <div style="font-size: 0.8rem; color: #888;">
+                            Syntax: <code style="color: #0085ff;">bsky [handle]</code><br>
+                            Example: <code style="color: #eee;">bsky jay.bsky.team</code> or <code style="color: #eee;">bsky bsky.app</code>
+                        </div>
+                    </div>
+                `);
+                return;
+            }
             handleBlueskyQuery(handle);
             return;
         }
 
         // 3. Wayback Machine
-        if (lq.startsWith("wayback ") || lq.startsWith("archive ") || lq.startsWith("/wayback ") || lq.startsWith("snapshot ")) {
-            const url = query.trim().replace(/^(\/wayback|wayback|archive|snapshot)\s+/i, '');
+        if (lq === "wayback" || lq === "/wayback" || lq === "archive" || lq === "/archive" || lq === "snapshot" || lq.startsWith("wayback ") || lq.startsWith("archive ") || lq.startsWith("/wayback ") || lq.startsWith("snapshot ")) {
+            const url = query.trim().replace(/^(\/wayback|wayback|archive|snapshot)\s*/i, '').trim();
+            if (!url) {
+                handleVaiiDataOutput("Wayback Machine Snapshot Checker", `
+                    <div style="background: #181818; border: 1px solid #e0ac00; border-radius: 8px; padding: 14px; margin-top: 10px;">
+                        <strong style="color: #e0ac00; font-size: 0.95rem;">🏛️ Wayback Machine Checker</strong>
+                        <p style="color: #aaa; font-size: 0.82rem; margin: 8px 0;">Please provide a URL or domain to find archives.</p>
+                        <div style="font-size: 0.8rem; color: #888;">
+                            Syntax: <code style="color: #e0ac00;">archive [domain/url]</code><br>
+                            Example: <code style="color: #eee;">archive wikipedia.org</code> or <code style="color: #eee;">archive google.com</code>
+                        </div>
+                    </div>
+                `);
+                return;
+            }
             handleWaybackQuery(url);
             return;
         }
 
         // 4. npm registry
-        if (lq.startsWith("npm ") || lq.startsWith("/npm ")) {
-            const pkg = query.trim().replace(/^(\/npm|npm)\s+/i, '');
+        if (lq === "npm" || lq === "/npm" || lq.startsWith("npm ") || lq.startsWith("/npm ")) {
+            const pkg = query.trim().replace(/^(\/npm|npm)\s*/i, '').trim();
+            if (!pkg) {
+                handleVaiiDataOutput("npm Package Telemetry", `
+                    <div style="background: #181818; border: 1px solid #cb3837; border-radius: 8px; padding: 14px; margin-top: 10px;">
+                        <strong style="color: #cb3837; font-size: 0.95rem;">📦 npm Package Telemetry</strong>
+                        <p style="color: #aaa; font-size: 0.82rem; margin: 8px 0;">Please provide an npm package name to inspect.</p>
+                        <div style="font-size: 0.8rem; color: #888;">
+                            Syntax: <code style="color: #cb3837;">npm [package-name]</code><br>
+                            Example: <code style="color: #eee;">npm express</code> or <code style="color: #eee;">npm react</code>
+                        </div>
+                    </div>
+                `);
+                return;
+            }
             handleNpmQuery(pkg);
             return;
         }
