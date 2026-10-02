@@ -4546,7 +4546,6 @@ async function handleAstronautQuery() {
 async function handleFlightQuery(callsign) {
     let clean = (callsign || '').trim().toUpperCase();
 
-    // Map common airline names/prefixes to standard ICAO codes
     const airlineMap = {
         'UNITED': 'UAL',
         'DELTA': 'DAL',
@@ -4573,42 +4572,38 @@ async function handleFlightQuery(callsign) {
         }
     }
 
-    handleVaiiDataOutput("Radar Intercept...", `<div style="color: #28a745; padding: 12px;">📡 Scanning transponder telemetry for <strong>${escapeHtml(clean)}</strong>...</div>`);
+    handleVaiiDataOutput("Radar Intercept...", `<div style="color: #28a745; padding: 12px;">📡 Intercepting ADS-B transponder for <strong>${escapeHtml(clean)}</strong>...</div>`);
     try {
         let plane = null;
 
-        // 1. Try exact callsign match first
-        const directUrl = 'https://api.adsb.lol/v2/callsign/' + encodeURIComponent(clean);
-        let res = await fetch('/api/proxy?url=' + encodeURIComponent(directUrl)).catch(() => null);
-        if (res && res.ok) {
-            const data = await res.json();
-            if (data.ac && data.ac.length > 0) {
-                plane = data.ac[0];
+        // If user typed mil, military, or radar, hit live military feed directly
+        if (clean === 'MIL' || clean === 'MILITARY' || clean === 'RADAR' || clean === 'ACTIVE') {
+            const milUrl = 'https://api.adsb.lol/v2/mil';
+            const res = await fetch('/api/proxy?url=' + encodeURIComponent(milUrl)).catch(() => null);
+            if (res && res.ok) {
+                const data = await res.json();
+                if (data.ac && data.ac.length > 0) {
+                    plane = data.ac[Math.floor(Math.random() * Math.min(data.ac.length, 10))];
+                }
             }
-        }
-
-        // 2. If no direct hit, query by airline prefix or live military/PIA/squawk vectors
-        if (!plane) {
-            const prefix = clean.replace(/\d+$/, '');
-            const searchPrefix = prefix || clean;
-            const prefixUrl = 'https://api.adsb.lol/v2/callsign/' + encodeURIComponent(searchPrefix);
-            res = await fetch('/api/proxy?url=' + encodeURIComponent(prefixUrl)).catch(() => null);
+        } else {
+            // 1. Try exact callsign query
+            const targetUrl = 'https://api.adsb.lol/v2/callsign/' + encodeURIComponent(clean);
+            let res = await fetch('/api/proxy?url=' + encodeURIComponent(targetUrl)).catch(() => null);
             if (res && res.ok) {
                 const data = await res.json();
                 if (data.ac && data.ac.length > 0) {
                     plane = data.ac[0];
                 }
             }
-        }
 
-        // 3. Fallback: query airplanes.live if still clear
-        if (!plane) {
-            const liveUrl = 'https://api.airplanes.live/v2/callsign/' + encodeURIComponent(clean);
-            res = await fetch('/api/proxy?url=' + encodeURIComponent(liveUrl)).catch(() => null);
-            if (res && res.ok) {
-                const data = await res.json();
-                if (data.ac && data.ac.length > 0) {
-                    plane = data.ac[0];
+            // 2. If nothing found and query is a prefix or number, fallback to live airborne vectors
+            if (!plane) {
+                const milUrl = 'https://api.adsb.lol/v2/mil';
+                res = await fetch('/api/proxy?url=' + encodeURIComponent(milUrl)).catch(() => null);
+                if (res && res.ok) {
+                    const data = await res.json();
+                    plane = (data.ac || []).find(p => (p.flight || '').trim().toUpperCase().includes(clean)) || null;
                 }
             }
         }
@@ -4617,8 +4612,8 @@ async function handleFlightQuery(callsign) {
             handleVaiiDataOutput("Flight Radar", `
                 <div style="background: #181818; border: 1px solid #ffaa00; border-radius: 8px; padding: 14px; margin: 10px 0; color: #fff;">
                     <strong style="color: #ffaa00;">✈️ Transponder Radar: ${escapeHtml(clean)}</strong>
-                    <p style="color: #aaa; font-size: 0.85rem; margin: 6px 0;">No active airborne ADS-B transponder broadcast detected for this flight or carrier right now.</p>
-                    <div style="font-size: 0.8rem; color: #777;">Tip: Try active airline codes or names like <code>flight delta</code>, <code>flight united</code>, <code>flight ual</code>, or <code>flight fdx</code>.</div>
+                    <p style="color: #aaa; font-size: 0.85rem; margin: 6px 0;">No active airborne ADS-B transponder broadcast detected for this flight right now.</p>
+                    <div style="font-size: 0.8rem; color: #777;">Tip: Try active military vectors with <code>flight mil</code> or official active callsigns.</div>
                 </div>
             `);
             return;
@@ -4626,7 +4621,7 @@ async function handleFlightQuery(callsign) {
 
         const transponderCallsign = (plane.flight || clean).trim();
         const icao24 = plane.hex || 'N/A';
-        const type = plane.t || plane.desc || 'Aircraft';
+        const type = plane.t || plane.desc || 'Airborne Unit';
         const altFeet = (plane.alt_baro !== undefined && plane.alt_baro !== "ground") ? Number(plane.alt_baro).toLocaleString() + ' ft' : 'Ground';
         const speedKnots = plane.gs !== undefined ? Math.round(plane.gs) + ' kts' : 'N/A';
         const mach = plane.mach !== undefined ? 'Mach ' + plane.mach : (plane.gs ? 'Mach ' + (plane.gs / 661.47).toFixed(2) : 'N/A');
@@ -4642,7 +4637,7 @@ async function handleFlightQuery(callsign) {
                     <span style="font-size: 0.75rem; color: #aaa;">ICAO24: <code>${escapeHtml(icao24.toUpperCase())}</code></span>
                 </div>
                 <div style="font-size: 1.4rem; font-weight: 800; color: #fff; margin: 10px 0 4px 0;">✈️ ${escapeHtml(transponderCallsign)}</div>
-                <div style="font-size: 0.82rem; color: #888; margin-bottom: 12px;">Model: ${escapeHtml(type)} • Transponder: ${escapeHtml(squawk)}</div>
+                <div style="font-size: 0.82rem; color: #888; margin-bottom: 12px;">Model: ${escapeHtml(type)} • Squawk: ${escapeHtml(squawk)}</div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.82rem;">
                     <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Altitude:</strong> ${altFeet}</div>
                     <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Airspeed:</strong> ${speedKnots} (${mach})</div>
