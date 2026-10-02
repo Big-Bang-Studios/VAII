@@ -400,7 +400,7 @@
             border: 1px solid #444;
             border-radius: 8px;
             box-shadow: 0 -4px 18px rgba(0,0,0,0.7);
-            max-height: 180px;
+            max-height: 220px;
             overflow-y: auto;
             z-index: 100;
         }
@@ -576,7 +576,11 @@
                         <strong style="color: #ffc107; font-size: 1rem;">🚀 VAII Version History</strong>
                         <div style="margin-top: 10px; border-left: 2px solid #444; padding-left: 10px; display: flex; flex-direction: column; gap: 12px;">
                             <div>
-                                <strong style="color:#fff;">v9.5 (Current)</strong><br>
+                                <strong style="color:#fff;">v10.0 (Current)</strong><br>
+                                <span style="color:#aaa;">Expanded Utility Suite: Live Off-World Astronaut Headcount (Open-Notify), Live Flight Interceptor & ADS-B transponder telemetry (OpenSky), Planetary Defense Near-Earth Asteroid Radar (NASA NeoWs), Direct DNS over HTTPS Record Resolver (Google DoH), and Open Food Facts Barcode Decrypter with Nutri-Score analysis.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v9.5</strong><br>
                                 <span style="color:#aaa;">Integrated USGS Live Earthquakes with magnitude color-coding and OpenStreetMap coordinates, Bluesky / AT Protocol public profiles, Wayback Machine snapshot availability checker, and real-time npm package registry telemetry.</span>
                             </div>
                             <div>
@@ -621,7 +625,7 @@
                             </div>
                             <div>
                                 <strong style="color:#fff;">v4.5</strong><br>
-                                <span style="color:#aaa;">Integrated iTunes audio previews, PokéAPI monster stats & sprites, Open Library books, and Gemini 3.7 Flash engine fallback.</span>
+                                <span style="color:#aaa;">Integrated iTunes audio previews, PokéAPI monster stats & sprites, Open Library books, and Gemini engine fallback.</span>
                             </div>
                             <div>
                                 <strong style="color:#fff;">v4.0</strong><br>
@@ -655,6 +659,11 @@
 
                         <h4 style="color: #4da3ff; margin-bottom: 8px;">🌐 VAII Native Commands & Syntax</h4>
                         <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
+                            <li><strong>Astronaut Headcount:</strong> Type <code>space</code>, <code>whoisinspace</code>, or <code>/space</code> for live headcount and crew lists of all humans currently in Earth orbit aboard ISS and Tiangong.</li>
+                            <li><strong>Flight Radar Interceptor:</strong> Type <code>flight [callsign]</code> or <code>/flight [callsign]</code> (e.g. <code>flight UAL420</code>) for live ADS-B airspeed, altitude, heading, and origin telemetry.</li>
+                            <li><strong>Planetary Defense Asteroids:</strong> Type <code>neo</code>, <code>asteroid</code>, or <code>/neo</code> for NASA NeoWs tracked close approaches, hazardous flags, and miss distances.</li>
+                            <li><strong>DNS Resolver (DoH):</strong> Type <code>dns [domain]</code> or <code>/dns [domain]</code> (e.g. <code>dns google.com</code>) to resolve IPv4 (A), IPv6 (AAAA), and Mail (MX) records directly in-browser.</li>
+                            <li><strong>Open Food Facts Barcode:</strong> Type <code>barcode [upc]</code> or <code>food [upc]</code> (e.g. <code>barcode 737628064502</code>) to decode grocery ingredients, Nutri-Score, and Palm Oil status.</li>
                             <li><strong>USGS Earthquakes:</strong> Type <code>quakes</code>, <code>earthquake</code>, <code>earthquakes</code>, or <code>/earthquakes</code> for live 24h worldwide seismic telemetry, depth, magnitudes, and OpenStreetMap pins.</li>
                             <li><strong>Bluesky Social:</strong> Type <code>bsky [handle]</code> or <code>bluesky [handle]</code> (e.g. <code>bsky jay.bsky.team</code>) to pull live profile stats, avatars, and follower counts via AT Protocol.</li>
                             <li><strong>Wayback Machine:</strong> Type <code>archive [url]</code>, <code>wayback [url]</code>, or <code>snapshot [url]</code> (e.g. <code>archive wikipedia.org</code>) to query Internet Archive snapshots and launch historical captures.</li>
@@ -665,7 +674,7 @@
                             <li><strong>SMS Messaging:</strong> Type <code>text [number] [message]</code> or <code>sms [number] [message]</code> (e.g. <code>text 555-0199 on my way</code>). Typing bare <code>text</code> shows an interactive guidance card.</li>
                             <li><strong>HTML Sandbox & Viewer:</strong> Type <code>html</code>, <code>editor</code>, <code>htmleditor</code>, or <code>/editor</code> to open an interactive code editor and previewer with automatic full-screen takeover and theme injection alerts.</li>
                             <li><strong>Terminal Sandbox:</strong> Type <code>terminal</code>, <code>/terminal</code>, or <code>shell</code> to open an interactive Unix-style shell environment with a persistent localStorage virtual file system. Type <code>exit</code> or <code>logout</code> to return.</li>
-                            <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant shortcuts (<code>/quakes</code>, <code>/bsky</code>, <code>/wayback</code>, <code>/npm</code>, <code>/call</code>, <code>/text</code>, <code>/editor</code>, <code>/terminal</code>, <code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>, <code>/note</code>).</li>
+                            <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant shortcuts.</li>
                             <li><strong>Hacker News Discussions:</strong> Type any topic or keyword (or queries like <code>javascript</code>, <code>ai</code>, <code>linux</code>) to fetch top community stories, scores, and comment counts. Click any card to launch the reader overlay with nested comment trees.</li>
                             <li><strong>Live Music Streaming & Spotify Hub:</strong> Type <code>play [song]</code> or <code>stream song [song]</code> (e.g. <code>play Blinding Lights</code>) to load 30s preview audio with Spotify and YouTube Music streaming links.</li>
                             <li><strong>NASA Mars Rover Telemetry:</strong> Type <code>mars</code>, <code>rover</code>, <code>curiosity</code>, or <code>perseverance</code> to fetch live Mars surface photos, Martian Sol dates, and landing telemetry.</li>
@@ -682,7 +691,7 @@
                             <li><strong>Live Forex Converter (Frankfurter):</strong> Type <code>convert [amount] [from] to [to]</code> (e.g. <code>convert 100 USD to EUR</code>, <code>50 GBP to JPY</code>) for live currency conversions.</li>
                             <li><strong>Dynamic QR Code Generator:</strong> Type <code>qr [text or url]</code> (e.g. <code>qr https://vaii-two.vercel.app</code>) to generate an instant scannable QR card with direct PNG download.</li>
                             <li><strong>ISS Telemetry (Where the ISS at):</strong> Type <code>iss</code> or <code>orbit</code> for real-time orbital velocity (km/h), altitude, and live OpenStreetMap coordinates.</li>
-                            <li><strong>NASA APOD (Astronomy):</strong> Type <code>space</code> or <code>nasa</code> to fetch NASA's Astronomy Picture of the Day with celestial explanations.</li>
+                            <li><strong>NASA APOD (Astronomy):</strong> Type <code>apod</code> or <code>nasa</code> to fetch NASA's Astronomy Picture of the Day with celestial explanations.</li>
                             <li><strong>Advice & Quotes (Advice Slip):</strong> Type <code>advice</code> for instant random pearls of wisdom.</li>
                             <li><strong>Age Demographics (Agify):</strong> Type <code>age [name]</code> (e.g., <code>age Logan</code>, <code>age Alex</code>) to predict estimated age and sample size metrics.</li>
                             <li><strong>Dictionary & Phonetics:</strong> Type <code>define [word]</code> (e.g., <code>define serendipity</code>) for definitions, parts of speech, examples, and audio pronunciation.</li>
@@ -803,6 +812,11 @@
 
                     <!-- SLASH COMMAND PALETTE -->
                     <div id="command-palette">
+                        <div class="palette-item" data-cmd="/space"><span>🛰️️ /space</span><span style="color:#666; font-size:0.75rem;">Astronaut headcount</span></div>
+                        <div class="palette-item" data-cmd="/flight "><span>✈ /flight</span><span style="color:#666; font-size:0.75rem;">ADS-B flight radar</span></div>
+                        <div class="palette-item" data-cmd="/neo"><span>☄️ /neo</span><span style="color:#666; font-size:0.75rem;">Asteroid impact radar</span></div>
+                        <div class="palette-item" data-cmd="/dns "><span>🌐 /dns</span><span style="color:#666; font-size:0.75rem;">DoH record resolver</span></div>
+                        <div class="palette-item" data-cmd="/barcode "><span>🛒 /barcode</span><span style="color:#666; font-size:0.75rem;">Grocery decrypter</span></div>
                         <div class="palette-item" data-cmd="/quakes"><span>🌍 /quakes</span><span style="color:#666; font-size:0.75rem;">USGS seismic feed</span></div>
                         <div class="palette-item" data-cmd="/bsky "><span>🦋 /bsky</span><span style="color:#666; font-size:0.75rem;">Bluesky profile</span></div>
                         <div class="palette-item" data-cmd="/wayback "><span>🏛️ /wayback</span><span style="color:#666; font-size:0.75rem;">Wayback snapshot</span></div>
