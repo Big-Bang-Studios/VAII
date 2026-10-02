@@ -576,7 +576,11 @@
                         <strong style="color: #ffc107; font-size: 1rem;">🚀 VAII Version History</strong>
                         <div style="margin-top: 10px; border-left: 2px solid #444; padding-left: 10px; display: flex; flex-direction: column; gap: 12px;">
                             <div>
-                                <strong style="color:#fff;">v9.0 (Current)</strong><br>
+                                <strong style="color:#fff;">v9.5 (Current)</strong><br>
+                                <span style="color:#aaa;">Integrated USGS Live Earthquakes with magnitude color-coding and OpenStreetMap coordinates, Bluesky / AT Protocol public profiles, Wayback Machine snapshot availability checker, and real-time npm package registry telemetry.</span>
+                            </div>
+                            <div>
+                                <strong style="color:#fff;">v9.0</strong><br>
                                 <span style="color:#aaa;">Added GitHub Cloud IDE integration directly inside the HTML Viewer with token authentication, remote file pulling, and commit/push capabilities. Integrated a native safe arithmetic evaluator with Unicode keyboard normalization (<code>×</code>, <code>÷</code>, <code>x</code>), real-time autocomplete math solutions, and interactive guidance cards for bare telephony/SMS commands.</span>
                             </div>
                             <div>
@@ -651,13 +655,17 @@
 
                         <h4 style="color: #4da3ff; margin-bottom: 8px;">🌐 VAII Native Commands & Syntax</h4>
                         <ul style="color: #ccc; font-size: 0.85rem; line-height: 1.6; padding-left: 20px;">
+                            <li><strong>USGS Earthquakes:</strong> Type <code>quakes</code>, <code>earthquake</code>, <code>earthquakes</code>, or <code>/earthquakes</code> for live 24h worldwide seismic telemetry, depth, magnitudes, and OpenStreetMap pins.</li>
+                            <li><strong>Bluesky Social:</strong> Type <code>bsky [handle]</code> or <code>bluesky [handle]</code> (e.g. <code>bsky jay.bsky.team</code>) to pull live profile stats, avatars, and follower counts via AT Protocol.</li>
+                            <li><strong>Wayback Machine:</strong> Type <code>archive [url]</code>, <code>wayback [url]</code>, or <code>snapshot [url]</code> (e.g. <code>archive wikipedia.org</code>) to query Internet Archive snapshots and launch historical captures.</li>
+                            <li><strong>npm Package Telemetry:</strong> Type <code>npm [package]</code> (e.g. <code>npm express</code>, <code>npm react</code>) for version numbers, licenses, dependencies count, and direct package links.</li>
                             <li><strong>Math & Calculator:</strong> Type equations directly (e.g. <code>25 × 4</code>, <code>100 ÷ 2</code>, <code>5 x 5</code>, <code>sqrt(144)</code>, <code>15 * 8</code>). Live answers appear in autocomplete, and pressing Enter loads a dedicated Calculator card with copy and re-use tools.</li>
                             <li><strong>GitHub Cloud IDE:</strong> Open the HTML editor and tap the <strong>🐙 GitHub IDE</strong> button to link your token, pull repository files into the sandbox, and commit updates directly back to GitHub.</li>
                             <li><strong>Phone Dialer & Calls:</strong> Type <code>call [number]</code> or <code>dial [number]</code> (e.g. <code>call 555-0199</code>) to launch the dialer. Typing bare <code>call</code> shows an interactive helper card.</li>
                             <li><strong>SMS Messaging:</strong> Type <code>text [number] [message]</code> or <code>sms [number] [message]</code> (e.g. <code>text 555-0199 on my way</code>). Typing bare <code>text</code> shows an interactive guidance card.</li>
                             <li><strong>HTML Sandbox & Viewer:</strong> Type <code>html</code>, <code>editor</code>, <code>htmleditor</code>, or <code>/editor</code> to open an interactive code editor and previewer with automatic full-screen takeover and theme injection alerts.</li>
                             <li><strong>Terminal Sandbox:</strong> Type <code>terminal</code>, <code>/terminal</code>, or <code>shell</code> to open an interactive Unix-style shell environment with a persistent localStorage virtual file system. Type <code>exit</code> or <code>logout</code> to return.</li>
-                            <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant shortcuts (<code>/call</code>, <code>/text</code>, <code>/editor</code>, <code>/terminal</code>, <code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>, <code>/note</code>).</li>
+                            <li><strong>Command Palette:</strong> Type <code>/</code> into the input bar to bring up instant shortcuts (<code>/quakes</code>, <code>/bsky</code>, <code>/wayback</code>, <code>/npm</code>, <code>/call</code>, <code>/text</code>, <code>/editor</code>, <code>/terminal</code>, <code>/weather</code>, <code>/play</code>, <code>/movie</code>, <code>/draw</code>, <code>/repo</code>, <code>/qr</code>, <code>/timer</code>, <code>/note</code>).</li>
                             <li><strong>Hacker News Discussions:</strong> Type any topic or keyword (or queries like <code>javascript</code>, <code>ai</code>, <code>linux</code>) to fetch top community stories, scores, and comment counts. Click any card to launch the reader overlay with nested comment trees.</li>
                             <li><strong>Live Music Streaming & Spotify Hub:</strong> Type <code>play [song]</code> or <code>stream song [song]</code> (e.g. <code>play Blinding Lights</code>) to load 30s preview audio with Spotify and YouTube Music streaming links.</li>
                             <li><strong>NASA Mars Rover Telemetry:</strong> Type <code>mars</code>, <code>rover</code>, <code>curiosity</code>, or <code>perseverance</code> to fetch live Mars surface photos, Martian Sol dates, and landing telemetry.</li>
@@ -795,6 +803,10 @@
 
                     <!-- SLASH COMMAND PALETTE -->
                     <div id="command-palette">
+                        <div class="palette-item" data-cmd="/quakes"><span>🌍 /quakes</span><span style="color:#666; font-size:0.75rem;">USGS seismic feed</span></div>
+                        <div class="palette-item" data-cmd="/bsky "><span>🦋 /bsky</span><span style="color:#666; font-size:0.75rem;">Bluesky profile</span></div>
+                        <div class="palette-item" data-cmd="/wayback "><span>🏛️ /wayback</span><span style="color:#666; font-size:0.75rem;">Wayback snapshot</span></div>
+                        <div class="palette-item" data-cmd="/npm "><span>📦 /npm</span><span style="color:#666; font-size:0.75rem;">npm registry info</span></div>
                         <div class="palette-item" data-cmd="/call "><span>📞 /call</span><span style="color:#666; font-size:0.75rem;">Dial phone number</span></div>
                         <div class="palette-item" data-cmd="/text "><span>💬 /text</span><span style="color:#666; font-size:0.75rem;">Send SMS text</span></div>
                         <div class="palette-item" data-cmd="/editor"><span>📝 /editor</span><span style="color:#666; font-size:0.75rem;">HTML live sandbox</span></div>
