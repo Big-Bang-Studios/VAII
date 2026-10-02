@@ -3861,6 +3861,9 @@ function compileFinalSourceIndexBox(query, wikiData) {
     if (wikiData.wikipedia && wikiData.wikipedia.text) {
         totalHTML += `<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(wikiData.wikipedia.title)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">📰 Wikipedia</span><span>Open Source →</span></a>`;
     }
+    if (wikiData.hackerNews && wikiData.hackerNews.length > 0) {
+        totalHTML += `<a href="https://hn.algolia.com/?q=${encodeURIComponent(query)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; padding: 6px 10px; color: #4da3ff; text-decoration: none; font-size: 0.82rem; font-weight: bold;"><span style="color: #aaa; font-weight: normal;">🟠 Hacker News</span><span>Open Source ↗</span></a>`;
+    }
     totalHTML += `</div></div>`;
     
     handleVaiiDataOutput(spokenText, totalHTML);
