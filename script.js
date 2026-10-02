@@ -1,4 +1,170 @@
 
+// ==========================================
+// 1. USGS EARTHQUAKE TELEMETRY
+// ==========================================
+async function handleEarthquakeQuery() {
+    try {
+        const res = await fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson");
+        if (!res.ok) throw new Error("USGS feed unavailable");
+        const data = await res.json();
+        const quakes = (data.features || []).slice(0, 5);
+
+        if (!quakes.length) {
+            handleVaiiDataOutput("No earthquakes recorded in the past 24 hours.", "<div style='color:#aaa;'>No seismic events detected past 24h.</div>");
+            return;
+        }
+
+        let html = `
+            <div style="background: #181818; border: 1px solid #333; border-radius: 8px; padding: 12px; margin-top: 10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <strong style="color: #ff4d4d; font-size: 0.9rem;">🌍 USGS Recent Earthquakes (Past 24h)</strong>
+                    <span style="font-size:0.75rem; color:#888;">Top ${quakes.length} Events</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+        `;
+
+        quakes.forEach(q => {
+            const mag = q.properties.mag ? q.properties.mag.toFixed(1) : "N/A";
+            const place = q.properties.place || "Unknown Location";
+            const coords = q.geometry ? q.geometry.coordinates : null;
+            const time = new Date(q.properties.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const badgeColor = mag >= 6.0 ? "#ff2a2a" : (mag >= 4.5 ? "#ffa500" : "#ffcc00");
+            const mapUrl = coords ? `https://www.openstreetmap.org/?mlat=${coords[1]}&mlon=${coords[0]}#map=8/${coords[1]}/${coords[0]}` : "#";
+
+            html += `
+                <div style="background: #222; border: 1px solid #2f2f2f; border-radius: 6px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 0.82rem; font-weight: bold; color: #eee;">${place}</div>
+                        <div style="font-size: 0.72rem; color: #888; margin-top: 2px;">${time} • Depth: ${coords ? coords[2] : 'N/A'}km</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="background: ${badgeColor}; color: #121212; font-weight: bold; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">M ${mag}</span>
+                        <a href="${mapUrl}" target="_blank" style="color: #4da3ff; text-decoration: none; font-size: 0.8rem; font-weight: bold;">Map ↗</a>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div></div>`;
+        handleVaiiDataOutput(`Latest earthquake: M ${quakes[0].properties.mag} near ${quakes[0].properties.place}`, html);
+    } catch (e) {
+        handleVaiiDataOutput("Could not retrieve seismic data.", "<div style='color:#ff4d4d;'>Failed to connect to USGS telemetry feed.</div>");
+    }
+}
+
+// ==========================================
+// 2. BLUESKY / AT PROTOCOL PUBLIC PROFILE
+// ==========================================
+async function handleBlueskyQuery(handle) {
+    let cleanHandle = handle.trim().replace(/^@/, '');
+    if (!cleanHandle.includes('.')) cleanHandle += '.bsky.social';
+
+    try {
+        const res = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(cleanHandle)}`);
+        if (!res.ok) throw new Error("Actor not found");
+        const profile = await res.json();
+
+        const avatar = profile.avatar || "https://bsky.app/static/favicon/favicon-32x32.png";
+        const displayName = profile.displayName || profile.handle;
+        const desc = profile.description || "No biography provided.";
+
+        let html = `
+            <div style="background: #181818; border: 1px solid #0085ff; border-radius: 8px; padding: 14px; margin-top: 10px;">
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <img src="${avatar}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid #0085ff;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: bold; color: #fff; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${displayName}</div>
+                        <div style="color: #0085ff; font-size: 0.78rem;">@${profile.handle}</div>
+                    </div>
+                </div>
+                <div style="font-size: 0.8rem; color: #ccc; margin-top: 10px; line-height: 1.4;">${desc}</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; border-top: 1px solid #2a2a2a; padding-top: 8px; font-size: 0.75rem; color: #888;">
+                    <span>Followers: <strong style="color: #fff;">${profile.followersCount || 0}</strong> • Posts: <strong style="color: #fff;">${profile.postsCount || 0}</strong></span>
+                    <a href="https://bsky.app/profile/${profile.handle}" target="_blank" style="color: #0085ff; text-decoration: none; font-weight: bold;">View Feed ↗</a>
+                </div>
+            </div>
+        `;
+        handleVaiiDataOutput(`Bluesky profile for @${profile.handle}`, html);
+    } catch (e) {
+        handleVaiiDataOutput("Could not find that Bluesky profile.", `<div style="color:#ff4d4d;">Profile @${cleanHandle} not found on Bluesky network.</div>`);
+    }
+}
+
+// ==========================================
+// 3. WAYBACK MACHINE SNAPSHOT ARCHAEOLOGY
+// ==========================================
+async function handleWaybackQuery(targetUrl) {
+    let cleanUrl = targetUrl.trim().replace(/^https?:\/\//, "");
+    try {
+        const res = await fetch(`https://archive.org/wayback/available?url=${encodeURIComponent(cleanUrl)}`);
+        if (!res.ok) throw new Error("Wayback API unreachable");
+        const data = await res.json();
+        const snap = data.archived_snapshots ? data.archived_snapshots.closest : null;
+
+        if (!snap || !snap.available) {
+            handleVaiiDataOutput(`No snapshots found for ${cleanUrl}`, `<div style="color:#aaa;">No snapshot archived in Wayback Machine for <strong>${cleanUrl}</strong>.</div>`);
+            return;
+        }
+
+        const dateRaw = snap.timestamp || "";
+        const formattedDate = dateRaw.length >= 8 ? `${dateRaw.slice(0,4)}-${dateRaw.slice(4,6)}-${dateRaw.slice(6,8)}` : dateRaw;
+
+        let html = `
+            <div style="background: #181818; border: 1px solid #333; border-radius: 8px; padding: 14px; margin-top: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <strong style="color: #e0ac00; font-size: 0.9rem;">🏛️ Wayback Snapshot Available</strong>
+                    <span style="font-size: 0.75rem; color: #28a745; font-weight: bold;">Status ${snap.status}</span>
+                </div>
+                <div style="font-size: 0.82rem; color: #ddd;">Target: <code style="color: #4da3ff;">${cleanUrl}</code></div>
+                <div style="font-size: 0.75rem; color: #888; margin-top: 4px;">Closest capture date: ${formattedDate}</div>
+                <div style="margin-top: 12px;">
+                    <a href="${snap.url}" target="_blank" style="display: block; text-align: center; background: #e0ac00; color: #121212; text-decoration: none; padding: 8px; border-radius: 6px; font-weight: bold; font-size: 0.82rem;">Launch Archived Snapshot ↗</a>
+                </div>
+            </div>
+        `;
+        handleVaiiDataOutput(`Archived snapshot found for ${cleanUrl} from ${formattedDate}`, html);
+    } catch (e) {
+        handleVaiiDataOutput("Could not reach Internet Archive.", "<div style='color:#ff4d4d;'>Failed querying Wayback Machine API.</div>");
+    }
+}
+
+// ==========================================
+// 4. NPM PACKAGE TELEMETRY
+// ==========================================
+async function handleNpmQuery(pkgName) {
+    const cleanPkg = pkgName.trim().toLowerCase();
+    try {
+        const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(cleanPkg)}`);
+        if (!res.ok) throw new Error("Package not found");
+        const data = await res.json();
+
+        const latestVer = (data['dist-tags'] && data['dist-tags'].latest) || "Unknown";
+        const verData = (data.versions && data.versions[latestVer]) || {};
+        const desc = data.description || "No package description available.";
+        const license = verData.license || data.license || "None";
+        const depsCount = verData.dependencies ? Object.keys(verData.dependencies).length : 0;
+
+        let html = `
+            <div style="background: #181818; border: 1px solid #cb3837; border-radius: 8px; padding: 14px; margin-top: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="background: #cb3837; color: #fff; font-weight: bold; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">npm</span>
+                    <span style="font-size: 0.75rem; color: #aaa;">v${latestVer}</span>
+                </div>
+                <h4 style="margin: 8px 0 4px 0; color: #fff; font-size: 1.05rem;">${data.name}</h4>
+                <div style="font-size: 0.8rem; color: #bbb; line-height: 1.35;">${desc}</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; border-top: 1px solid #2a2a2a; padding-top: 8px; font-size: 0.75rem; color: #888;">
+                    <span>License: <strong style="color: #fff;">${license}</strong> • Deps: <strong style="color: #fff;">${depsCount}</strong></span>
+                    <a href="https://www.npmjs.com/package/${encodeURIComponent(data.name)}" target="_blank" style="color: #cb3837; font-weight: bold; text-decoration: none;">npmjs.com ↗</a>
+                </div>
+            </div>
+        `;
+        handleVaiiDataOutput(`npm package ${data.name} v${latestVer}`, html);
+    } catch (e) {
+        handleVaiiDataOutput(`Package "${cleanPkg}" not found on npm.`, `<div style="color:#ff4d4d;">No npm package named "${cleanPkg}".</div>`);
+    }
+}
+
+
 // SAFE IN-HUB MATH EVALUATION ENGINE
 function evaluateSafeMath(expr) {
     if (!expr || typeof expr !== "string") return null;
@@ -4014,6 +4180,35 @@ imageClearBtn?.addEventListener('click', () => {
 hubInput?.addEventListener('input', () => {
     const query = hubInput.value; 
     const trimmedQuery = query.trim();
+    const lq = trimmedQuery.toLowerCase();
+
+    // 1. Earthquakes
+    if (lq === "earthquake" || lq === "earthquakes" || lq === "quakes" || lq === "/earthquakes" || lq === "seismic") {
+        handleEarthquakeQuery();
+        return;
+    }
+
+    // 2. Bluesky
+    if (lq.startsWith("bsky ") || lq.startsWith("bluesky ") || lq.startsWith("/bsky ")) {
+        const handle = trimmedQuery.replace(/^(\/bsky|bluesky|bsky)\s+/i, '');
+        handleBlueskyQuery(handle);
+        return;
+    }
+
+    // 3. Wayback Machine
+    if (lq.startsWith("wayback ") || lq.startsWith("archive ") || lq.startsWith("/wayback ") || lq.startsWith("snapshot ")) {
+        const url = trimmedQuery.replace(/^(\/wayback|wayback|archive|snapshot)\s+/i, '');
+        handleWaybackQuery(url);
+        return;
+    }
+
+    // 4. npm registry
+    if (lq.startsWith("npm ") || lq.startsWith("/npm ")) {
+        const pkg = trimmedQuery.replace(/^(\/npm|npm)\s+/i, '');
+        handleNpmQuery(pkg);
+        return;
+    }
+
 
     if (routingWarning) routingWarning.style.display = trimmedQuery.toLowerCase().startsWith('open ') ? "block" : "none";
 
