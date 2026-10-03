@@ -1,4 +1,184 @@
 
+// ==================== v10.5 SUITE ====================
+
+// 1. NOAA Space Weather & Solar Flare Alerts
+async function handleSpaceWeatherQuery() {
+    handleVaiiDataOutput("NOAA Space Weather", '<div style="color: #ffaa00; padding: 12px;">☀ Querying NOAA Space Weather Prediction Center...</div>');
+    try {
+        const targetUrl = 'https://services.swpc.noaa.gov/json/planetary_k_index_1m.json';
+        const res = await fetch('/api/proxy?url=' + encodeURIComponent(targetUrl));
+        if (!res.ok) throw new Error('SWPC telemetry unreachable');
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) throw new Error('Empty NOAA dataset');
+
+        const latest = data[data.length - 1];
+        const kp = parseFloat(latest.kp_index !== undefined ? latest.kp_index : (Array.isArray(latest) ? latest[1] : 0));
+        const timeTag = latest.time_tag || (Array.isArray(latest) ? latest[0] : 'Just now');
+
+        let statusBadge = '';
+        let desc = '';
+        let borderStyle = '1px solid #28a745';
+
+        if (kp < 4) {
+            statusBadge = '<span style="background: rgba(40,167,69,0.2); color: #28a745; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(40,167,69,0.4);">● GEOMAGNETIC QUIET</span>';
+            desc = 'Auroral activity suppressed. Minor sightings strictly limited to extreme polar latitudes.';
+        } else if (kp < 6) {
+            borderStyle = '1px solid #ffaa00';
+            statusBadge = '<span style="background: rgba(255,170,0,0.2); color: #ffaa00; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,170,0,0.4);">▲ MINOR SOLAR ACTIVITY</span>';
+            desc = 'Unsettled to active geomagnetic field (G1 Storm). Auroras likely visible at high latitudes (Alaska, Canada, Scandinavia).';
+        } else {
+            borderStyle = '2px solid #ff4444; box-shadow: 0 0 14px rgba(255,68,68,0.5);';
+            statusBadge = '<span style="background: rgba(255,68,68,0.2); color: #ff4444; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,68,68,0.6); animation: pulse 1.5s infinite;">🚨 SEVERE GEOMAGNETIC STORM</span>';
+            desc = `G${Math.min(5, Math.floor(kp - 4))} Storm Alert! Severe solar particle event. Auroras potentially visible down into mid-latitudes (US northern tier & Europe).`;
+        }
+
+        const card = `
+            <div style="background: #181818; border: ${borderStyle}; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    ${statusBadge}
+                    <span style="font-size: 0.75rem; color: #aaa;">SWPC 1-Min Kp</span>
+                </div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: #fff; margin: 8px 0 4px 0;">Planetary K-Index: ${kp.toFixed(2)}</div>
+                <div style="font-size: 0.82rem; color: #ccc; margin-bottom: 12px; line-height: 1.4;">${desc}</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8rem;">
+                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Recorded:</strong> ${escapeHtml(String(timeTag))}</div>
+                    <div style="background: #222; padding: 8px; border-radius: 6px;"><strong>Aurora Viewline:</strong> ${kp >= 5 ? 'Active / Visible' : 'Sub-auroral / Quiet'}</div>
+                </div>
+            </div>
+        `;
+        handleVaiiDataOutput("", card);
+    } catch (err) {
+        handleVaiiDataOutput("NOAA Space Weather", `<div style="color: #ff5555; padding: 12px;">⚠️ Failed to fetch NOAA space weather: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
+// 2. Wikipedia Historical Event Time-Machine
+async function handleHistoryQuery() {
+    handleVaiiDataOutput("Historical Archives", '<div style="color: #b185ff; padding: 12px;">🏛️ Accessing global historical chronology...</div>');
+    try {
+        const now = new Date();
+        const m = now.getMonth() + 1;
+        const d = now.getDate();
+        const targetUrl = `https://byabbe.se/on-this-day/${m}/${d}/events.json`;
+        let res = await fetch('/api/proxy?url=' + encodeURIComponent(targetUrl)).catch(() => null);
+        
+        let events = [];
+        if (res && res.ok) {
+            const data = await res.json();
+            events = data.events || [];
+        }
+
+        // Fallback to English Wikipedia REST API
+        if (events.length === 0) {
+            const padM = String(m).padStart(2, '0');
+            const padD = String(d).padStart(2, '0');
+            const wikiUrl = `https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${padM}/${padD}`;
+            res = await fetch('/api/proxy?url=' + encodeURIComponent(wikiUrl)).catch(() => null);
+            if (res && res.ok) {
+                const wikiData = await res.json();
+                events = (wikiData.events || []).map(e => ({
+                    year: e.year,
+                    description: e.text,
+                    wikipedia: (e.pages || []).map(p => ({ title: p.titles ? p.titles.display : p.title, wikipedia: p.content_urls ? p.content_urls.desktop.page : '' }))
+                }));
+            }
+        }
+
+        if (events.length === 0) throw new Error('No historical events cataloged for this date');
+
+        const ev = events[Math.floor(Math.random() * events.length)];
+        const links = (ev.wikipedia || []).filter(w => w.wikipedia).slice(0, 3).map(w => `<a href="${escapeHtml(w.wikipedia)}" target="_blank" style="color: #4da3ff; text-decoration: underline; margin-right: 8px;">${escapeHtml(w.title)}</a>`).join(' • ');
+
+        const card = `
+            <div style="background: #181818; border: 1px solid #6f42c1; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="background: rgba(111,66,193,0.25); color: #b185ff; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(111,66,193,0.5);">ON THIS DAY</span>
+                    <span style="font-size: 0.75rem; color: #aaa;">Year ${escapeHtml(String(ev.year))}</span>
+                </div>
+                <div style="font-size: 1.3rem; font-weight: 800; color: #fff; margin: 8px 0 6px 0;">🏛️ Today in ${escapeHtml(String(ev.year))}</div>
+                <div style="font-size: 0.88rem; color: #ddd; line-height: 1.5; margin-bottom: 12px;">${escapeHtml(ev.description)}</div>
+                ${links ? `<div style="font-size: 0.78rem; color: #888; border-top: 1px solid #282828; padding-top: 8px;">Explore Articles: ${links}</div>` : ''}
+            </div>
+        `;
+        handleVaiiDataOutput("", card);
+    } catch (err) {
+        handleVaiiDataOutput("Historical Archives", `<div style="color: #ff5555; padding: 12px;">⚠️ Failed to load historical archive: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
+// 3. Global Infrastructure Status
+async function handleStatusQuery(serviceQuery) {
+    let service = (serviceQuery || '').trim().toLowerCase();
+    const statusMap = {
+        'github': 'https://www.githubstatus.com/api/v2/summary.json',
+        'discord': 'https://discordstatus.com/api/v2/summary.json',
+        'cloudflare': 'https://www.cloudflarestatus.com/api/v2/summary.json'
+    };
+
+    if (!service || !statusMap[service]) {
+        const card = `
+            <div style="background: #181818; border: 1px solid #4da3ff; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
+                <div style="font-size: 0.75rem; font-weight: bold; color: #4da3ff; text-transform: uppercase;">📡 Infrastructure Health Monitor</div>
+                <p style="font-size: 0.85rem; color: #bbb; margin: 8px 0 12px 0;">Specify an infrastructure provider to inspect live system uptime:</p>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button onclick="handleStatusQuery('github')" style="background: #252525; color: #fff; border: 1px solid #444; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">🐙 GitHub</button>
+                    <button onclick="handleStatusQuery('discord')" style="background: #252525; color: #fff; border: 1px solid #444; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">💬 Discord</button>
+                    <button onclick="handleStatusQuery('cloudflare')" style="background: #252525; color: #fff; border: 1px solid #444; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">☁️ Cloudflare</button>
+                </div>
+            </div>
+        `;
+        handleVaiiDataOutput("", card);
+        return;
+    }
+
+    handleVaiiDataOutput("Pinging Provider...", `<div style="color: #4da3ff; padding: 12px;">📡 Pinging ${escapeHtml(service)} status api...</div>`);
+    try {
+        const endpoint = statusMap[service];
+        const res = await fetch('/api/proxy?url=' + encodeURIComponent(endpoint));
+        if (!res.ok) throw new Error(`${service} status endpoint returned ${res.status}`);
+        const data = await res.json();
+
+        const pageName = data.page ? data.page.name : service.toUpperCase();
+        const indicator = (data.status && data.status.indicator) ? data.status.indicator.toLowerCase() : 'none';
+        const description = (data.status && data.status.description) ? data.status.description : 'All Systems Operational';
+
+        const isGood = indicator === 'none' || indicator === 'operational';
+        const badgeColor = isGood ? '#28a745' : (indicator === 'minor' ? '#ffaa00' : '#dc3545');
+
+        const components = (data.components || []).slice(0, 6);
+        let compHtml = '';
+        components.forEach(c => {
+            const cStatus = (c.status || 'operational').toLowerCase();
+            const dot = cStatus === 'operational' ? '<span style="color:#28a745;">●</span>' : '<span style="color:#dc3545;">▲</span>';
+            compHtml += `
+                <div style="background: #222; padding: 8px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem;">
+                    <span>${escapeHtml(c.name)}</span>
+                    <span>${dot} <span style="color: #aaa; text-transform: capitalize;">${escapeHtml(c.status)}</span></span>
+                </div>
+            `;
+        });
+
+        const card = `
+            <div style="background: #181818; border: 1px solid ${badgeColor}; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="background: ${badgeColor}22; color: ${badgeColor}; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid ${badgeColor}55;">STATUS: ${indicator.toUpperCase()}</span>
+                    <span style="font-size: 0.75rem; color: #aaa;">Uptime API</span>
+                </div>
+                <div style="font-size: 1.3rem; font-weight: 800; color: #fff; margin: 8px 0 4px 0;">${escapeHtml(pageName)}</div>
+                <div style="font-size: 0.85rem; color: #ccc; margin-bottom: 12px;">${escapeHtml(description)}</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    ${compHtml}
+                </div>
+            </div>
+        `;
+        handleVaiiDataOutput("", card);
+    } catch (err) {
+        handleVaiiDataOutput("Status Ping", `<div style="color: #ff5555; padding: 12px;">⚠️ Failed to ping status: ${escapeHtml(err.message)}</div>`);
+    }
+}
+window.handleStatusQuery = handleStatusQuery;
+
+
 // ==========================================
 // 1. USGS EARTHQUAKE TELEMETRY
 // ==========================================
