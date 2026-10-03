@@ -3422,6 +3422,242 @@ function runInfoExecution(query) {
     // HTML VIEWER & LIVE SANDBOX ROUTER
     // ==========================================
     const trimmedQ = query.trim();
+    const argumentCommand = trimmedQ.match(/^(?:\/)?(convert|timer|repo|github|movie|film|tickets?|stream|watch|define|country|flag\s+of|drink|song|music|track|play|anime|book|novel)(?:\s+([\s\S]*))?$/i);
+    if (argumentCommand) {
+        const command = argumentCommand[1].toLowerCase().replace(/\s+/g, " ");
+        const argument = (argumentCommand[2] || "").trim();
+        const help = {
+            convert: {
+                title: "Currency Conversion",
+                icon: "💱",
+                color: "#28a745",
+                description: "Provide two supported currencies and an optional amount (defaults to 1).",
+                syntax: "convert [amount] [from-currency] to [currency]",
+                formats: "Use to/in/into with ISO codes (USD, EUR, GBP, JPY) or $, €, £, ¥; the amount is optional.",
+                examples: "convert 100 USD to EUR<br>convert $50 to GBP"
+            },
+            timer: {
+                title: "Timer",
+                icon: "⏱️",
+                color: "#ff9800",
+                description: "Set a countdown duration using hours, minutes, or seconds.",
+                syntax: "timer [duration]",
+                formats: "Combine numeric values with h, m, and s units; use stopwatch to count up.",
+                examples: "timer 5m<br>timer 1m30s<br>timer 2h"
+            },
+            repo: {
+                title: "GitHub Repository Inspector",
+                icon: "🐙",
+                color: "#4da3ff",
+                description: "Provide a public GitHub repository in owner/repository format.",
+                syntax: "repo [owner/repository]",
+                formats: "Use one owner name, a slash, and one repository name.",
+                examples: "repo facebook/react<br>repo vercel/next.js"
+            },
+            github: {
+                title: "GitHub Repository Inspector",
+                icon: "🐙",
+                color: "#4da3ff",
+                description: "Provide a public GitHub repository in owner/repository format.",
+                syntax: "github [owner/repository]",
+                formats: "Use one owner name, a slash, and one repository name.",
+                examples: "github facebook/react<br>github vercel/next.js"
+            },
+            movie: {
+                title: "Movie and Media Search",
+                icon: "🎬",
+                color: "#e50914",
+                description: "Enter a movie or show title to find details and viewing links.",
+                syntax: "movie [title]",
+                formats: "Use a title or distinctive part of a title.",
+                examples: "movie Inception · movie The Matrix"
+            },
+            film: {
+                title: "Movie and Media Search",
+                icon: "🎬",
+                color: "#e50914",
+                description: "Enter a movie or show title to find details and viewing links.",
+                syntax: "film [title]",
+                formats: "Use a title or distinctive part of a title.",
+                examples: "film Inception · film The Matrix"
+            },
+            tickets: {
+                title: "Movie and Media Search",
+                icon: "🎟️",
+                color: "#e50914",
+                description: "Enter a movie or show title to find details and ticket links.",
+                syntax: "tickets [title]",
+                formats: "Use a movie or show title.",
+                examples: "tickets Superman · tickets The Avengers"
+            },
+            ticket: {
+                title: "Movie and Media Search",
+                icon: "🎟️",
+                color: "#e50914",
+                description: "Enter a movie or show title to find details and ticket links.",
+                syntax: "ticket [title]",
+                formats: "Use a movie or show title.",
+                examples: "ticket Superman · ticket The Avengers"
+            },
+            stream: {
+                title: "Movie and Media Search",
+                icon: "📺",
+                color: "#007bff",
+                description: "Enter a movie or show title to find details and streaming links.",
+                syntax: "stream [title]",
+                formats: "Use a movie or show title; use stream song [title] to find music.",
+                examples: "stream Interstellar · stream song Blinding Lights"
+            },
+            watch: {
+                title: "Movie and Media Search",
+                icon: "📺",
+                color: "#007bff",
+                description: "Enter a movie or show title to find details and streaming links.",
+                syntax: "watch [title]",
+                formats: "Use a movie or show title.",
+                examples: "watch The Matrix · watch Interstellar"
+            },
+            define: {
+                title: "Dictionary Lookup",
+                icon: "📖",
+                color: "#8bc34a",
+                description: "Provide one word to look up its definition and pronunciation.",
+                syntax: "define [word]",
+                formats: "Use a single English word.",
+                examples: "define serendipity · define ephemeral"
+            },
+            country: {
+                title: "Country Information",
+                icon: "🌍",
+                color: "#4da3ff",
+                description: "Provide a country name to look up its flag and details.",
+                syntax: "country [country-name]",
+                formats: "Use a common or official country name.",
+                examples: "country Japan · country Brazil"
+            },
+            "flag of": {
+                title: "Country Information",
+                icon: "🌍",
+                color: "#4da3ff",
+                description: "Provide a country name to look up its flag and details.",
+                syntax: "flag of [country-name]",
+                formats: "Use a common or official country name.",
+                examples: "flag of Japan · flag of Brazil"
+            },
+            drink: {
+                title: "Cocktail Recipe Search",
+                icon: "🍸",
+                color: "#e91e63",
+                description: "Provide a cocktail name to find its recipe, or request a random drink.",
+                syntax: "drink [cocktail-name]",
+                formats: "Use a cocktail name; random drink does not need an argument.",
+                examples: "drink Margarita · drink Mojito"
+            },
+            song: {
+                title: "Music Search",
+                icon: "🎵",
+                color: "#1db954",
+                description: "Provide a song title or artist to find track details.",
+                syntax: "song [title or artist]",
+                formats: "Use a song title, artist name, or both.",
+                examples: "song Bohemian Rhapsody · song Daft Punk One More Time"
+            },
+            music: {
+                title: "Music Search",
+                icon: "🎵",
+                color: "#1db954",
+                description: "Provide a song title or artist to find track details.",
+                syntax: "music [title or artist]",
+                formats: "Use a song title, artist name, or both.",
+                examples: "music Blinding Lights · music Daft Punk"
+            },
+            track: {
+                title: "Music Search",
+                icon: "🎵",
+                color: "#1db954",
+                description: "Provide a song title or artist to find track details.",
+                syntax: "track [title or artist]",
+                formats: "Use a song title, artist name, or both.",
+                examples: "track Starboy · track Adele Hello"
+            },
+            play: {
+                title: "Music Search",
+                icon: "🎵",
+                color: "#1db954",
+                description: "Provide a song title or artist to find a preview and listening links.",
+                syntax: "play [title or artist]",
+                formats: "Use a song title, artist name, or both.",
+                examples: "play Blinding Lights · play Queen Bohemian Rhapsody"
+            },
+            anime: {
+                title: "Anime Search",
+                icon: "🍥",
+                color: "#ff9800",
+                description: "Provide an anime title to look up its series information.",
+                syntax: "anime [title]",
+                formats: "Use the series title or a distinctive part of it.",
+                examples: "anime Attack on Titan · anime Naruto"
+            },
+            book: {
+                title: "Book Search",
+                icon: "📚",
+                color: "#9c27b0",
+                description: "Provide a book title or author to search the catalog.",
+                syntax: "book [title or author]",
+                formats: "Use a book title, author name, or both.",
+                examples: "book The Hobbit · book Jane Austen"
+            },
+            novel: {
+                title: "Book Search",
+                icon: "📚",
+                color: "#9c27b0",
+                description: "Provide a book title or author to search the catalog.",
+                syntax: "novel [title or author]",
+                formats: "Use a book title, author name, or both.",
+                examples: "novel The Hobbit · novel Jane Austen"
+            }
+        }[command];
+
+        let invalidArgument = !argument ||
+            (trimmedQ.startsWith("/") && !["repo", "github", "movie", "timer"].includes(command));
+        if (!invalidArgument && (command === "repo" || command === "github")) {
+            invalidArgument = !/^[^/\s]+\/[^/\s]+$/.test(argument);
+        } else if (!invalidArgument && command === "timer") {
+            const duration = argument.match(/^(?:(\d+)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?\s*(?:(\d+)\s*s(?:ec(?:onds?)?)?)?$/i);
+            invalidArgument = argument.toLowerCase() !== "stopwatch" &&
+                (!duration || (!duration[1] && !duration[2] && !duration[3]) ||
+                (Number(duration[1] || 0) * 3600 + Number(duration[2] || 0) * 60 + Number(duration[3] || 0) === 0));
+        } else if (!invalidArgument && command === "convert") {
+            const currencyQuery = argument.replace(/^convert\s+/i, "");
+            const currencyMatch = currencyQuery.match(/^(?:(\d+(?:\.\d+)?)\s*)?([A-Z]{3}|[$€£¥])\s+(?:to|in|into)\s+([A-Z]{3}|[$€£¥])$|^([$€£¥])\s*\d+(?:\.\d+)?\s+(?:to|in|into)\s+([A-Z]{3}|[$€£¥])$/i);
+            if (currencyMatch) {
+                const fromCode = CURRENCY_SYMBOL_MAP[(currencyMatch[2] || currencyMatch[4] || "").toUpperCase()] ||
+                    (currencyMatch[2] || currencyMatch[4] || "").toUpperCase();
+                const toCode = CURRENCY_SYMBOL_MAP[(currencyMatch[3] || currencyMatch[5] || "").toUpperCase()] ||
+                    (currencyMatch[3] || currencyMatch[5] || "").toUpperCase();
+                invalidArgument = !VALID_ISO_CURRENCIES.has(fromCode) || !VALID_ISO_CURRENCIES.has(toCode);
+            } else {
+                invalidArgument = true;
+            }
+        }
+
+        if (invalidArgument) {
+            const card = `
+                <div style="background: #181818; border: 1px solid ${help.color}; border-radius: 8px; padding: 14px; margin-top: 10px;">
+                    <strong style="color: ${help.color}; font-size: 0.95rem;">${help.icon} ${help.title}</strong>
+                    <p style="color: #aaa; font-size: 0.82rem; margin: 8px 0;">${help.description}</p>
+                    <div style="font-size: 0.8rem; color: #888; line-height: 1.6;">
+                        Syntax: <code style="color: ${help.color};">${help.syntax}</code><br>
+                        Formats: ${help.formats}<br>
+                        Examples: <code style="color: #eee;">${help.examples}</code>
+                    </div>
+                </div>
+            `;
+            handleVaiiDataOutput(help.title, card);
+            return;
+        }
+    }
+
     const isEditorCmd = /^(?:\/)?(?:html|editor|htmleditor)(?:\s+([\s\S]*))?$/i.exec(trimmedQ);
     if (isEditorCmd) {
         const payload = isEditorCmd[1] ? isEditorCmd[1].trim() : "";
@@ -5026,8 +5262,8 @@ executeActionBtn?.addEventListener('click', () => {
         }
 
         // 2. Bluesky
-        if (lq === "bsky" || lq === "/bsky" || lq === "bluesky" || lq === "/bluesky" || lq.startsWith("bsky ") || lq.startsWith("bluesky ") || lq.startsWith("/bsky ")) {
-            const handle = query.trim().replace(/^(\/bsky|bluesky|bsky)\s*/i, '').trim();
+        if (lq === "bsky" || lq === "/bsky" || lq === "bluesky" || lq === "/bluesky" || lq.startsWith("bsky ") || lq.startsWith("bluesky ") || lq.startsWith("/bsky ") || lq.startsWith("/bluesky ")) {
+            const handle = query.trim().replace(/^(\/bluesky|\/bsky|bluesky|bsky)\s*/i, '').trim();
             if (!handle) {
                 handleVaiiDataOutput("Bluesky Profile Lookup", `
                     <div style="background: #181818; border: 1px solid #0085ff; border-radius: 8px; padding: 14px; margin-top: 10px;">
@@ -5046,8 +5282,8 @@ executeActionBtn?.addEventListener('click', () => {
         }
 
         // 3. Wayback Machine
-        if (lq === "wayback" || lq === "/wayback" || lq === "archive" || lq === "/archive" || lq === "snapshot" || lq.startsWith("wayback ") || lq.startsWith("archive ") || lq.startsWith("/wayback ") || lq.startsWith("snapshot ")) {
-            const url = query.trim().replace(/^(\/wayback|wayback|archive|snapshot)\s*/i, '').trim();
+        if (lq === "wayback" || lq === "/wayback" || lq === "archive" || lq === "/archive" || lq === "snapshot" || lq === "/snapshot" || lq.startsWith("wayback ") || lq.startsWith("archive ") || lq.startsWith("/wayback ") || lq.startsWith("/archive ") || lq.startsWith("snapshot ") || lq.startsWith("/snapshot ")) {
+            const url = query.trim().replace(/^(\/wayback|wayback|\/archive|archive|\/snapshot|snapshot)\s*/i, '').trim();
             if (!url) {
                 handleVaiiDataOutput("Wayback Machine Snapshot Checker", `
                     <div style="background: #181818; border: 1px solid #e0ac00; border-radius: 8px; padding: 14px; margin-top: 10px;">
@@ -5118,8 +5354,8 @@ executeActionBtn?.addEventListener('click', () => {
         }
 
         // 8. DNS & WHOIS Resolver
-        if (lq === "dns" || lq === "/dns" || lq.startsWith("dns ") || lq.startsWith("/dns ") || lq.startsWith("dig ") || lq.startsWith("nslookup ")) {
-            const domain = query.trim().replace(/^(\/dns|dns|dig|nslookup)\s*/i, '').trim();
+        if (lq === "dns" || lq === "/dns" || lq === "dig" || lq === "/dig" || lq === "nslookup" || lq === "/nslookup" || lq.startsWith("dns ") || lq.startsWith("/dns ") || lq.startsWith("dig ") || lq.startsWith("/dig ") || lq.startsWith("nslookup ") || lq.startsWith("/nslookup ")) {
+            const domain = query.trim().replace(/^(\/dns|dns|\/dig|dig|\/nslookup|nslookup)\s*/i, '').trim();
             if (!domain) {
                 handleVaiiDataOutput("DNS Resolver", `
                     <div style="background: #181818; border: 1px solid #4285f4; border-radius: 8px; padding: 14px; margin-top: 10px;">
