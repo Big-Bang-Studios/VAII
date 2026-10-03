@@ -1003,6 +1003,8 @@ const prefsDrawer = document.getElementById('prefs-drawer');
 const prefsCloseBtn = document.getElementById('prefs-close-btn');
 const prefsInstructionsInput = document.getElementById('prefs-instructions-input');
 const prefsApiKeyInput = document.getElementById('prefs-api-key-input');
+const prefsThemeSelect = document.getElementById('prefs-theme-select');
+const prefsAutocorrectToggle = document.getElementById('prefs-autocorrect-toggle');
 const apiKeyNote = document.getElementById('api-key-note');
 const prefsSaveBtn = document.getElementById('prefs-save-btn');
 
@@ -1109,6 +1111,14 @@ function closeAllDrawers() {
         if (d) d.style.display = "none";
     });
 }
+
+function applyVaiiTheme(theme) {
+    const selectedTheme = theme === "light" ? "light" : "dark";
+    document.documentElement.dataset.vaiiTheme = selectedTheme;
+    document.body.dataset.vaiiTheme = selectedTheme;
+}
+
+applyVaiiTheme(localStorage.getItem("vaii_theme") || "dark");
 
 function renderMarkdown(text) {
     if (!text) return "";
@@ -4490,8 +4500,16 @@ prefsToggleBtn?.addEventListener('click', (e) => {
         prefsDrawer.style.display = "block";
         if (prefsInstructionsInput) prefsInstructionsInput.value = localStorage.getItem('vaii_gemini_instructions') || '';
         if (prefsApiKeyInput) prefsApiKeyInput.value = localStorage.getItem('vaii_custom_api_key') || '';
+        if (prefsThemeSelect) prefsThemeSelect.value = localStorage.getItem("vaii_theme") === "light" ? "light" : "dark";
+        if (prefsAutocorrectToggle) prefsAutocorrectToggle.checked = localStorage.getItem("vaii_autocorrect") === "true";
         updateApiKeyNoteVisibility();
     }
+});
+
+prefsThemeSelect?.addEventListener('change', () => {
+    const selectedTheme = prefsThemeSelect.value === "light" ? "light" : "dark";
+    localStorage.setItem("vaii_theme", selectedTheme);
+    applyVaiiTheme(selectedTheme);
 });
 
 prefsApiKeyInput?.addEventListener('input', updateApiKeyNoteVisibility);
@@ -4503,6 +4521,10 @@ prefsCloseBtn?.addEventListener('click', () => {
 prefsSaveBtn?.addEventListener('click', () => {
     if (prefsInstructionsInput) localStorage.setItem('vaii_gemini_instructions', prefsInstructionsInput.value.trim());
     if (prefsApiKeyInput) localStorage.setItem('vaii_custom_api_key', prefsApiKeyInput.value.trim());
+    const selectedTheme = prefsThemeSelect?.value === "light" ? "light" : "dark";
+    localStorage.setItem("vaii_theme", selectedTheme);
+    localStorage.setItem("vaii_autocorrect", String(prefsAutocorrectToggle?.checked === true));
+    applyVaiiTheme(selectedTheme);
     if (prefsDrawer) prefsDrawer.style.display = "none";
     initializeFreshChatSession();
 });
@@ -5254,14 +5276,81 @@ async function handleBarcodeQuery(barcode) {
     }
 }
 
+function getSingleCommandTypoDistance(input, candidate) {
+    if (input === candidate || Math.abs(input.length - candidate.length) > 1) return null;
+
+    if (input.length === candidate.length) {
+        const differences = [];
+        for (let i = 0; i < input.length; i++) {
+            if (input[i] !== candidate[i]) differences.push(i);
+        }
+        if (differences.length === 1) return { distance: 1, transposition: false };
+        if (differences.length === 2 && differences[1] === differences[0] + 1 &&
+            input[differences[0]] === candidate[differences[1]] &&
+            input[differences[1]] === candidate[differences[0]]) {
+            return { distance: 1, transposition: true };
+        }
+        return null;
+    }
+
+    const shorter = input.length < candidate.length ? input : candidate;
+    const longer = input.length < candidate.length ? candidate : input;
+    let shortIndex = 0;
+    let longIndex = 0;
+    let skipped = false;
+    while (shortIndex < shorter.length && longIndex < longer.length) {
+        if (shorter[shortIndex] === longer[longIndex]) {
+            shortIndex++;
+            longIndex++;
+        } else if (skipped) {
+            return null;
+        } else {
+            skipped = true;
+            longIndex++;
+        }
+    }
+    return { distance: 1, transposition: false };
+}
+
+function autocorrectCommandQuery(query) {
+    if (localStorage.getItem("vaii_autocorrect") !== "true") return query;
+
+    const match = query.match(/^(\s*\/?)([a-z-]+)([\s\S]*)$/i);
+    if (!match) return query;
+
+    const typedCommand = match[2].toLowerCase();
+    const commandNames = [
+        "age", "anime", "archive", "asteroid", "barcode", "book", "bsky", "bluesky",
+        "call", "cat", "college", "country", "convert", "define", "dial", "dig", "dns",
+        "draw", "drink", "film", "flight", "food", "github", "joke", "movie", "manga",
+        "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
+        "postal", "qr", "qrcode", "repo", "snapshot", "sms", "song", "space", "stream",
+        "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
+        "watch", "wayback", "weather", "zip"
+    ];
+    const candidates = commandNames
+        .map(name => ({ name, match: getSingleCommandTypoDistance(typedCommand, name) }))
+        .filter(candidate => candidate.match &&
+            (candidate.match.transposition || typedCommand.slice(0, 2) === candidate.name.slice(0, 2)))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (!candidates.length) return query;
+    const bestDistance = candidates[0].match.distance;
+    const bestMatches = candidates.filter(candidate => candidate.match.distance === bestDistance);
+    if (bestMatches.length !== 1) return query;
+
+    return `${match[1]}${bestMatches[0].name}${match[3]}`;
+}
+
 executeActionBtn?.addEventListener('click', () => {
-    const query = (hubInput?.value || "").trim();
+    let query = (hubInput?.value || "").trim();
     const modeEl = document.querySelector('input[name="vaii-mode"]:checked');
     const mode = modeEl ? modeEl.value : "native";
     
     if (!query && !activeImageBase64) return;
 
     if (mode === "native") {
+        query = autocorrectCommandQuery(query);
         const lq = query.trim().toLowerCase();
 
         // 1. Earthquakes
