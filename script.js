@@ -5235,3 +5235,14 @@ onAuthStateChanged(auth, (user) => {
         if (mainApp) mainApp.style.display = "none";
     }
 });
+
+
+    const hubDl = document.getElementById('hub-suggestions');
+    if (hubDl) {
+        const v105Suggestions = ['/solarstorm', '/aurora', '/history', '/today', '/status github', '/status discord', '/status cloudflare', 'status github', 'aurora', 'solarstorm'];
+        v105Suggestions.forEach(cmd => {
+            const opt = document.createElement('option');
+            opt.value = cmd;
+            hubDl.appendChild(opt);
+        });
+    }
