@@ -4512,7 +4512,18 @@ prefsThemeSelect?.addEventListener('change', () => {
     applyVaiiTheme(selectedTheme);
 });
 
-prefsApiKeyInput?.addEventListener('input', updateApiKeyNoteVisibility);
+prefsInstructionsInput?.addEventListener('input', () => {
+    localStorage.setItem('vaii_gemini_instructions', prefsInstructionsInput.value.trim());
+});
+
+prefsApiKeyInput?.addEventListener('input', () => {
+    localStorage.setItem('vaii_custom_api_key', prefsApiKeyInput.value.trim());
+    updateApiKeyNoteVisibility();
+});
+
+prefsAutocorrectToggle?.addEventListener('change', () => {
+    localStorage.setItem("vaii_autocorrect", String(prefsAutocorrectToggle.checked));
+});
 
 prefsCloseBtn?.addEventListener('click', () => {
     if (prefsDrawer) prefsDrawer.style.display = "none";
