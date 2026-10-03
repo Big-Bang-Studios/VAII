@@ -42,7 +42,8 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **🍔 Local Food Concierge:** Maps food cravings to local chains and provides deep routing links to **DoorDash** and **Google Local Ordering**.
 * **🔢 Arithmetic & Conversions:** Evaluates math expressions and imperial/metric unit conversions.
 * **🗣️ Language Translation:** Routes semantic phrases through the **MyMemory Translation API**.
-* **🪙 Crypto & Market Tickers:** Queries CoinCap asset prices, 24-hour changes, market caps, and volumes with `crypto [symbol]`; stock ticker routing remains available.
+* **🪙 Crypto & Market Tickers:** Queries CoinGecko asset prices, 24-hour changes, market caps, and volumes with `crypto [symbol]`; stock ticker routing remains available.
+* **📡 Service Status Monitor:** Checks live GitHub, Discord, and Cloudflare status summaries with `status [provider]`.
 * **🎨 AI Art Generation:** Generates on-demand graphics via **Pollinations AI**.
 
 ---

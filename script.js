@@ -124,14 +124,14 @@ async function handleHistoryQuery() {
 
 // 3. Global Infrastructure Status
 async function handleStatusQuery(serviceQuery) {
-    let service = (serviceQuery || '').trim().toLowerCase();
+    const service = (serviceQuery || '').trim().toLowerCase();
     const statusMap = {
-        'github': 'https://www.githubstatus.com/api/v2/summary.json',
-        'discord': 'https://discordstatus.com/api/v2/summary.json',
-        'cloudflare': 'https://www.cloudflarestatus.com/api/v2/summary.json'
+        'github': { name: 'GitHub', url: 'https://www.githubstatus.com/api/v2/summary.json', page: 'https://www.githubstatus.com' },
+        'discord': { name: 'Discord', url: 'https://discordstatus.com/api/v2/summary.json', page: 'https://discordstatus.com' },
+        'cloudflare': { name: 'Cloudflare', url: 'https://www.cloudflarestatus.com/api/v2/summary.json', page: 'https://www.cloudflarestatus.com' }
     };
 
-    if (!service || !statusMap[service]) {
+    if (!statusMap[service]) {
         const selectorCard = `
             <div style="background: #181818; border: 1px solid #4da3ff; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -150,6 +150,52 @@ async function handleStatusQuery(serviceQuery) {
         `;
         handleVaiiDataOutput("", selectorCard);
         return;
+    }
+
+    const provider = statusMap[service];
+    handleVaiiDataOutput(`${provider.name} Status`, `<div style="color:#4da3ff; padding:12px;">Checking ${escapeHtml(provider.name)} service status...</div>`);
+    try {
+        const response = await fetch(provider.url);
+        if (!response.ok) throw new Error(`Status API returned ${response.status}`);
+        const data = await response.json();
+        const indicator = data.status?.indicator || "unknown";
+        const description = data.status?.description || "Status unavailable";
+        const colors = {
+            none: "#28a745",
+            minor: "#ffc107",
+            major: "#fd7e14",
+            critical: "#dc3545",
+            unknown: "#888"
+        };
+        const color = colors[indicator] || colors.unknown;
+        const affected = (data.components || []).filter(component => component.status !== "operational");
+        const componentList = affected.length
+            ? affected.slice(0, 6).map(component => `
+                <div style="display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-top:1px solid #2a2a2a;">
+                    <span>${escapeHtml(component.name || "Unnamed component")}</span>
+                    <strong style="color:${color};">${escapeHtml((component.status || "unknown").replace(/_/g, " "))}</strong>
+                </div>
+            `).join("")
+            : `<div style="padding:8px 0; color:#7ee787;">All reported components are operational.</div>`;
+        const updatedAt = data.page?.updated_at ? new Date(data.page.updated_at) : null;
+        const updatedLabel = updatedAt && !Number.isNaN(updatedAt.getTime())
+            ? updatedAt.toLocaleString()
+            : "Not provided";
+
+        handleVaiiDataOutput(`${provider.name} status: ${description}.`, `
+            <div style="background:#181818; border:1px solid ${color}; border-radius:10px; padding:16px; margin:10px 0; color:#fff;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                    <span style="font-size:0.75rem; color:#aaa; text-transform:uppercase; font-weight:bold;">${escapeHtml(provider.name)} Service Health</span>
+                    <span style="color:${color}; font-weight:bold;">${escapeHtml(description)}</span>
+                </div>
+                <div style="font-size:0.75rem; color:#888; margin-top:8px;">Last updated: ${escapeHtml(updatedLabel)}</div>
+                <div style="margin-top:10px; font-size:0.85rem;">${componentList}</div>
+                <a href="${escapeHtml(data.page?.url || provider.page)}" target="_blank" rel="noopener noreferrer" style="display:inline-block; margin-top:10px; color:#4da3ff;">Open ${escapeHtml(provider.name)} status page ↗</a>
+            </div>
+        `);
+    } catch (err) {
+        console.error(`${provider.name} status lookup failed:`, err);
+        handleVaiiDataOutput(`${provider.name} status lookup failed.`, `<div style="color:#ff5555; padding:12px;">⚠️ Could not retrieve ${escapeHtml(provider.name)} status: ${escapeHtml(err.message)}</div>`);
     }
 }
 
@@ -3242,7 +3288,7 @@ async function executeVisionAnalysis(promptText) {
 function runMarketExecution(ticker) {
     const cleanTicker = ticker.trim().toLowerCase();
     if (["btc", "bitcoin", "eth", "ethereum", "sol", "solana"].includes(cleanTicker)) {
-        handleCoinCapQuery(ticker);
+        handleCryptoQuery(ticker);
         return;
     }
 
@@ -5410,50 +5456,57 @@ async function handleChuckNorrisQuery() {
     }
 }
 
-async function handleCoinCapQuery(symbol) {
+async function handleCryptoQuery(symbol) {
     const cleanSymbol = symbol.trim();
     if (!cleanSymbol) {
-        handleVaiiDataOutput("CoinCap Crypto Ticker", `<div style="background:#181818; border:1px solid #6f42c1; border-radius:8px; padding:14px; color:#ccc;">Usage: <code>/crypto [symbol]</code> (for example, <code>/crypto BTC</code>).</div>`);
+        handleVaiiDataOutput("Crypto Ticker", `<div style="background:#181818; border:1px solid #6f42c1; border-radius:8px; padding:14px; color:#ccc;">Usage: <code>/crypto [symbol]</code> (for example, <code>/crypto BTC</code>).</div>`);
         return;
     }
 
-    handleVaiiDataOutput("CoinCap Crypto Ticker", `<div style="color:#a98bdf; padding:12px;">Fetching live market data for ${escapeHtml(cleanSymbol.toUpperCase())}...</div>`);
+    handleVaiiDataOutput("Crypto Ticker", `<div style="color:#a98bdf; padding:12px;">Fetching live market data for ${escapeHtml(cleanSymbol.toUpperCase())}...</div>`);
     try {
-        const response = await fetch(`https://api.coincap.io/v2/assets?search=${encodeURIComponent(cleanSymbol)}&limit=10`);
-        if (!response.ok) throw new Error(`CoinCap returned ${response.status}`);
-        const payload = await response.json();
-        const assets = Array.isArray(payload.data) ? payload.data : [];
-        const asset = assets.find(item => item.symbol?.toLowerCase() === cleanSymbol.toLowerCase());
+        const searchResponse = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(cleanSymbol)}`);
+        if (!searchResponse.ok) throw new Error(`CoinGecko search returned ${searchResponse.status}`);
+        const searchData = await searchResponse.json();
+        const asset = (searchData.coins || [])
+            .filter(item => item.symbol?.toLowerCase() === cleanSymbol.toLowerCase())
+            .sort((a, b) => (a.market_cap_rank || Infinity) - (b.market_cap_rank || Infinity))[0];
 
         if (!asset) {
-            handleVaiiDataOutput("Crypto asset not found.", `<div style="color:#ff5555; padding:12px;">No CoinCap asset matched symbol <code>${escapeHtml(cleanSymbol.toUpperCase())}</code>.</div>`);
+            handleVaiiDataOutput("Crypto asset not found.", `<div style="color:#ff5555; padding:12px;">No CoinGecko asset matched symbol <code>${escapeHtml(cleanSymbol.toUpperCase())}</code>.</div>`);
             return;
         }
+
+        const marketResponse = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${encodeURIComponent(asset.id)}&price_change_percentage=24h`);
+        if (!marketResponse.ok) throw new Error(`CoinGecko market data returned ${marketResponse.status}`);
+        const marketData = await marketResponse.json();
+        const market = marketData[0];
+        if (!market) throw new Error(`No CoinGecko market data was available for ${asset.name || cleanSymbol}`);
 
         const formatUsd = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))
             ? `$${Number(value).toLocaleString("en-US", { maximumFractionDigits: 8 })}`
             : "—";
-        const change = Number(asset.changePercent24Hr);
+        const change = Number(market.price_change_percentage_24h);
         const isPositive = Number.isFinite(change) && change >= 0;
         const changeLabel = Number.isFinite(change) ? `${change.toFixed(2)}%` : "—";
-        const assetName = `${asset.name || cleanSymbol} (${asset.symbol || cleanSymbol.toUpperCase()})`;
+        const assetName = `${market.name || asset.name || cleanSymbol} (${market.symbol?.toUpperCase() || cleanSymbol.toUpperCase()})`;
         const card = `
             <div style="background:#1a1a1a; padding:16px; border-radius:10px; border-left:4px solid ${isPositive ? "#28a745" : "#dc3545"}; color:#eee;">
-                <div style="font-size:0.75rem; color:#a98bdf; text-transform:uppercase; font-weight:bold;">🪙 CoinCap Live Asset</div>
+                <div style="font-size:0.75rem; color:#a98bdf; text-transform:uppercase; font-weight:bold;">🪙 CoinGecko Live Asset</div>
                 <div style="font-size:1.15rem; font-weight:bold; margin:5px 0 12px;">${escapeHtml(assetName)}</div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.86rem;">
-                    <div style="background:#222; padding:9px; border-radius:6px;">Price <strong style="display:block; margin-top:3px;">${formatUsd(asset.priceUsd)}</strong></div>
+                    <div style="background:#222; padding:9px; border-radius:6px;">Price <strong style="display:block; margin-top:3px;">${formatUsd(market.current_price)}</strong></div>
                     <div style="background:#222; padding:9px; border-radius:6px;">24h Change <strong style="display:block; margin-top:3px; color:${isPositive ? "#7ee787" : "#ff7b72"};">${isPositive ? "▲" : "▼"} ${escapeHtml(changeLabel)}</strong></div>
-                    <div style="background:#222; padding:9px; border-radius:6px;">Market Cap <strong style="display:block; margin-top:3px;">${formatUsd(asset.marketCapUsd)}</strong></div>
-                    <div style="background:#222; padding:9px; border-radius:6px;">24h Volume <strong style="display:block; margin-top:3px;">${formatUsd(asset.volumeUsd24Hr)}</strong></div>
+                    <div style="background:#222; padding:9px; border-radius:6px;">Market Cap <strong style="display:block; margin-top:3px;">${formatUsd(market.market_cap)}</strong></div>
+                    <div style="background:#222; padding:9px; border-radius:6px;">24h Volume <strong style="display:block; margin-top:3px;">${formatUsd(market.total_volume)}</strong></div>
                 </div>
-                ${asset.id ? `<a href="https://coincap.io/assets/${encodeURIComponent(asset.id)}" target="_blank" rel="noopener noreferrer" style="display:inline-block; margin-top:10px; color:#a98bdf; font-size:0.8rem;">CoinCap asset ↗</a>` : ""}
+                ${asset.id ? `<a href="https://www.coingecko.com/en/coins/${encodeURIComponent(asset.id)}" target="_blank" rel="noopener noreferrer" style="display:inline-block; margin-top:10px; color:#a98bdf; font-size:0.8rem;">CoinGecko asset ↗</a>` : ""}
             </div>
         `;
-        handleVaiiDataOutput(`${assetName}: ${formatUsd(asset.priceUsd)} USD, 24-hour change ${changeLabel}.`, card);
+        handleVaiiDataOutput(`${assetName}: ${formatUsd(market.current_price)} USD, 24-hour change ${changeLabel}.`, card);
     } catch (err) {
-        console.error("CoinCap lookup failed:", err);
-        handleVaiiDataOutput("Crypto ticker lookup failed.", `<div style="color:#ff5555; padding:12px;">⚠️ Could not retrieve CoinCap market data: ${escapeHtml(err.message)}</div>`);
+        console.error("Crypto ticker lookup failed:", err);
+        handleVaiiDataOutput("Crypto ticker lookup failed.", `<div style="color:#ff5555; padding:12px;">⚠️ Could not retrieve cryptocurrency market data: ${escapeHtml(err.message)}</div>`);
     }
 }
 
@@ -5560,7 +5613,7 @@ function autocorrectCommandQuery(query) {
         "isbn", "locate", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
         "postal", "qr", "qrcode", "repo", "snapshot", "sms", "song", "space", "stream",
         "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
-        "watch", "wayback", "weather", "whereami", "zip"
+        "watch", "wayback", "weather", "whereami", "zip", "status"
     ];
     const candidates = commandNames
         .map(name => ({ name, match: getSingleCommandTypoDistance(typedCommand, name) }))
@@ -5608,7 +5661,12 @@ executeActionBtn?.addEventListener('click', () => {
         }
 
         if (lq === "crypto" || lq === "/crypto" || lq.startsWith("crypto ") || lq.startsWith("/crypto ")) {
-            handleCoinCapQuery(query.trim().replace(/^\/?crypto\s*/i, ""));
+            handleCryptoQuery(query.trim().replace(/^\/?crypto\s*/i, ""));
+            return;
+        }
+
+        if (lq === "status" || lq === "/status" || lq.startsWith("status ") || lq.startsWith("/status ")) {
+            handleStatusQuery(query.trim().replace(/^\/?status\s*/i, ""));
             return;
         }
 
