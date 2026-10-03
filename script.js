@@ -1614,7 +1614,16 @@ function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML =
             const delta = 0.04;
             const bbox = `${parsedLon - delta}%2C${parsedLat - (delta * 0.6)}%2C${parsedLon + delta}%2C${parsedLat + (delta * 0.6)}`;
             const osmSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${parsedLat}%2C${parsedLon}`;
-            mapCanvas.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0; border-radius: 8px;" src="${osmSrc}"></iframe>`;
+            mapCanvas.innerHTML = `
+    <iframe width="100%" height="100%" frameborder="0" style="border:0; border-radius: 8px;" src="${osmSrc}"></iframe>
+    <div style="margin-top: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #333; background: #000;">
+        <div style="padding: 6px 10px; font-size: 0.75rem; color: #4da3ff; font-weight: bold; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center;">
+            <span>📡 Live Sky & Doppler Radar</span>
+            <span style="font-size: 0.68rem; color: #888;">Interactive Stream</span>
+        </div>
+        <iframe src="https://embed.windy.com/embed2.html?lat=${parsedLat}&lon=${parsedLon}&detailLat=${parsedLat}&detailLon=${parsedLon}&width=400&height=220&zoom=7&level=surface&overlay=radar&product=radar&menu=&message=&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default&radarRange=-1" width="100%" height="220" frameborder="0" style="display:block;"></iframe>
+    </div>
+`;
         });
     })
         .catch(err => {
