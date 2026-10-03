@@ -1580,14 +1580,41 @@ function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML =
 
                     const camBox = document.getElementById("vaii-weather-radar-stream");
                     if (camBox) {
+                        const radarUrl = new URL("https://embed.windy.com/embed2.html");
+                        const radarParams = {
+                            lat: parsedLat,
+                            lon: parsedLon,
+                            detailLat: parsedLat,
+                            detailLon: parsedLon,
+                            width: 650,
+                            height: 320,
+                            zoom: 6,
+                            level: "surface",
+                            overlay: "radar",
+                            product: "ecmwf",
+                            type: "map",
+                            location: "coordinates",
+                            calendar: "now",
+                            metricWind: "default",
+                            metricTemp: "default"
+                        };
+                        Object.entries(radarParams).forEach(([key, value]) => {
+                            radarUrl.searchParams.set(key, String(value));
+                        });
+
                         camBox.innerHTML = `
-                            <div style="padding: 7px 10px; font-size: 0.75rem; color: #4da3ff; font-weight: bold; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a2a;">
-                                <span>📹 Live Environmental Sky & Area Cam</span>
-                                <a href="https://www.windy.com/-Webcams/webcams?${parsedLat},${parsedLon},12" target="_blank" rel="noopener noreferrer" style="font-size: 0.68rem; color: #aaa; text-decoration: underline;">Open Cam Hub ↗</a>
+                            <div style="padding: 7px 10px; font-size: 0.75rem; color: #4da3ff; font-weight: bold; background: #1a1a1a; border-bottom: 1px solid #2a2a2a;">
+                                🌦️ Live Weather Radar for ${escapeHtml(placeName)}
                             </div>
-                            <div style="padding: 16px; color: #aaa; font-size: 0.8rem; line-height: 1.4;">
-                                Select a nearby webcam in the Cam Hub to view its live stream.
-                            </div>
+                            <iframe
+                                src="${radarUrl.toString()}"
+                                title="Interactive live weather radar for ${escapeHtml(placeName)}"
+                                width="100%"
+                                height="320"
+                                frameborder="0"
+                                style="display: block; border: none; width: 100%; background: #000;"
+                                allowfullscreen
+                                loading="lazy"></iframe>
                         `;
                     }
             });
