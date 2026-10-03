@@ -117,66 +117,25 @@ async function handleStatusQuery(serviceQuery) {
     };
 
     if (!service || !statusMap[service]) {
-        const card = `
+        const selectorCard = `
             <div style="background: #181818; border: 1px solid #4da3ff; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
-                <div style="font-size: 0.75rem; font-weight: bold; color: #4da3ff; text-transform: uppercase;">📡 Infrastructure Health Monitor</div>
-                <p style="font-size: 0.85rem; color: #bbb; margin: 8px 0 12px 0;">Specify an infrastructure provider to inspect live system uptime:</p>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button onclick="handleStatusQuery('github')" style="background: #252525; color: #fff; border: 1px solid #444; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">🐙 GitHub</button>
-                    <button onclick="handleStatusQuery('discord')" style="background: #252525; color: #fff; border: 1px solid #444; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">💬 Discord</button>
-                    <button onclick="handleStatusQuery('cloudflare')" style="background: #252525; color: #fff; border: 1px solid #444; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">☁️ Cloudflare</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="background: rgba(77,163,255,0.2); color: #4da3ff; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(77,163,255,0.4);">HEALTH TELEMETRY</span>
+                    <span style="font-size: 0.75rem; color: #aaa;">Select Provider</span>
                 </div>
+                <div style="font-size: 1.25rem; font-weight: 800; color: #fff; margin: 6px 0 4px 0;">📡 Global Infrastructure Monitor</div>
+                <p style="font-size: 0.85rem; color: #bbb; margin: 6px 0 14px 0; line-height: 1.4;">Select an infrastructure platform below to ping live service status and outage diagnostics:</p>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" onclick="window.handleStatusQuery('github')" style="background: #24292e; color: #fff; border: 1px solid #444d56; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600;">🐙 GitHub</button>
+                    <button type="button" onclick="window.handleStatusQuery('discord')" style="background: #5865F2; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600;">💬 Discord</button>
+                    <button type="button" onclick="window.handleStatusQuery('cloudflare')" style="background: #F38020; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600;">☁️ Cloudflare</button>
+                </div>
+                <div style="font-size: 0.75rem; color: #777; margin-top: 12px;">Tip: You can also query directly using <code>status github</code>, <code>status discord</code>, or <code>status cloudflare</code>.</div>
             </div>
         `;
-        handleVaiiDataOutput("", card);
+        handleVaiiDataOutput("", selectorCard);
         return;
     }
-
-    handleVaiiDataOutput("Pinging Provider...", `<div style="color: #4da3ff; padding: 12px;">📡 Pinging ${escapeHtml(service)} status api...</div>`);
-    try {
-        const endpoint = statusMap[service];
-        const res = await fetch('/api/proxy?url=' + encodeURIComponent(endpoint));
-        if (!res.ok) throw new Error(`${service} status endpoint returned ${res.status}`);
-        const data = await res.json();
-
-        const pageName = data.page ? data.page.name : service.toUpperCase();
-        const indicator = (data.status && data.status.indicator) ? data.status.indicator.toLowerCase() : 'none';
-        const description = (data.status && data.status.description) ? data.status.description : 'All Systems Operational';
-
-        const isGood = indicator === 'none' || indicator === 'operational';
-        const badgeColor = isGood ? '#28a745' : (indicator === 'minor' ? '#ffaa00' : '#dc3545');
-
-        const components = (data.components || []).slice(0, 6);
-        let compHtml = '';
-        components.forEach(c => {
-            const cStatus = (c.status || 'operational').toLowerCase();
-            const dot = cStatus === 'operational' ? '<span style="color:#28a745;">●</span>' : '<span style="color:#dc3545;">▲</span>';
-            compHtml += `
-                <div style="background: #222; padding: 8px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem;">
-                    <span>${escapeHtml(c.name)}</span>
-                    <span>${dot} <span style="color: #aaa; text-transform: capitalize;">${escapeHtml(c.status)}</span></span>
-                </div>
-            `;
-        });
-
-        const card = `
-            <div style="background: #181818; border: 1px solid ${badgeColor}; border-radius: 10px; padding: 16px; margin: 10px 0; color: #fff;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="background: ${badgeColor}22; color: ${badgeColor}; font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; border: 1px solid ${badgeColor}55;">STATUS: ${indicator.toUpperCase()}</span>
-                    <span style="font-size: 0.75rem; color: #aaa;">Uptime API</span>
-                </div>
-                <div style="font-size: 1.3rem; font-weight: 800; color: #fff; margin: 8px 0 4px 0;">${escapeHtml(pageName)}</div>
-                <div style="font-size: 0.85rem; color: #ccc; margin-bottom: 12px;">${escapeHtml(description)}</div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-                    ${compHtml}
-                </div>
-            </div>
-        `;
-        handleVaiiDataOutput("", card);
-    } catch (err) {
-        handleVaiiDataOutput("Status Ping", `<div style="color: #ff5555; padding: 12px;">⚠️ Failed to ping status: ${escapeHtml(err.message)}</div>`);
-    }
-}
 window.handleStatusQuery = handleStatusQuery;
 
 
