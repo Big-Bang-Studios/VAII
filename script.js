@@ -1036,6 +1036,12 @@ const defaultAssistantSuggestions = [
     "/call",
     "text ",
     "/text",
+    "/asciiweather London",
+    "/isbn 9780140328721",
+    "/whereami",
+    "/locate",
+    "/chuck",
+    "/crypto BTC",
     "quakes",
     "/quakes",
     "earthquakes",
@@ -1479,7 +1485,7 @@ function resolveAndRenderLocation(locationQuery, greetingHTML = "") {
 }
 
 function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML = "") {
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Loading telemetry for ${placeName}...</div>`;
+    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Loading telemetry for ${escapeHtml(placeName)}...</div>`;
 
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=sunrise,sunset&timezone=${encodeURIComponent(timezone || 'auto')}&temperature_unit=fahrenheit&wind_speed_unit=mph`;
 
@@ -1529,7 +1535,7 @@ function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML =
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; border-bottom: 1px solid #2a2a2a; padding-bottom: 10px;">
                         <div>
                             <div style="font-size: 0.72rem; color: #00bcd4; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">📍 Unified Location Telemetry</div>
-                            <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-top: 2px;">${placeName}</div>
+                            <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-top: 2px;">${escapeHtml(placeName)}</div>
                             <div style="font-size: 0.78rem; color: #777;">Timezone: ${tz} (${parseFloat(lat).toFixed(2)}°, ${parseFloat(lon).toFixed(2)}°)</div>
                         </div>
                         <div style="text-align: right;">
@@ -3234,36 +3240,21 @@ async function executeVisionAnalysis(promptText) {
 }
 
 function runMarketExecution(ticker) {
-    output.innerHTML = `<div class="generation-status"><div class="loader-spinner"></div> Fetching price updates for "${ticker.toUpperCase()}"...</div>`;
     const cleanTicker = ticker.trim().toLowerCase();
-    const cryptoMap = { btc: "bitcoin", eth: "ethereum", solana: "solana" };
-
-    if (cryptoMap[cleanTicker]) {
-        fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoMap[cleanTicker]}&vs_currencies=usd&include_24hr_change=true`)
-            .then(res => res.json())
-            .then(data => {
-                const coinData = data[cryptoMap[cleanTicker]];
-                const price = coinData.usd;
-                const change = coinData.usd_24h_change.toFixed(2);
-                const htmlOutput = `
-                    <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #6f42c1; text-align: left;">
-                        <strong>🪙 ${cryptoMap[cleanTicker].toUpperCase()} (${ticker.toUpperCase()})</strong><br>
-                        💰 Price: $${price.toLocaleString()} USD<br>
-                        ${change >= 0 ? "📈" : "📉"} 24h Change: ${change}%
-                    </div>
-                `;
-                handleVaiiDataOutput(`The price of ${cryptoMap[cleanTicker]} is ${price.toLocaleString()} dollars.`, htmlOutput);
-            }).catch(() => { handleVaiiDataOutput("Error pulling crypto ticker data.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Error pulling crypto ticker data.</div>`); });
-    } else {
-        const htmlOutput = `
-            <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #6f42c1; text-align: left;">
-                <strong>📈 Stock Ticker: ${ticker.toUpperCase()}</strong><br>
-                <span style="color: #aaa; font-size: 0.9rem;">To view deep market assets, open the link directly:</span>
-                <a href="https://finance.yahoo.com/quote/${ticker.toUpperCase()}" target="_blank">Open Yahoo Finance ↗</a>
-            </div>
-        `;
-        handleVaiiDataOutput(`I found the stock ticker ${ticker.toUpperCase()}.`, htmlOutput);
+    if (["btc", "bitcoin", "eth", "ethereum", "sol", "solana"].includes(cleanTicker)) {
+        handleCoinCapQuery(ticker);
+        return;
     }
+
+    const safeTicker = ticker.trim().toUpperCase();
+    const htmlOutput = `
+        <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #6f42c1; text-align: left;">
+            <strong>📈 Stock Ticker: ${escapeHtml(safeTicker)}</strong><br>
+            <span style="color: #aaa; font-size: 0.9rem;">To view deep market assets, open the link directly:</span>
+            <a href="https://finance.yahoo.com/quote/${encodeURIComponent(safeTicker)}" target="_blank" rel="noopener noreferrer">Open Yahoo Finance ↗</a>
+        </div>
+    `;
+    handleVaiiDataOutput(`I found the stock ticker ${safeTicker}.`, htmlOutput);
 }
 
 function executeImageGeneration(imagePrompt) {
@@ -3897,6 +3888,11 @@ function runInfoExecution(query) {
     const cryptoMap = { btc: "bitcoin", eth: "ethereum", solana: "solana" };
     const greetingsList = ["hello", "hi", "hey", "sup", "yo", "greetings"];
     let greetingHTML = "";
+
+    if (["weather", "/weather", "sunset", "/sunset", "sunrise", "/sunrise"].includes(cleanQuery)) {
+        handleReverseGeocodeQuery(true);
+        return;
+    }
 
     if (greetingsList.includes(cleanQuery)) {
         greetingHTML = `
@@ -4660,6 +4656,12 @@ hubInput?.addEventListener('input', () => {
         const slashCommands = [
             "/terminal",
             "/weather Orlando, FL",
+            "/asciiweather London",
+            "/isbn 9780140328721",
+            "/whereami",
+            "/locate",
+            "/chuck",
+            "/crypto BTC",
             "/play Blinding Lights",
             "/movie Inception",
             "/draw Cyberpunk cityscape",
@@ -4710,6 +4712,21 @@ hubInput?.addEventListener('input', () => {
     }
     if ("barcode".startsWith(cleanInput) || "food".startsWith(cleanInput)) {
         customSuggestions.push("barcode ");
+    }
+    if ("asciiweather".startsWith(cleanInput)) {
+        customSuggestions.push("asciiweather London");
+    }
+    if ("isbn".startsWith(cleanInput)) {
+        customSuggestions.push("isbn 9780140328721", "isbn 978-0-14-032872-1");
+    }
+    if ("whereami".startsWith(cleanInput) || "locate".startsWith(cleanInput)) {
+        customSuggestions.push("whereami", "locate");
+    }
+    if ("chuck".startsWith(cleanInput)) {
+        customSuggestions.push("chuck");
+    }
+    if ("crypto".startsWith(cleanInput)) {
+        customSuggestions.push("crypto BTC", "crypto ETH", "crypto SOL");
     }
 
     if ("terminal".startsWith(cleanInput) || "shell".startsWith(cleanInput) || "sandbox".startsWith(cleanInput)) {
@@ -5287,6 +5304,212 @@ async function handleBarcodeQuery(barcode) {
     }
 }
 
+async function handleAsciiWeatherQuery(location) {
+    const cleanLocation = location.trim();
+    if (!cleanLocation) {
+        handleVaiiDataOutput("ASCII Weather", `
+            <div style="background:#181818; border:1px solid #00bcd4; border-radius:8px; padding:14px; color:#ccc;">
+                Usage: <code>/asciiweather [city]</code> (for example, <code>/asciiweather London</code>).
+            </div>
+        `);
+        return;
+    }
+
+    handleVaiiDataOutput("ASCII Weather", `<div style="color:#00bcd4; padding:12px;">Fetching terminal weather for ${escapeHtml(cleanLocation)}...</div>`);
+    try {
+        const response = await fetch(`https://wttr.in/${encodeURIComponent(cleanLocation)}?0&T&A`);
+        if (!response.ok) throw new Error(`Weather service returned ${response.status}`);
+        const weatherText = await response.text();
+        if (!weatherText.trim()) throw new Error("Weather service returned an empty report");
+        handleVaiiDataOutput(`Terminal weather for ${cleanLocation}.`, `
+            <div style="background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:14px; overflow:auto;">
+                <div style="color:#7ee787; font: bold 0.78rem monospace; margin-bottom:8px;">WTTR.IN · ${escapeHtml(cleanLocation)}</div>
+                <pre style="color:#c9d1d9; font:0.78rem/1.35 'Courier New',monospace; white-space:pre; margin:0;">${escapeHtml(weatherText.slice(0, 16000))}</pre>
+            </div>
+        `);
+    } catch (err) {
+        console.error("ASCII weather lookup failed:", err);
+        handleVaiiDataOutput("ASCII weather lookup failed.", `<div style="color:#ff5555; padding:12px;">⚠️ Could not fetch terminal weather: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
+async function handleOpenLibraryIsbnQuery(isbn) {
+    const cleanIsbn = isbn.replace(/[\s-]/g, "").toUpperCase();
+    const isIsbn10 = /^\d{9}[\dX]$/.test(cleanIsbn);
+    const isIsbn13 = /^\d{13}$/.test(cleanIsbn);
+    const validIsbn10 = isIsbn10 && [...cleanIsbn].reduce((sum, digit, index) =>
+        sum + (10 - index) * (digit === "X" ? 10 : Number(digit)), 0) % 11 === 0;
+    const validIsbn13 = isIsbn13 && [...cleanIsbn].reduce((sum, digit, index) =>
+        sum + Number(digit) * (index % 2 === 0 ? 1 : 3), 0) % 10 === 0;
+
+    if (!validIsbn10 && !validIsbn13) {
+        handleVaiiDataOutput("ISBN Lookup", `
+            <div style="background:#181818; border:1px solid #4da3ff; border-radius:8px; padding:14px; color:#ccc;">
+                Enter a valid ISBN-10 or ISBN-13 barcode. Usage: <code>/isbn [code]</code>.
+            </div>
+        `);
+        return;
+    }
+
+    handleVaiiDataOutput("Open Library ISBN Lookup", `<div style="color:#4da3ff; padding:12px;">Looking up ISBN ${escapeHtml(cleanIsbn)}...</div>`);
+    try {
+        const response = await fetch(`https://openlibrary.org/isbn/${encodeURIComponent(cleanIsbn)}.json`);
+        if (!response.ok) {
+            if (response.status === 404) throw new Error("No book record was found for that ISBN");
+            throw new Error(`Open Library returned ${response.status}`);
+        }
+        const book = await response.json();
+        const authors = await Promise.all((book.authors || []).map(async author => {
+            if (author.name) return author.name;
+            if (!author.key) return "";
+            const authorResponse = await fetch(`https://openlibrary.org${author.key}.json`);
+            if (!authorResponse.ok) throw new Error(`Could not load author record (${authorResponse.status})`);
+            const authorData = await authorResponse.json();
+            return authorData.name || "";
+        }));
+        const authorNames = authors.filter(Boolean);
+        const title = book.title || "Title unavailable";
+        const publishers = (book.publishers || []).join(", ") || "Publisher unavailable";
+        const coverId = book.covers?.[0];
+        const coverUrl = coverId ? `https://covers.openlibrary.org/b/id/${encodeURIComponent(coverId)}-L.jpg` : "";
+
+        handleVaiiDataOutput(`${title}${authorNames.length ? ` by ${authorNames.join(", ")}` : ""}`, `
+            <div style="background:#181818; border:1px solid #4da3ff; border-radius:10px; padding:16px; color:#eee; display:flex; gap:14px; align-items:flex-start;">
+                ${coverUrl ? `<img src="${escapeHtml(coverUrl)}" alt="Cover of ${escapeHtml(title)}" style="width:96px; max-height:144px; object-fit:cover; border-radius:5px; background:#222;">` : ""}
+                <div style="min-width:0;">
+                    <div style="color:#4da3ff; font-size:0.72rem; font-weight:bold; text-transform:uppercase;">📚 Open Library · ISBN ${escapeHtml(cleanIsbn)}</div>
+                    <div style="font-size:1.15rem; font-weight:bold; margin:7px 0;">${escapeHtml(title)}</div>
+                    <div style="color:#bbb; font-size:0.87rem;"><strong>Author${authorNames.length === 1 ? "" : "s"}:</strong> ${escapeHtml(authorNames.join(", ") || "Not listed")}</div>
+                    <div style="color:#bbb; font-size:0.87rem; margin-top:4px;"><strong>Publisher${(book.publishers || []).length === 1 ? "" : "s"}:</strong> ${escapeHtml(publishers)}</div>
+                    <a href="https://openlibrary.org/isbn/${encodeURIComponent(cleanIsbn)}" target="_blank" rel="noopener noreferrer" style="display:inline-block; margin-top:9px; color:#4da3ff; font-size:0.82rem;">View book record ↗</a>
+                </div>
+            </div>
+        `);
+    } catch (err) {
+        console.error("ISBN lookup failed:", err);
+        handleVaiiDataOutput("ISBN lookup failed.", `<div style="color:#ff5555; padding:12px;">⚠️ Could not retrieve the book record: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
+async function handleChuckNorrisQuery() {
+    handleVaiiDataOutput("Chuck Norris Database", `<div style="color:#ffc107; padding:12px;">Fetching a Chuck Norris fact...</div>`);
+    try {
+        const response = await fetch("https://api.chucknorris.io/jokes/random");
+        if (!response.ok) throw new Error(`Joke service returned ${response.status}`);
+        const data = await response.json();
+        if (typeof data.value !== "string" || !data.value.trim()) throw new Error("Joke service returned no fact");
+        handleVaiiDataOutput(data.value, `
+            <div style="background:#1a1a1a; padding:16px; border-radius:12px; border-left:4px solid #ffc107; color:#eee;">
+                <div style="font-size:0.75rem; color:#ffc107; text-transform:uppercase; font-weight:bold; margin-bottom:7px;">💪 Chuck Norris Fact</div>
+                <div style="font-size:1.05rem; line-height:1.45;">${escapeHtml(data.value)}</div>
+            </div>
+        `);
+    } catch (err) {
+        console.error("Chuck Norris lookup failed:", err);
+        handleVaiiDataOutput("Chuck Norris lookup failed.", `<div style="color:#ff5555; padding:12px;">⚠️ Could not load a Chuck Norris fact: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
+async function handleCoinCapQuery(symbol) {
+    const cleanSymbol = symbol.trim();
+    if (!cleanSymbol) {
+        handleVaiiDataOutput("CoinCap Crypto Ticker", `<div style="background:#181818; border:1px solid #6f42c1; border-radius:8px; padding:14px; color:#ccc;">Usage: <code>/crypto [symbol]</code> (for example, <code>/crypto BTC</code>).</div>`);
+        return;
+    }
+
+    handleVaiiDataOutput("CoinCap Crypto Ticker", `<div style="color:#a98bdf; padding:12px;">Fetching live market data for ${escapeHtml(cleanSymbol.toUpperCase())}...</div>`);
+    try {
+        const response = await fetch(`https://api.coincap.io/v2/assets?search=${encodeURIComponent(cleanSymbol)}&limit=10`);
+        if (!response.ok) throw new Error(`CoinCap returned ${response.status}`);
+        const payload = await response.json();
+        const assets = Array.isArray(payload.data) ? payload.data : [];
+        const asset = assets.find(item => item.symbol?.toLowerCase() === cleanSymbol.toLowerCase());
+
+        if (!asset) {
+            handleVaiiDataOutput("Crypto asset not found.", `<div style="color:#ff5555; padding:12px;">No CoinCap asset matched symbol <code>${escapeHtml(cleanSymbol.toUpperCase())}</code>.</div>`);
+            return;
+        }
+
+        const formatUsd = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))
+            ? `$${Number(value).toLocaleString("en-US", { maximumFractionDigits: 8 })}`
+            : "—";
+        const change = Number(asset.changePercent24Hr);
+        const isPositive = Number.isFinite(change) && change >= 0;
+        const changeLabel = Number.isFinite(change) ? `${change.toFixed(2)}%` : "—";
+        const assetName = `${asset.name || cleanSymbol} (${asset.symbol || cleanSymbol.toUpperCase()})`;
+        const card = `
+            <div style="background:#1a1a1a; padding:16px; border-radius:10px; border-left:4px solid ${isPositive ? "#28a745" : "#dc3545"}; color:#eee;">
+                <div style="font-size:0.75rem; color:#a98bdf; text-transform:uppercase; font-weight:bold;">🪙 CoinCap Live Asset</div>
+                <div style="font-size:1.15rem; font-weight:bold; margin:5px 0 12px;">${escapeHtml(assetName)}</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.86rem;">
+                    <div style="background:#222; padding:9px; border-radius:6px;">Price <strong style="display:block; margin-top:3px;">${formatUsd(asset.priceUsd)}</strong></div>
+                    <div style="background:#222; padding:9px; border-radius:6px;">24h Change <strong style="display:block; margin-top:3px; color:${isPositive ? "#7ee787" : "#ff7b72"};">${isPositive ? "▲" : "▼"} ${escapeHtml(changeLabel)}</strong></div>
+                    <div style="background:#222; padding:9px; border-radius:6px;">Market Cap <strong style="display:block; margin-top:3px;">${formatUsd(asset.marketCapUsd)}</strong></div>
+                    <div style="background:#222; padding:9px; border-radius:6px;">24h Volume <strong style="display:block; margin-top:3px;">${formatUsd(asset.volumeUsd24Hr)}</strong></div>
+                </div>
+                ${asset.id ? `<a href="https://coincap.io/assets/${encodeURIComponent(asset.id)}" target="_blank" rel="noopener noreferrer" style="display:inline-block; margin-top:10px; color:#a98bdf; font-size:0.8rem;">CoinCap asset ↗</a>` : ""}
+            </div>
+        `;
+        handleVaiiDataOutput(`${assetName}: ${formatUsd(asset.priceUsd)} USD, 24-hour change ${changeLabel}.`, card);
+    } catch (err) {
+        console.error("CoinCap lookup failed:", err);
+        handleVaiiDataOutput("Crypto ticker lookup failed.", `<div style="color:#ff5555; padding:12px;">⚠️ Could not retrieve CoinCap market data: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
+function handleReverseGeocodeQuery(showWeather = false) {
+    if (!navigator.geolocation) {
+        handleVaiiDataOutput("Location unavailable.", `<div style="color:#ff5555; padding:12px;">This browser does not support location access.</div>`);
+        return;
+    }
+
+    handleVaiiDataOutput("Locating you...", `<div style="color:#4da3ff; padding:12px;">Requesting your location to identify your approximate area...</div>`);
+    navigator.geolocation.getCurrentPosition(async position => {
+        const { latitude, longitude } = position.coords;
+        try {
+            const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&localityLanguage=en`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Reverse geocoding returned ${response.status}`);
+            const place = await response.json();
+            const locality = place.locality || place.city || place.localityInfo?.administrative?.[0]?.name || "Unknown locality";
+            const subdivision = place.principalSubdivision || "";
+            const country = place.countryName || "";
+            const placeName = [locality, subdivision, country].filter((part, index, parts) => part && parts.indexOf(part) === index).join(", ");
+
+            if (showWeather) {
+                renderUnifiedLocationCard(latitude, longitude, "auto", placeName || locality);
+                return;
+            }
+
+            const details = [
+                ["Locality", locality],
+                ["Subdivision", subdivision],
+                ["Country", country],
+                ["Country code", place.countryCode || ""],
+                ["Continent", place.continent || ""],
+                ["Coordinates", `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`]
+            ].filter(([, value]) => value);
+            handleVaiiDataOutput(`Your approximate location is ${placeName || locality}.`, `
+                <div style="background:#1a1a1a; padding:16px; border-radius:10px; border-left:4px solid #4da3ff; color:#eee;">
+                    <div style="font-size:0.75rem; color:#4da3ff; text-transform:uppercase; font-weight:bold; margin-bottom:9px;">📍 Approximate Location</div>
+                    ${details.map(([label, value]) => `<div style="padding:4px 0; color:#bbb;"><strong style="color:#eee;">${escapeHtml(label)}:</strong> ${escapeHtml(value)}</div>`).join("")}
+                    <div style="font-size:0.72rem; color:#888; margin-top:8px;">Location is determined by your browser and network permissions.</div>
+                </div>
+            `);
+        } catch (err) {
+            console.error("Reverse geocoding failed:", err);
+            handleVaiiDataOutput("Location lookup failed.", `<div style="color:#ff5555; padding:12px;">⚠️ Could not identify your location: ${escapeHtml(err.message)}</div>`);
+        }
+    }, error => {
+        const reason = error.code === error.PERMISSION_DENIED
+            ? "Location permission was denied."
+            : error.code === error.POSITION_UNAVAILABLE
+                ? "Your location is currently unavailable."
+                : "Location request timed out.";
+        handleVaiiDataOutput("Location permission required.", `<div style="color:#ff5555; padding:12px;">⚠️ ${reason} Allow location access and try again.</div>`);
+    }, { timeout: 10000, enableHighAccuracy: false });
+}
+
 function getSingleCommandTypoDistance(input, candidate) {
     if (input === candidate || Math.abs(input.length - candidate.length) > 1) return null;
 
@@ -5331,13 +5554,13 @@ function autocorrectCommandQuery(query) {
 
     const typedCommand = match[2].toLowerCase();
     const commandNames = [
-        "age", "anime", "archive", "asteroid", "barcode", "book", "bsky", "bluesky",
-        "call", "cat", "college", "country", "convert", "define", "dial", "dig", "dns",
+        "age", "anime", "archive", "asciiweather", "asteroid", "barcode", "book", "bsky", "bluesky",
+        "call", "cat", "chuck", "college", "country", "convert", "crypto", "define", "dial", "dig", "dns",
         "draw", "drink", "film", "flight", "food", "github", "joke", "movie", "manga",
-        "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
+        "isbn", "locate", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
         "postal", "qr", "qrcode", "repo", "snapshot", "sms", "song", "space", "stream",
         "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
-        "watch", "wayback", "weather", "zip"
+        "watch", "wayback", "weather", "whereami", "zip"
     ];
     const candidates = commandNames
         .map(name => ({ name, match: getSingleCommandTypoDistance(typedCommand, name) }))
@@ -5363,6 +5586,31 @@ executeActionBtn?.addEventListener('click', () => {
     if (mode === "native") {
         query = autocorrectCommandQuery(query);
         const lq = query.trim().toLowerCase();
+
+        if (lq === "asciiweather" || lq === "/asciiweather" || lq.startsWith("asciiweather ") || lq.startsWith("/asciiweather ")) {
+            handleAsciiWeatherQuery(query.trim().replace(/^\/?asciiweather\s*/i, ""));
+            return;
+        }
+
+        if (lq === "isbn" || lq === "/isbn" || lq.startsWith("isbn ") || lq.startsWith("/isbn ")) {
+            handleOpenLibraryIsbnQuery(query.trim().replace(/^\/?isbn\s*/i, ""));
+            return;
+        }
+
+        if (lq === "whereami" || lq === "/whereami" || lq === "locate" || lq === "/locate") {
+            handleReverseGeocodeQuery();
+            return;
+        }
+
+        if (lq === "chuck" || lq === "/chuck") {
+            handleChuckNorrisQuery();
+            return;
+        }
+
+        if (lq === "crypto" || lq === "/crypto" || lq.startsWith("crypto ") || lq.startsWith("/crypto ")) {
+            handleCoinCapQuery(query.trim().replace(/^\/?crypto\s*/i, ""));
+            return;
+        }
 
         // 1. Earthquakes
         if (lq === "earthquake" || lq === "earthquakes" || lq === "quakes" || lq === "/quakes" || lq === "/earthquakes" || lq === "seismic") {

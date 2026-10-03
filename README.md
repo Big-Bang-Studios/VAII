@@ -26,22 +26,23 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **🌐 Client Network Telemetry (ipapi.co):** Displays public client IP address, ISP provider, geographical region, and postal telemetry (e.g., `my ip`).
 * **🎯 Interactive Trivia Quizzes (Open Trivia DB):** Renders multiple-choice questions with interactive button choices, automated score checking, and audio feedback (e.g., `trivia`, `quiz`).
 * **🎮 PC Gaming Deals & Freebies (CheapShark API):** Tracks live 100% off game giveaways and deep discounts across Steam, Epic Games Store, and GOG (e.g., `free games`, `deals`).
-* **😂 Dad Jokes Engine (icanhazdadjoke):** Delivers instant clean one-liners (e.g., `joke`, `make me laugh`).
+* **😂 Joke Engines (icanhazdadjoke & Chuck Norris Database):** Delivers instant clean dad jokes (`joke`) and random Chuck Norris facts (`chuck`, `/chuck`).
 * **🎵 Music & Audio Previews (iTunes Search API):** Renders 30-second audio previews, album artwork, and Apple Music routing links (e.g., `song Bohemian Rhapsody`).
 * **⛩️ Anime & Manga Metadata (AniList GraphQL):** Fetches synopsis, popularity ratings, genres, authors, and episode counts with high request limits (e.g., `anime Attack on Titan`, `manga Berserk`).
 * **⚡ Pokédex Telemetry (PokéAPI):** Renders official Pokémon sprites, base statistics, typings, heights, and weights (e.g., `pokemon Charizard`).
-* **📚 Book Archives (Open Library):** Searches cover art, first publication dates, authors, and page counts (e.g., `book The Hobbit`).
+* **📚 Book Archives & ISBN Scanner (Open Library):** Searches book metadata (e.g., `book The Hobbit`) or decodes ISBN-10/ISBN-13 barcodes into titles, authors, publishers, and cover art (`isbn [code]`).
 * **📰 News Aggregator (GNews API):** Pulls live top global headlines or specific topic news (e.g., `top news`, `news about technology`).
 * **🎬 Cinematic Media (OMDb API):** Renders movie posters, plots, and IMDb metrics (e.g., `movie Inception`).
 * **📝 Persistent Notes:** Local storage manager to save and delete personal tasks and memos (e.g., `note: text`, `show notes`).
 * **🧠 General Knowledge:** Simultaneous multi-source knowledge lookup via **Wiktionary**, **Wikipedia**, and **YouTube Data API v3**.
 * **👁️ Vision Engine:** Analyzes user-uploaded Base64 image files using **Gemini 3.7 Flash**.
 * **🗺️ Interactive Maps:** Renders live, interactive embedded maps using the **Google Maps JavaScript API**.
-* **☀️ Climate & Weather:** Pulls real-time climate readings, wind speeds, and localized timezones using **Open-Meteo**.
+* **☀️ Climate & Weather:** Pulls real-time climate readings, wind speeds, and localized timezones using **Open-Meteo**, with an interactive **Windy weather radar** centered on the searched coordinates. Bare `weather`, `sunrise`, and `sunset` use browser geolocation with BigDataCloud reverse geocoding; `/asciiweather [city]` renders wttr.in's terminal report.
+* **📍 Reverse Geocoding (BigDataCloud):** Resolves the browser's approximate locality, subdivision, country, and continent with `whereami` or `/locate`.
 * **🍔 Local Food Concierge:** Maps food cravings to local chains and provides deep routing links to **DoorDash** and **Google Local Ordering**.
 * **🔢 Arithmetic & Conversions:** Evaluates math expressions and imperial/metric unit conversions.
 * **🗣️ Language Translation:** Routes semantic phrases through the **MyMemory Translation API**.
-* **🪙 Crypto & Market Tickers:** Queries live cryptocurrency prices and 24-hour trends via **CoinGecko**.
+* **🪙 Crypto & Market Tickers:** Queries CoinCap asset prices, 24-hour changes, market caps, and volumes with `crypto [symbol]`; stock ticker routing remains available.
 * **🎨 AI Art Generation:** Generates on-demand graphics via **Pollinations AI**.
 
 ---
