@@ -1,3 +1,4 @@
+const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : () => {};
 
 // ==================== v10.5 SUITE ====================
 
