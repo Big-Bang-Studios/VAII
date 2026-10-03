@@ -151,6 +151,8 @@ async function handleStatusQuery(serviceQuery) {
         handleVaiiDataOutput("", selectorCard);
         return;
     }
+}
+
 window.handleStatusQuery = handleStatusQuery;
 
 
@@ -1586,6 +1588,9 @@ function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML =
                             <iframe src="https://webcams.windy.com/webcams/public/embed/player?lat=${parsedLat}&lon=${parsedLon}&zoom=11" width="100%" height="230" frameborder="0" style="display:block; border: none; width: 100%; background: #000;" allowfullscreen></iframe>
                         `;
                     }
+            });
+        });
+}
 
 function fetchLiveStreamPlayer(songQuery) {
     const cleanTrack = songQuery.trim();
@@ -5210,9 +5215,4 @@ onAuthStateChanged(auth, (user) => {
             opt.value = cmd;
             hubDl.appendChild(opt);
         });
-}
-
-});
-});
-}
 }
