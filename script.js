@@ -1,4 +1,19 @@
-const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : () => {};
+import { LOCAL_FOOD_DB } from "./foodData.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { 
+    getAuth, 
+    GoogleAuthProvider, 
+    signInWithPopup, 
+    signInWithRedirect, 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, 
+    onAuthStateChanged, 
+    signOut 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+import { launchTerminalSandbox } from "./terminal.js";
+
+const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : function() {};
 
 // ==================== v10.5 SUITE ====================
 
@@ -886,21 +901,6 @@ window.openVAIIHackerNewsView = function(storyId, rawTitle, rawUrl, points, auth
 };
 
 
-import { LOCAL_FOOD_DB } from "./foodData.js";
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { 
-    getAuth, 
-    GoogleAuthProvider, 
-    signInWithPopup, 
-    signInWithRedirect, 
-    signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword, 
-    onAuthStateChanged, 
-    signOut 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-
-import { launchTerminalSandbox } from "./terminal.js";
-
 // ==========================================
 // 1. CONFIG & KEYS
 // ==========================================
@@ -1586,8 +1586,6 @@ function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML =
                             <iframe src="https://webcams.windy.com/webcams/public/embed/player?lat=${parsedLat}&lon=${parsedLon}&zoom=11" width="100%" height="230" frameborder="0" style="display:block; border: none; width: 100%; background: #000;" allowfullscreen></iframe>
                         `;
                     }
-        });
-}
 
 function fetchLiveStreamPlayer(songQuery) {
     const cleanTrack = songQuery.trim();
@@ -5212,4 +5210,9 @@ onAuthStateChanged(auth, (user) => {
             opt.value = cmd;
             hubDl.appendChild(opt);
         });
-    }
+}
+
+});
+});
+}
+}
