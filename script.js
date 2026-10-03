@@ -3422,7 +3422,7 @@ function runInfoExecution(query) {
     // HTML VIEWER & LIVE SANDBOX ROUTER
     // ==========================================
     const trimmedQ = query.trim();
-    const argumentCommand = trimmedQ.match(/^(?:\/)?(convert|timer|repo|github|movie|film|tickets?|stream|watch|define|country|flag\s+of|drink|song|music|track|play|anime|book|novel)(?:\s+([\s\S]*))?$/i);
+    const argumentCommand = trimmedQ.match(/^(?:\/)?(convert|timer|repo|github|movie|film|tickets?|stream|watch|define|country|flag\s+of|drink|song|music|track|play|anime|book|novel|open)(?:\s+([\s\S]*))?$/i);
     if (argumentCommand) {
         const command = argumentCommand[1].toLowerCase().replace(/\s+/g, " ");
         const argument = (argumentCommand[2] || "").trim();
@@ -3615,6 +3615,15 @@ function runInfoExecution(query) {
                 syntax: "novel [title or author]",
                 formats: "Use a book title, author name, or both.",
                 examples: "novel The Hobbit · novel Jane Austen"
+            },
+            open: {
+                title: "Open a Website",
+                icon: "🔗",
+                color: "#4da3ff",
+                description: "Provide a website name or domain to open it in your browser.",
+                syntax: "open [website or domain]",
+                formats: "Use a site name (for example, Wikipedia) or a domain (for example, example.com).",
+                examples: "open Wikipedia · open example.com"
             }
         }[command];
 
