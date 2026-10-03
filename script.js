@@ -1560,6 +1560,7 @@ function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML =
 
                     <div style="font-size: 0.72rem; color: #888; text-transform: uppercase; font-weight: bold; margin-bottom: 6px;">🗺️ Interactive Map</div>
                     <div id="vaii-location-map-canvas" style="width: 100%; height: 210px; border-radius: 8px; background: #252525; border: 1px solid #333; overflow: hidden;"></div>
+                    <div id="vaii-weather-radar-stream" style="margin-top: 12px; border-radius: 8px; overflow: hidden; border: 1px solid #333; background: #111;"></div>
                 </div>
             `;
 
@@ -1573,21 +1574,18 @@ function renderUnifiedLocationCard(lat, lon, timezone, placeName, greetingHTML =
             const delta = 0.04;
             const bbox = `${parsedLon - delta}%2C${parsedLat - (delta * 0.6)}%2C${parsedLon + delta}%2C${parsedLat + (delta * 0.6)}`;
             const osmSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${parsedLat}%2C${parsedLon}`;
-            mapCanvas.innerHTML = `
-    <iframe width="100%" height="100%" frameborder="0" style="border:0; border-radius: 8px;" src="${osmSrc}"></iframe>
-    <div style="margin-top: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #333; background: #000;">
-        <div style="padding: 6px 10px; font-size: 0.75rem; color: #4da3ff; font-weight: bold; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center;">
-            <span>📡 Live Sky & Doppler Radar</span>
-            <span style="font-size: 0.68rem; color: #888;">Interactive Stream</span>
-        </div>
-        <iframe src="https://embed.windy.com/embed2.html?lat=${parsedLat}&lon=${parsedLon}&detailLat=${parsedLat}&detailLon=${parsedLon}&width=400&height=220&zoom=7&level=surface&overlay=radar&product=radar&menu=&message=&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default&radarRange=-1" width="100%" height="220" frameborder="0" style="display:block;"></iframe>
-    </div>
-`;
-        });
-    })
-        .catch(err => {
-            console.error("Telemetry fetch failed:", err);
-            handleVaiiDataOutput("Telemetry retrieval failed.", `<div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">Could not load telemetry feed for ${placeName}.</div>`);
+                    mapCanvas.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0; border-radius: 8px;" src="${osmSrc}"></iframe>`;
+
+                    const camBox = document.getElementById("vaii-weather-radar-stream");
+                    if (camBox) {
+                        camBox.innerHTML = `
+                            <div style="padding: 7px 10px; font-size: 0.75rem; color: #4da3ff; font-weight: bold; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a2a;">
+                                <span>📹 Live Environmental Sky & Area Cam</span>
+                                <a href="https://www.windy.com/-Webcams/webcams?${parsedLat},${parsedLon},12" target="_blank" style="font-size: 0.68rem; color: #aaa; text-decoration: underline;">Open Cam Hub ↗</a>
+                            </div>
+                            <iframe src="https://webcams.windy.com/webcams/public/embed/player?lat=${parsedLat}&lon=${parsedLon}&zoom=11" width="100%" height="230" frameborder="0" style="display:block; border: none; width: 100%; background: #000;" allowfullscreen></iframe>
+                        `;
+                    }
         });
 }
 
