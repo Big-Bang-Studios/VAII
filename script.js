@@ -1082,6 +1082,12 @@ const defaultAssistantSuggestions = [
     "/call",
     "text ",
     "/text",
+    "airquality Tokyo",
+    "aqi Los Angeles",
+    "/airquality",
+    "/aqi Los Angeles",
+    "holiday US",
+    "/holiday",
     "spaceweather",
     "/spaceweather",
     "onthisday",
@@ -4706,6 +4712,9 @@ hubInput?.addEventListener('input', () => {
         const slashCommands = [
             "/terminal",
             "/weather Orlando, FL",
+            "/airquality Tokyo",
+            "/aqi Los Angeles",
+            "/holiday US",
             "/spaceweather",
             "/onthisday",
             "/asciiweather London",
@@ -4748,6 +4757,12 @@ hubInput?.addEventListener('input', () => {
     }
     if ("text".startsWith(cleanInput) || "sms".startsWith(cleanInput)) {
         customSuggestions.push("text ");
+    }
+    if ("airquality".startsWith(cleanInput) || "aqi".startsWith(cleanInput)) {
+        customSuggestions.push("airquality Tokyo", "aqi Los Angeles");
+    }
+    if ("holiday".startsWith(cleanInput)) {
+        customSuggestions.push("holiday US", "holiday GB", "holiday CA");
     }
 
     if ("space".startsWith(cleanInput) || "whoisinspace".startsWith(cleanInput) || "astronauts".startsWith(cleanInput)) {
@@ -5470,6 +5485,144 @@ async function handleChuckNorrisQuery() {
     }
 }
 
+function renderAdditionalApiUsage(title, icon, color, description, syntax, examples, detail = "") {
+    handleVaiiDataOutput(title, `
+        <div style="background:#181818; border:1px solid ${color}; border-radius:8px; padding:14px; margin-top:10px; color:#fff;">
+            <strong style="color:${color}; font-size:0.95rem;">${icon} ${escapeHtml(title)}</strong>
+            <p style="color:#aaa; font-size:0.82rem; margin:8px 0;">${escapeHtml(detail || description)}</p>
+            <div style="font-size:0.8rem; color:#888;">
+                Syntax: <code style="color:${color};">${escapeHtml(syntax)}</code><br>
+                Example: ${examples.map(example => `<code style="color:#eee;">${escapeHtml(example)}</code>`).join(" or ")}
+            </div>
+        </div>
+    `);
+}
+
+async function handleAirQualityQuery(location) {
+    const cleanLocation = location.trim();
+    const title = "Air Quality Lookup";
+    const description = "Enter a city or place name to view its current US Air Quality Index and major pollutant readings.";
+    if (!cleanLocation) {
+        renderAdditionalApiUsage(title, "🌫️", "#7bc8a4", description, "airquality [city]", ["airquality Tokyo", "aqi Los Angeles"]);
+        return;
+    }
+
+    handleVaiiDataOutput(title, `<div style="color:#7bc8a4; padding:12px;">Finding current air quality for ${escapeHtml(cleanLocation)}...</div>`);
+    try {
+        const geocodingResponse = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cleanLocation)}&count=1&language=en&format=json`);
+        if (!geocodingResponse.ok) throw new Error(`Location search returned ${geocodingResponse.status}`);
+        const geocodingData = await geocodingResponse.json();
+        const place = geocodingData.results?.[0];
+        if (!place) {
+            renderAdditionalApiUsage(title, "🌫️", "#7bc8a4", description, "airquality [city]", ["airquality Tokyo", "aqi Los Angeles"], `Couldn't find a location matching "${cleanLocation}". Enter a city or place name.`);
+            return;
+        }
+
+        const qualityUrl = new URL("https://air-quality-api.open-meteo.com/v1/air-quality");
+        qualityUrl.search = new URLSearchParams({
+            latitude: String(place.latitude),
+            longitude: String(place.longitude),
+            current: "us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide,carbon_monoxide",
+            timezone: "auto"
+        }).toString();
+        const qualityResponse = await fetch(qualityUrl);
+        if (!qualityResponse.ok) throw new Error(`Air-quality service returned ${qualityResponse.status}`);
+        const qualityData = await qualityResponse.json();
+        const current = qualityData.current;
+        if (!current || current.us_aqi === null || current.us_aqi === undefined || !Number.isFinite(Number(current.us_aqi))) {
+            throw new Error("Air-quality service returned no current AQI reading");
+        }
+
+        const aqi = Number(current.us_aqi);
+        const levels = [
+            { limit: 50, label: "Good", color: "#28a745" },
+            { limit: 100, label: "Moderate", color: "#ffc107" },
+            { limit: 150, label: "Unhealthy for Sensitive Groups", color: "#fd7e14" },
+            { limit: 200, label: "Unhealthy", color: "#dc3545" },
+            { limit: 300, label: "Very Unhealthy", color: "#8b5cf6" },
+            { limit: Infinity, label: "Hazardous", color: "#7e0023" }
+        ];
+        const level = levels.find(item => aqi <= item.limit);
+        const placeName = [place.name, place.admin1, place.country].filter((part, index, parts) => part && parts.indexOf(part) === index).join(", ");
+        const pollutants = [
+            ["PM2.5", current.pm2_5, "μg/m³"],
+            ["PM10", current.pm10, "μg/m³"],
+            ["Ozone", current.ozone, "μg/m³"],
+            ["Nitrogen dioxide", current.nitrogen_dioxide, "μg/m³"],
+            ["Carbon monoxide", current.carbon_monoxide, "μg/m³"]
+        ].filter(([, value]) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)));
+
+        handleVaiiDataOutput(`Air quality in ${placeName}: US AQI ${aqi}, ${level.label}.`, `
+            <div style="background:#181818; border:1px solid ${level.color}; border-radius:10px; padding:16px; margin:10px 0; color:#fff;">
+                <div style="font-size:0.72rem; color:#aaa; text-transform:uppercase; font-weight:bold;">🌫️ Current Air Quality · Open-Meteo</div>
+                <div style="font-size:1.05rem; font-weight:bold; margin:5px 0 12px;">${escapeHtml(placeName)}</div>
+                <div style="display:flex; align-items:center; gap:12px; background:#222; border-radius:8px; padding:12px;">
+                    <strong style="font-size:2rem; color:${level.color};">${aqi}</strong>
+                    <div><div style="font-size:0.72rem; color:#aaa;">US AIR QUALITY INDEX</div><div style="font-weight:bold; color:${level.color};">${escapeHtml(level.label)}</div></div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; font-size:0.8rem;">
+                    ${pollutants.map(([name, value, unit]) => `<div style="background:#222; padding:8px; border-radius:6px; color:#bbb;">${escapeHtml(name)} <strong style="display:block; color:#fff; margin-top:3px;">${Number(value).toFixed(1)} ${unit}</strong></div>`).join("")}
+                </div>
+                <div style="font-size:0.72rem; color:#777; margin-top:9px;">Updated ${escapeHtml(current.time || "recently")} · AQI may not reflect every neighborhood.</div>
+            </div>
+        `);
+    } catch (err) {
+        console.error("Air-quality lookup failed:", err);
+        handleVaiiDataOutput("Air-quality lookup failed.", `<div style="color:#ff5555; padding:12px;">⚠️ Could not retrieve air quality for ${escapeHtml(cleanLocation)}: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
+async function handleHolidayQuery(countryCode) {
+    const cleanCountryCode = countryCode.trim().toUpperCase();
+    const title = "Upcoming Public Holidays";
+    const description = "Enter a two-letter country code to look up upcoming public holidays.";
+    if (!/^[A-Z]{2}$/.test(cleanCountryCode)) {
+        renderAdditionalApiUsage(title, "📅", "#4da3ff", description, "holiday [country code]", ["holiday US", "holiday GB"],
+            cleanCountryCode ? "Use a two-letter country code such as US, CA, or GB." : description);
+        return;
+    }
+
+    handleVaiiDataOutput(title, `<div style="color:#4da3ff; padding:12px;">Checking upcoming public holidays for ${escapeHtml(cleanCountryCode)}...</div>`);
+    try {
+        const countriesResponse = await fetch("https://date.nager.at/api/v3/AvailableCountries");
+        if (!countriesResponse.ok) throw new Error(`Country-list service returned ${countriesResponse.status}`);
+        const countries = await countriesResponse.json();
+        if (!Array.isArray(countries)) throw new Error("Country-list service returned an unexpected response");
+        if (!countries.some(country => country.countryCode === cleanCountryCode)) {
+            renderAdditionalApiUsage(title, "📅", "#4da3ff", description, "holiday [country code]", ["holiday US", "holiday GB"], `No supported country matched "${cleanCountryCode}". Use a two-letter country code such as US, CA, or GB.`);
+            return;
+        }
+
+        const response = await fetch(`https://date.nager.at/api/v3/NextPublicHolidays/${encodeURIComponent(cleanCountryCode)}`);
+        if (!response.ok) throw new Error(`Holiday service returned ${response.status}`);
+        const holidays = await response.json();
+        if (!Array.isArray(holidays)) throw new Error("Holiday service returned an unexpected response");
+        if (holidays.length === 0) {
+            handleVaiiDataOutput(`No upcoming public holidays listed for ${cleanCountryCode}.`, `<div style="color:#aaa; padding:12px;">No upcoming public holidays were listed for ${escapeHtml(cleanCountryCode)}.</div>`);
+            return;
+        }
+
+        const holidayRows = holidays.slice(0, 6).map(holiday => {
+            const parsedDate = new Date(`${holiday.date}T12:00:00`);
+            const dateLabel = Number.isNaN(parsedDate.getTime()) ? holiday.date : parsedDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+            return `<div style="display:flex; justify-content:space-between; align-items:center; gap:12px; padding:9px 0; border-top:1px solid #2a2a2a;">
+                <div><strong style="color:#eee;">${escapeHtml(holiday.localName || holiday.name || "Public holiday")}</strong>${holiday.localName && holiday.name && holiday.localName !== holiday.name ? `<div style="font-size:0.75rem; color:#888;">${escapeHtml(holiday.name)}</div>` : ""}</div>
+                <span style="color:#4da3ff; white-space:nowrap; font-size:0.8rem;">${escapeHtml(dateLabel)}</span>
+            </div>`;
+        }).join("");
+        handleVaiiDataOutput(`Upcoming public holidays in ${cleanCountryCode}`, `
+            <div style="background:#181818; border:1px solid #4da3ff; border-radius:10px; padding:16px; margin:10px 0; color:#fff;">
+                <div style="font-size:0.72rem; color:#4da3ff; text-transform:uppercase; font-weight:bold;">📅 Upcoming Public Holidays · Nager.Date</div>
+                <div style="font-size:1.15rem; font-weight:bold; margin:5px 0 9px;">${escapeHtml(cleanCountryCode)}</div>
+                ${holidayRows}
+            </div>
+        `);
+    } catch (err) {
+        console.error("Public holiday lookup failed:", err);
+        handleVaiiDataOutput("Public holiday lookup failed.", `<div style="color:#ff5555; padding:12px;">⚠️ Could not retrieve public holidays for ${escapeHtml(cleanCountryCode)}: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
 async function handleCryptoQuery(symbol) {
     const cleanSymbol = symbol.trim();
     if (!cleanSymbol) {
@@ -5623,7 +5776,7 @@ function autocorrectCommandQuery(query) {
     const commandNames = [
         "age", "anime", "archive", "asciiweather", "asteroid", "barcode", "book", "bsky", "bluesky",
         "call", "cat", "chuck", "college", "country", "convert", "crypto", "define", "dial", "dig", "dns",
-        "draw", "drink", "film", "flight", "food", "github", "history", "joke", "movie", "manga",
+        "airquality", "aqi", "draw", "drink", "film", "flight", "food", "github", "history", "holiday", "joke", "movie", "manga",
         "isbn", "locate", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
         "onthisday", "postal", "qr", "qrcode", "repo", "snapshot", "sms", "solarwind", "song", "space", "spaceweather", "stream",
         "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
@@ -5681,6 +5834,16 @@ executeActionBtn?.addEventListener('click', () => {
 
         if (lq === "status" || lq === "/status" || lq.startsWith("status ") || lq.startsWith("/status ")) {
             handleStatusQuery(query.trim().replace(/^\/?status\s*/i, ""));
+            return;
+        }
+
+        if (/^\/?(airquality|aqi)(?:\s|$)/i.test(lq)) {
+            handleAirQualityQuery(query.trim().replace(/^\/?(?:airquality|aqi)\s*/i, ""));
+            return;
+        }
+
+        if (/^\/?holiday(?:\s|$)/i.test(lq)) {
+            handleHolidayQuery(query.trim().replace(/^\/?holiday\s*/i, ""));
             return;
         }
 
