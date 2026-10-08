@@ -17,6 +17,8 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **📱 Dynamic QR Code Generator (QRServer):** Generates scannable QR code cards (e.g., `qr https://vaii-two.vercel.app`) with direct PNG download support.
 * **🛰️ Live ISS Telemetry (Where the ISS at):** Tracks real-time International Space Station orbital parameters, velocity ($km/h$), altitude, and spatial coordinates plotted on Google Maps (e.g., `iss`, `orbit`).
 * **🚀 Astronomy APOD (NASA API):** Retrieves NASA’s Astronomy Picture of the Day with full high-resolution imagery and scientific breakdowns (e.g., `space`, `nasa`).
+* **☀️ NOAA Space Weather:** Displays the latest planetary K-index and geomagnetic activity status (e.g., `spaceweather`, `solarwind`).
+* **🏛️ On This Day in History:** Retrieves an event recorded on today's date from public historical archives (e.g., `onthisday`, `history`).
 * **💡 Inscriptional Advice Slip:** Provides quick random pieces of wisdom and thought-provoking quotes (e.g., `advice`).
 * **📊 Demographic Age Predictor (Agify.io):** Calculates statistical age predictions and sample population counts for given first names (e.g., `age Logan`, `age Alex`).
 * **📖 Dictionary & Phonetics (Free Dictionary API):** Pulls parts of speech, lexical definitions, example sentences, and playable `.mp3` voice pronunciations (e.g., `define serendipity`).

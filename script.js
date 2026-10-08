@@ -1082,6 +1082,10 @@ const defaultAssistantSuggestions = [
     "/call",
     "text ",
     "/text",
+    "spaceweather",
+    "/spaceweather",
+    "onthisday",
+    "/onthisday",
     "/asciiweather London",
     "/isbn 9780140328721",
     "/whereami",
@@ -4702,6 +4706,8 @@ hubInput?.addEventListener('input', () => {
         const slashCommands = [
             "/terminal",
             "/weather Orlando, FL",
+            "/spaceweather",
+            "/onthisday",
             "/asciiweather London",
             "/isbn 9780140328721",
             "/whereami",
@@ -4865,6 +4871,14 @@ hubInput?.addEventListener('input', () => {
 
     if ("space".startsWith(cleanInput) || "nasa".startsWith(cleanInput)) {
         customSuggestions.push("space", "nasa");
+    }
+
+    if ("spaceweather".startsWith(cleanInput) || "solarwind".startsWith(cleanInput)) {
+        customSuggestions.push("spaceweather", "solarwind");
+    }
+
+    if ("onthisday".startsWith(cleanInput) || "history".startsWith(cleanInput)) {
+        customSuggestions.push("onthisday", "history");
     }
 
     if ("advice".startsWith(cleanInput)) {
@@ -5609,9 +5623,9 @@ function autocorrectCommandQuery(query) {
     const commandNames = [
         "age", "anime", "archive", "asciiweather", "asteroid", "barcode", "book", "bsky", "bluesky",
         "call", "cat", "chuck", "college", "country", "convert", "crypto", "define", "dial", "dig", "dns",
-        "draw", "drink", "film", "flight", "food", "github", "joke", "movie", "manga",
+        "draw", "drink", "film", "flight", "food", "github", "history", "joke", "movie", "manga",
         "isbn", "locate", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
-        "postal", "qr", "qrcode", "repo", "snapshot", "sms", "song", "space", "stream",
+        "onthisday", "postal", "qr", "qrcode", "repo", "snapshot", "sms", "solarwind", "song", "space", "spaceweather", "stream",
         "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
         "watch", "wayback", "weather", "whereami", "zip", "status"
     ];
@@ -5667,6 +5681,49 @@ executeActionBtn?.addEventListener('click', () => {
 
         if (lq === "status" || lq === "/status" || lq.startsWith("status ") || lq.startsWith("/status ")) {
             handleStatusQuery(query.trim().replace(/^\/?status\s*/i, ""));
+            return;
+        }
+
+        if (/^\/?(spaceweather|solarwind|onthisday|history)(?:\s|$)/i.test(lq)) {
+            const command = lq.match(/^\/?(spaceweather|solarwind|onthisday|history)/i)[1];
+            const isSpaceWeather = command === "spaceweather" || command === "solarwind";
+            const usage = isSpaceWeather
+                ? {
+                    title: "NOAA Space Weather",
+                    icon: "☀️",
+                    color: "#ffaa00",
+                    description: "This command takes no arguments and reports the latest planetary K-index and geomagnetic activity.",
+                    syntax: "spaceweather",
+                    examples: ["spaceweather", "solarwind"]
+                }
+                : {
+                    title: "On This Day in History",
+                    icon: "🏛️",
+                    color: "#b185ff",
+                    description: "This command takes no arguments and finds a historical event that happened on today's date.",
+                    syntax: "onthisday",
+                    examples: ["onthisday", "history"]
+                };
+
+            if (lq !== command && lq !== `/${command}`) {
+                handleVaiiDataOutput(usage.title, `
+                    <div style="background:#181818; border:1px solid ${usage.color}; border-radius:8px; padding:14px; margin-top:10px; color:#fff;">
+                        <strong style="color:${usage.color}; font-size:0.95rem;">${usage.icon} ${usage.title}</strong>
+                        <p style="color:#aaa; font-size:0.82rem; margin:8px 0;">${usage.description}</p>
+                        <div style="font-size:0.8rem; color:#888;">
+                            Syntax: <code style="color:${usage.color};">${usage.syntax}</code><br>
+                            Try: ${usage.examples.map(example => `<code style="color:#eee;">${example}</code>`).join(" or ")}
+                        </div>
+                    </div>
+                `);
+                return;
+            }
+
+            if (isSpaceWeather) {
+                handleSpaceWeatherQuery();
+            } else {
+                handleHistoryQuery();
+            }
             return;
         }
 
