@@ -21,6 +21,8 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **📅 Upcoming Public Holidays (Nager.Date):** Lists upcoming public holidays by two-letter country code (e.g., `holiday US`, `holiday GB`).
 * **☀️ NOAA Space Weather:** Displays the latest planetary K-index and geomagnetic activity status (e.g., `spaceweather`, `solarwind`).
 * **🏛️ On This Day in History:** Retrieves an event recorded on today's date from public historical archives (e.g., `onthisday`, `history`).
+* **🎲 Random Activity Generator:** Fetches a random activity with type, participant, price, and accessibility details (e.g., `/bored`).
+* **🐙 GitHub Profile Lookup:** Displays public GitHub profile metrics and lets you inspect the user's latest public repository (e.g., `/ghuser torvalds`).
 * **💡 Inscriptional Advice Slip:** Provides quick random pieces of wisdom and thought-provoking quotes (e.g., `advice`).
 * **📊 Demographic Age Predictor (Agify.io):** Calculates statistical age predictions and sample population counts for given first names (e.g., `age Logan`, `age Alex`).
 * **📖 Dictionary & Phonetics (Free Dictionary API):** Pulls parts of speech, lexical definitions, example sentences, and playable `.mp3` voice pronunciations (e.g., `define serendipity`).

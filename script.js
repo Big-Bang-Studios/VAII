@@ -122,6 +122,175 @@ async function handleHistoryQuery() {
     }
 }
 
+async function handleBoredCommand() {
+    handleVaiiDataOutput("Random Activity", '<div style="color:#aaa; padding:12px;">🎲 Finding a random activity...</div>');
+
+    const endpoints = [
+        "https://bored-api.appbrewery.com/random",
+        "https://www.boredapi.com/api/activity"
+    ];
+    let lastError;
+
+    for (const endpoint of endpoints) {
+        try {
+            const response = await fetch(endpoint);
+            if (!response.ok) throw new Error(`Activity service returned ${response.status}`);
+
+            const activity = await response.json();
+            if (!activity || typeof activity.activity !== "string" || !activity.activity.trim()) {
+                throw new Error("Activity service returned an invalid response");
+            }
+
+            const badge = (label, value) => `
+                <div style="background:#252525; border:1px solid #383838; border-radius:999px; padding:7px 10px; color:#ddd; font-size:0.78rem;">
+                    <strong style="color:#aaa;">${label}:</strong> ${escapeHtml(String(value))}
+                </div>
+            `;
+            const price = activity.price != null && Number.isFinite(Number(activity.price))
+                ? `${Number(activity.price).toFixed(2)} / 1`
+                : "N/A";
+            const accessibility = activity.accessibility != null && Number.isFinite(Number(activity.accessibility))
+                ? `${Number(activity.accessibility).toFixed(2)} / 1`
+                : "N/A";
+            let externalLink = "";
+            if (typeof activity.link === "string" && activity.link.trim()) {
+                try {
+                    const url = new URL(activity.link);
+                    if (url.protocol === "http:" || url.protocol === "https:") {
+                        externalLink = `<a href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer" style="display:inline-block; background:#333; border:1px solid #555; color:#fff; text-decoration:none; padding:8px 12px; border-radius:6px; font-size:0.82rem; font-weight:bold; margin-top:12px;">Open activity link ↗</a>`;
+                    }
+                } catch {
+                    externalLink = "";
+                }
+            }
+            const card = `
+                <div style="background:#181818; border:1px solid #805ad5; border-radius:10px; padding:16px; margin:10px 0; color:#fff;">
+                    <div style="font-size:0.72rem; color:#b794f4; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;">🎲 RANDOM ACTIVITY / QUEST</div>
+                    <div style="font-size:1.25rem; font-weight:800; color:#fff; line-height:1.4; margin:10px 0 14px;">${escapeHtml(activity.activity)}</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                        ${badge("Type", activity.type || "N/A")}
+                        ${badge("Participants", activity.participants ?? "N/A")}
+                        ${badge("Price scale", price)}
+                        ${badge("Accessibility", accessibility)}
+                    </div>
+                    ${externalLink}
+                </div>
+            `;
+            handleVaiiDataOutput(activity.activity, card);
+            return;
+        } catch (err) {
+            lastError = err;
+        }
+    }
+
+    console.error("Random activity lookup failed:", lastError);
+    handleVaiiDataOutput("Random Activity lookup failed.", `
+        <div style="color:#ff5555; padding:12px;">⚠️ Could not load a random activity from either service: ${escapeHtml(lastError?.message || "Unknown error")}</div>
+    `);
+}
+
+async function handleGhUserCommand(username) {
+    const cleanUsername = (username || "").trim();
+    if (!cleanUsername) {
+        handleVaiiDataOutput("GitHub Profile Lookup", `
+            <div style="background:#181818; border:1px solid #4da3ff; border-radius:8px; padding:14px; color:#eee;">
+                <strong style="color:#4da3ff;">🐙 GITHUB PROFILE</strong>
+                <p style="color:#aaa; font-size:0.82rem; margin:8px 0;">Provide a GitHub username to view its public profile.</p>
+                <div style="font-size:0.8rem; color:#888;">Syntax: <code style="color:#4da3ff;">/ghuser [username]</code></div>
+            </div>
+        `);
+        return;
+    }
+
+    handleVaiiDataOutput(`GitHub profile for ${cleanUsername}`, `<div style="color:#aaa; padding:12px;">🐙 Loading GitHub profile for ${escapeHtml(cleanUsername)}...</div>`);
+    try {
+        const response = await fetch(`https://api.github.com/users/${encodeURIComponent(cleanUsername)}`);
+        if (response.status === 404) {
+            handleVaiiDataOutput("GitHub user not found.", `
+                <div style="background:#181818; border:1px solid #ff5555; border-radius:8px; padding:14px; color:#eee;">
+                    <strong style="color:#ff7777;">GitHub user not found</strong>
+                    <p style="color:#aaa; font-size:0.85rem; margin:8px 0 0;">No public GitHub account was found for <code>${escapeHtml(cleanUsername)}</code>.</p>
+                </div>
+            `);
+            return;
+        }
+        if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
+
+        const user = await response.json();
+        if (!user || typeof user.login !== "string" || typeof user.html_url !== "string") {
+            throw new Error("GitHub returned an invalid user profile");
+        }
+
+        const safeProfileUrl = new URL(user.html_url);
+        if (safeProfileUrl.protocol !== "https:" || safeProfileUrl.hostname !== "github.com") {
+            throw new Error("GitHub returned an invalid profile URL");
+        }
+        const avatarUrl = typeof user.avatar_url === "string" ? new URL(user.avatar_url) : null;
+        const safeAvatarUrl = avatarUrl?.protocol === "https:" && avatarUrl.hostname === "avatars.githubusercontent.com"
+            ? avatarUrl.href
+            : "";
+        const joinedDate = user.created_at && !Number.isNaN(Date.parse(user.created_at))
+            ? new Date(user.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+            : "N/A";
+        const stats = [
+            ["Public Repos", user.public_repos],
+            ["Followers", user.followers],
+            ["Following", user.following],
+            ["Joined Date", joinedDate]
+        ];
+        const avatar = safeAvatarUrl
+            ? `<img src="${escapeHtml(safeAvatarUrl)}" alt="${escapeHtml(user.login)} avatar" style="width:76px; height:76px; border-radius:50%; object-fit:cover; border:2px solid #444;">`
+            : "";
+        const html = `
+            <div style="background:#181818; border:1px solid #4da3ff; border-radius:10px; padding:16px; color:#eee;">
+                <div style="font-size:0.72rem; color:#4da3ff; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-bottom:12px;">🐙 GITHUB PROFILE</div>
+                <div style="display:flex; align-items:center; gap:14px; margin-bottom:12px;">
+                    ${avatar}
+                    <div style="min-width:0;">
+                        <div style="font-size:1.2rem; font-weight:800; color:#fff;">${escapeHtml(user.name || user.login)}</div>
+                        <div style="font-size:0.88rem; color:#aaa;">@${escapeHtml(user.login)}</div>
+                    </div>
+                </div>
+                <div style="font-size:0.88rem; color:#ccc; line-height:1.5; margin-bottom:14px;">${escapeHtml(user.bio || "No bio provided.")}</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; background:#222; padding:10px; border-radius:8px; margin-bottom:14px; font-size:0.82rem;">
+                    ${stats.map(([label, value]) => `<div><strong style="color:#aaa;">${label}:</strong> ${escapeHtml(value == null ? "N/A" : Number.isFinite(Number(value)) ? Number(value).toLocaleString() : String(value))}</div>`).join("")}
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    <a href="${escapeHtml(safeProfileUrl.href)}" target="_blank" rel="noopener noreferrer" style="display:inline-block; background:#333; border:1px solid #555; color:#fff; text-decoration:none; padding:8px 12px; border-radius:6px; font-size:0.82rem; font-weight:bold;">View GitHub Profile ↗</a>
+                    <button type="button" data-ghuser-inspect style="background:#238636; border:1px solid #2ea043; color:#fff; padding:8px 12px; border-radius:6px; font-size:0.82rem; font-weight:bold; cursor:pointer;">Inspect Latest Repository</button>
+                </div>
+            </div>
+        `;
+        handleVaiiDataOutput(`GitHub profile: ${user.name || user.login} (@${user.login})`, html);
+        output?.querySelector("[data-ghuser-inspect]")?.addEventListener("click", async () => {
+            handleVaiiDataOutput("GitHub Repository Inspector", `<div style="color:#aaa; padding:12px;">Finding a public repository for @${escapeHtml(user.login)}...</div>`);
+            try {
+                const reposResponse = await fetch(`https://api.github.com/users/${encodeURIComponent(user.login)}/repos?sort=updated&per_page=1`);
+                if (!reposResponse.ok) throw new Error(`GitHub returned ${reposResponse.status}`);
+                const repos = await reposResponse.json();
+                if (!Array.isArray(repos)) throw new Error("GitHub returned an invalid repository list");
+                if (!repos.length || typeof repos[0].full_name !== "string") {
+                    handleVaiiDataOutput(`No public repositories found for ${user.login}.`, `
+                        <div style="color:#aaa; padding:12px;">@${escapeHtml(user.login)} has no public repositories to inspect.</div>
+                    `);
+                    return;
+                }
+                fetchGitHubRepoInfo(repos[0].full_name);
+            } catch (err) {
+                console.error(`Repository lookup failed for @${user.login}:`, err);
+                handleVaiiDataOutput("GitHub repository lookup failed.", `
+                    <div style="color:#ff5555; padding:12px;">⚠️ Could not find a public repository for @${escapeHtml(user.login)}: ${escapeHtml(err.message)}</div>
+                `);
+            }
+        });
+    } catch (err) {
+        console.error(`GitHub profile lookup failed for ${cleanUsername}:`, err);
+        handleVaiiDataOutput("GitHub profile lookup failed.", `
+            <div style="color:#ff5555; padding:12px;">⚠️ Could not load the GitHub profile for ${escapeHtml(cleanUsername)}: ${escapeHtml(err.message)}</div>
+        `);
+    }
+}
+
 // 3. Global Infrastructure Status
 async function handleStatusQuery(serviceQuery) {
     const service = (serviceQuery || '').trim().toLowerCase();
@@ -1080,6 +1249,8 @@ const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent
 const defaultAssistantSuggestions = [
     "call ",
     "/call",
+    "/bored",
+    "/ghuser torvalds",
     "text ",
     "/text",
     "airquality Tokyo",
@@ -2036,25 +2207,28 @@ function fetchGitHubRepoInfo(repoQuery) {
             const forks = Number(repo.forks_count).toLocaleString();
             const issues = Number(repo.open_issues_count).toLocaleString();
             const license = repo.license?.spdx_id || "None";
+            const repoUrl = typeof repo.html_url === "string" ? new URL(repo.html_url) : null;
+            const safeRepoUrl = repoUrl?.protocol === "https:" && repoUrl.hostname === "github.com" ? repoUrl.href : "";
+            if (!safeRepoUrl) throw new Error("GitHub returned an invalid repository URL");
 
             const html = `
                 <div style="background: #1a1a1a; padding: 16px; border-radius: 12px; border-left: 4px solid #fff; text-align: left;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                         <div style="font-size: 0.72rem; color: #aaa; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🐙 GitHub Repository Inspector</div>
-                        <span style="background: #252525; border: 1px solid #444; color: #4da3ff; font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 4px;">${repo.language || 'Code'}</span>
+                        <span style="background: #252525; border: 1px solid #444; color: #4da3ff; font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 4px;">${escapeHtml(repo.language || 'Code')}</span>
                     </div>
                     
-                    <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 4px;">${repo.full_name}</div>
-                    <div style="color: #ccc; font-size: 0.85rem; line-height: 1.4; margin-bottom: 12px;">${repo.description || 'No description provided.'}</div>
+                    <div style="font-size: 1.25rem; font-weight: bold; color: #fff; margin-bottom: 4px;">${escapeHtml(repo.full_name)}</div>
+                    <div style="color: #ccc; font-size: 0.85rem; line-height: 1.4; margin-bottom: 12px;">${escapeHtml(repo.description || 'No description provided.')}</div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #252525; padding: 10px; border-radius: 8px; margin-bottom: 12px; font-size: 0.85rem;">
-                        <div>⭐ <strong>Stars:</strong> ${stars}</div>
-                        <div>🍴 <strong>Forks:</strong> ${forks}</div>
-                        <div>⚠️ <strong>Issues:</strong> ${issues}</div>
-                        <div>⚖️ <strong>License:</strong> ${license}</div>
+                        <div>⭐ <strong>Stars:</strong> ${escapeHtml(stars)}</div>
+                        <div>🍴 <strong>Forks:</strong> ${escapeHtml(forks)}</div>
+                        <div>⚠️ <strong>Issues:</strong> ${escapeHtml(issues)}</div>
+                        <div>⚖️ <strong>License:</strong> ${escapeHtml(license)}</div>
                     </div>
 
-                    <a href="${repo.html_url}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; background: #333; border: 1px solid #555; color: #fff; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: bold;">
+                    <a href="${escapeHtml(safeRepoUrl)}" target="_blank" rel="noopener noreferrer" style="display: flex; align-items: center; justify-content: space-between; background: #333; border: 1px solid #555; color: #fff; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: bold;">
                         <span>View Repository on GitHub</span><span>➔</span>
                     </a>
                 </div>
@@ -4716,6 +4890,8 @@ hubInput?.addEventListener('input', () => {
             "/airquality Tokyo",
             "/aqi Los Angeles",
             "/holiday US",
+            "/bored",
+            "/ghuser torvalds",
             "/spaceweather",
             "/onthisday",
             "/asciiweather London",
@@ -4768,6 +4944,12 @@ hubInput?.addEventListener('input', () => {
     }
     if ("ebay".startsWith(cleanInput)) {
         customSuggestions.push("ebay headphones", "ebay vintage camera");
+    }
+    if ("bored".startsWith(cleanInput)) {
+        customSuggestions.push("bored");
+    }
+    if ("ghuser".startsWith(cleanInput)) {
+        customSuggestions.push("ghuser torvalds");
     }
 
     if ("space".startsWith(cleanInput) || "whoisinspace".startsWith(cleanInput) || "astronauts".startsWith(cleanInput)) {
@@ -5841,9 +6023,9 @@ function autocorrectCommandQuery(query) {
     const typedCommand = match[2].toLowerCase();
     const commandNames = [
         "age", "anime", "archive", "asciiweather", "asteroid", "barcode", "book", "bsky", "bluesky",
-        "call", "cat", "chuck", "college", "country", "convert", "crypto", "define", "dial", "dig", "dns",
+        "bored", "call", "cat", "chuck", "college", "country", "convert", "crypto", "define", "dial", "dig", "dns",
         "airquality", "aqi", "draw", "drink", "film", "flight", "food", "github", "history", "holiday", "joke", "movie", "manga",
-        "isbn", "locate", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
+        "ghuser", "isbn", "locate", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
         "onthisday", "postal", "qr", "qrcode", "repo", "snapshot", "sms", "solarwind", "song", "space", "spaceweather", "stream",
         "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
         "watch", "wayback", "weather", "whereami", "zip", "status", "ebay"
@@ -5875,6 +6057,16 @@ executeActionBtn?.addEventListener('click', () => {
 
         if (/^\/?ebay(?:\s|$)/i.test(lq)) {
             handleEbayQuery(query.trim().replace(/^\/?ebay\s*/i, ""));
+            return;
+        }
+
+        if (/^\/?bored(?:\s|$)/i.test(lq)) {
+            handleBoredCommand();
+            return;
+        }
+
+        if (/^\/?ghuser(?:\s|$)/i.test(lq)) {
+            handleGhUserCommand(query.trim().replace(/^\/?ghuser\s*/i, ""));
             return;
         }
 
