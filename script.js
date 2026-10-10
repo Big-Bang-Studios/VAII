@@ -1403,12 +1403,120 @@ applyVaiiTheme(localStorage.getItem("vaii_theme") || "dark");
 
 function renderMarkdown(text) {
     if (!text) return "";
-    let safeHtml = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); 
-    safeHtml = safeHtml.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-    safeHtml = safeHtml.replace(/\*(.*?)\*/g, "<em>$1</em>");
-    safeHtml = safeHtml.replace(/^[\s]*[\*\-]\s+(.*)$/gm, "<li style='margin-left: 15px; margin-bottom: 4px;'>$1</li>");
-    safeHtml = safeHtml.replace(/\n/g, "<br>");
-    return safeHtml;
+
+    const formatInline = (value) => {
+        let html = escapeHtml(String(value));
+        html = html.replace(/`([^`]+)`/g, '<code style="background: #111; color: #c9d1d9; border: 1px solid #2d2d2d; border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 0.88em;">$1</code>');
+        html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #4da3ff; text-decoration: underline;">$1</a>');
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        html = html.replace(/_(.+?)_/g, '<em>$1</em>');
+        return html;
+    };
+
+    const renderTable = (rows) => {
+        if (!Array.isArray(rows) || rows.length < 2) return "";
+        const normalized = rows.map(row => row.map(cell => (cell || '').trim()));
+        const colCount = Math.max(...normalized.map(row => row.length));
+        const paddedRows = normalized.map(row => {
+            const padded = [...row];
+            while (padded.length < colCount) padded.push('');
+            return padded.slice(0, colCount);
+        });
+
+        const [header, ...bodyRows] = paddedRows;
+        const headerHtml = header.map(cell => `<th style="padding: 8px 10px; border: 1px solid #2d2d2d; background: #1d1d1d; color: #f0f0f0; text-align: left; font-weight: 700;">${formatInline(cell)}</th>`).join('');
+        const bodyHtml = bodyRows.map(row => `
+            <tr>
+                ${row.map(cell => `<td style="padding: 8px 10px; border: 1px solid #2d2d2d; color: #d7d7d7;">${formatInline(cell)}</td>`).join('')}
+            </tr>
+        `).join('');
+
+        return `
+            <table style="width: 100%; border-collapse: collapse; margin: 10px 0; background: #121212; border: 1px solid #2d2d2d; border-radius: 8px; overflow: hidden;">
+                <thead>
+                    <tr>${headerHtml}</tr>
+                </thead>
+                <tbody>${bodyHtml}</tbody>
+            </table>
+        `;
+    };
+
+    const isTableLine = (line) => typeof line === 'string' && line.includes('|');
+    const isSeparatorLine = (line) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line || '');
+
+    const lines = String(text).replace(/\r\n/g, '\n').split('\n');
+    const output = [];
+    let index = 0;
+
+    while (index < lines.length) {
+        const line = lines[index].trim();
+
+        if (!line) {
+            index += 1;
+            continue;
+        }
+
+        if (isTableLine(line) && index + 1 < lines.length && isSeparatorLine(lines[index + 1])) {
+            const rows = [line];
+            index += 2;
+            while (index < lines.length && isTableLine(lines[index].trim())) {
+                rows.push(lines[index].trim());
+                index += 1;
+            }
+            const tableRows = rows.map(row => row.split('|').map(cell => cell.trim()).filter((cell, cellIndex, arr) => {
+                if (cellIndex === 0 && arr.length > 1 && row.startsWith('|')) return false;
+                if (cellIndex === arr.length - 1 && arr.length > 1 && row.endsWith('|')) return false;
+                return cell !== '' || arr.length === 1;
+            }));
+            const tableHtml = renderTable(tableRows);
+            if (tableHtml) {
+                output.push(tableHtml);
+                continue;
+            }
+        }
+
+        const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+        if (headingMatch) {
+            const level = Math.min(headingMatch[1].length, 6);
+            output.push(`<h${level} style="margin: 16px 0 10px; color: #f0f0f0; font-size: ${Math.max(1.1, 1.8 - (level - 1) * 0.15).toFixed(2)}rem; font-weight: 700; line-height: 1.2;">${formatInline(headingMatch[2])}</h${level}>`);
+            index += 1;
+            continue;
+        }
+
+        const listLines = [];
+        while (index < lines.length) {
+            const current = lines[index].trim();
+            if (!current) break;
+            if (!/^(?:[-*]|\d+\.)\s+/.test(current)) break;
+            listLines.push(current.replace(/^(?:[-*]|\d+\.)\s+/, ''));
+            index += 1;
+        }
+
+        if (listLines.length) {
+            output.push(`<ul style="margin: 10px 0 10px 18px; padding-left: 18px; color: #e6e6e6; line-height: 1.7;">${listLines.map(item => `<li>${formatInline(item)}</li>`).join('')}</ul>`);
+            continue;
+        }
+
+        const paragraphLines = [];
+        while (index < lines.length) {
+            const current = lines[index].trim();
+            if (!current) break;
+            if (/^(?:#{1,6}\s+|[-*]|\d+\.)\s+/.test(current) || isTableLine(current) && index + 1 < lines.length && isSeparatorLine(lines[index + 1])) break;
+            paragraphLines.push(current);
+            index += 1;
+        }
+
+        if (paragraphLines.length) {
+            output.push(`<p style="margin: 8px 0; color: #eeeeee; line-height: 1.6;">${formatInline(paragraphLines.join(' '))}</p>`);
+            continue;
+        }
+
+        index += 1;
+    }
+
+    return output.join('');
 }
 
 function stripHtml(html) {
