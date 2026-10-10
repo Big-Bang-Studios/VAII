@@ -133,7 +133,7 @@ async function handleBoredCommand() {
 
     for (const endpoint of endpoints) {
         try {
-            const response = await fetch(endpoint);
+            const response = await fetch(`/api/proxy?url=${encodeURIComponent(endpoint)}`);
             if (!response.ok) throw new Error(`Activity service returned ${response.status}`);
 
             const activity = await response.json();
@@ -149,9 +149,11 @@ async function handleBoredCommand() {
             const price = activity.price != null && Number.isFinite(Number(activity.price))
                 ? `${Number(activity.price).toFixed(2)} / 1`
                 : "N/A";
-            const accessibility = activity.accessibility != null && Number.isFinite(Number(activity.accessibility))
-                ? `${Number(activity.accessibility).toFixed(2)} / 1`
-                : "N/A";
+            const accessibility = activity.accessibility == null
+                ? "N/A"
+                : Number.isFinite(Number(activity.accessibility))
+                    ? `${Number(activity.accessibility).toFixed(2)} / 1`
+                    : String(activity.accessibility);
             let externalLink = "";
             if (typeof activity.link === "string" && activity.link.trim()) {
                 try {
