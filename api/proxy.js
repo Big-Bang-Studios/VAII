@@ -11,78 +11,58 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Missing query parameter "q"' });
         }
 
+        const apiKey = process.env.SERPAPI_API_KEY;
+        if (!apiKey) {
+            return res.status(503).json({
+                error: 'eBay listings require SERPAPI_API_KEY to be configured on the server.'
+            });
+        }
+
         const resultLimit = Math.min(Math.max(parseInt(limit, 10) || 8, 1), 12);
         try {
-            const searchUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}`;
+            const searchUrl = new URL('https://serpapi.com/search.json');
+            searchUrl.searchParams.set('engine', 'ebay');
+            searchUrl.searchParams.set('_nkw', searchTerm);
+            searchUrl.searchParams.set('_ipg', '25');
+            searchUrl.searchParams.set('api_key', apiKey);
             const response = await fetch(searchUrl, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml',
-                    'Accept-Language': 'en-US,en;q=0.9'
-                }
+                headers: { 'Accept': 'application/json' }
             });
             if (!response.ok) {
-                return res.status(502).json({ error: `eBay returned ${response.status}` });
+                return res.status(502).json({ error: `SerpApi returned ${response.status} for eBay search` });
             }
 
-            const html = await response.text();
-            const itemStarts = [...html.matchAll(/<li\b[^>]*class=["'][^"']*\bs-item\b[^"']*["'][^>]*>/gi)];
-            const listings = [];
-            const seenLinks = new Set();
-
-            const extractText = (markup, className) => {
-                const escapedClass = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const element = markup.match(new RegExp(
-                    `<([a-z][a-z0-9]*)\\b[^>]*class=["'][^"']*\\b${escapedClass}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/\\1>`,
-                    'i'
-                ));
-                return element ? element[2].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : '';
-            };
-            const decodeEntities = (value) => value
-                .replace(/&amp;/gi, '&')
-                .replace(/&quot;/gi, '"')
-                .replace(/&#39;|&apos;/gi, "'")
-                .replace(/&lt;/gi, '<')
-                .replace(/&gt;/gi, '>')
-                .replace(/&nbsp;/gi, ' ')
-                .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-                .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)));
-
-            for (let index = 0; index < itemStarts.length && listings.length < resultLimit; index++) {
-                const start = itemStarts[index].index;
-                const end = index + 1 < itemStarts.length ? itemStarts[index + 1].index : html.length;
-                const item = html.slice(start, end);
-                const title = decodeEntities(extractText(item, 's-item__title'));
-                const price = decodeEntities(extractText(item, 's-item__price'));
-                const condition = decodeEntities(extractText(item, 'SECONDARY_INFO'));
-                const linkMatch = item.match(/<a\b[^>]*class=["'][^"']*\bs-item__link\b[^"']*["'][^>]*href=["']([^"']+)["']/i)
-                    || item.match(/<a\b[^>]*href=["']([^"']+)["'][^>]*class=["'][^"']*\bs-item__link\b[^"']*["']/i);
-                if (!title || /^shop on ebay$/i.test(title) || !linkMatch) continue;
-
-                let link;
-                try {
-                    link = new URL(decodeEntities(linkMatch[1]), searchUrl);
-                } catch (_) {
-                    continue;
-                }
-                if (link.protocol !== 'https:' || link.hostname !== 'www.ebay.com' || seenLinks.has(link.href)) continue;
-                seenLinks.add(link.href);
-
-                const imageMatch = item.match(/<img\b[^>]*class=["'][^"']*\bs-item__image-img\b[^"']*["'][^>]*>/i);
-                const imageSource = imageMatch && (imageMatch[0].match(/\bdata-src=["']([^"']+)["']/i)
-                    || imageMatch[0].match(/\bsrc=["']([^"']+)["']/i));
-                let image = '';
-                if (imageSource) {
+            const data = await response.json();
+            if (typeof data.error === 'string') {
+                return res.status(502).json({ error: `SerpApi eBay search failed: ${data.error}` });
+            }
+            const listings = (Array.isArray(data.organic_results) ? data.organic_results : [])
+                .slice(0, resultLimit)
+                .flatMap((item) => {
+                    let link;
                     try {
-                        const imageUrl = new URL(decodeEntities(imageSource[1]), searchUrl);
-                        if (imageUrl.protocol === 'https:' && /\.ebayimg\.com$/i.test(imageUrl.hostname)) {
-                            image = imageUrl.href;
-                        }
-                    } catch (_) {}
-                }
+                        link = new URL(item.link);
+                    } catch (_) {
+                        return [];
+                    }
+                    if (link.protocol !== 'https:' || !['www.ebay.com', 'ebay.com'].includes(link.hostname) || typeof item.title !== 'string') {
+                        return [];
+                    }
 
-                listings.push({ title, price, condition, link: link.href, image });
-            }
+                    const price = item.price?.raw
+                        || (item.price?.from?.raw && item.price?.to?.raw
+                            ? `${item.price.from.raw} - ${item.price.to.raw}`
+                            : item.price?.from?.raw || item.price?.to?.raw || '');
+                    return [{
+                        title: item.title,
+                        price,
+                        condition: typeof item.condition === 'string' ? item.condition : '',
+                        link: link.href,
+                        image: typeof item.thumbnail === 'string' && /^https:\/\/.*\.ebayimg\.com\//i.test(item.thumbnail)
+                            ? item.thumbnail
+                            : ''
+                    }];
+                });
 
             return res.status(200).json({ query: searchTerm, listings });
         } catch (err) {

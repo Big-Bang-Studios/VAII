@@ -5786,6 +5786,7 @@ async function handleEbayQuery(searchTerm) {
     }
 
     handleVaiiDataOutput("eBay Shopping Search", `<div style="color:#aaa; padding:12px;">Searching eBay for ${escapeHtml(cleanSearchTerm)}...</div>`);
+    const ebaySearchLink = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(cleanSearchTerm)}`;
     try {
         const response = await fetch(`/api/proxy?action=ebay_search&q=${encodeURIComponent(cleanSearchTerm)}&limit=8`);
         const data = await response.json();
@@ -5808,10 +5809,9 @@ async function handleEbayQuery(searchTerm) {
                 </div>
             `;
         }).join("");
-        const ebaySearchLink = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(cleanSearchTerm)}`;
         const resultContent = data.listings.length
             ? listingCards
-            : `<div style="color:#aaa; padding:12px 0;">No listings were found in the scraped results.</div>`;
+            : `<div style="color:#aaa; padding:12px 0;">No listings were found for this search.</div>`;
 
         handleVaiiDataOutput(`eBay results for ${cleanSearchTerm}`, `
             <div style="background:#181818; border:1px solid #e53238; border-radius:10px; padding:14px; color:#eee;">
@@ -5823,7 +5823,12 @@ async function handleEbayQuery(searchTerm) {
         `);
     } catch (err) {
         console.error("eBay search failed:", err);
-        handleVaiiDataOutput("eBay search failed.", `<div style="color:#ff5555; padding:12px;">⚠️ Could not load eBay listings: ${escapeHtml(err.message)}</div>`);
+        handleVaiiDataOutput("eBay search failed.", `
+            <div style="color:#ff5555; padding:12px;">
+                ⚠️ Could not load eBay listings: ${escapeHtml(err.message)}
+                <a href="${ebaySearchLink}" target="_blank" rel="noopener noreferrer" style="display:block; color:#e53238; margin-top:10px;">Browse this search on eBay ↗</a>
+            </div>
+        `);
     }
 }
 

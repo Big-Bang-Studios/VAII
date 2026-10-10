@@ -30,7 +30,7 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **🌐 Client Network Telemetry (ipapi.co):** Displays public client IP address, ISP provider, geographical region, and postal telemetry (e.g., `my ip`).
 * **🎯 Interactive Trivia Quizzes (Open Trivia DB):** Renders multiple-choice questions with interactive button choices, automated score checking, and audio feedback (e.g., `trivia`, `quiz`).
 * **🎮 PC Gaming Deals & Freebies (CheapShark API):** Tracks live 100% off game giveaways and deep discounts across Steam, Epic Games Store, and GOG (e.g., `free games`, `deals`).
-* **🛍️ eBay Shopping Search:** Scrapes a small set of eBay product listings with prices and direct links; open an item on eBay to review or purchase (e.g., `ebay noise cancelling headphones`).
+* **🛍️ eBay Shopping Search:** Searches eBay's Browse API for product listings, prices, and direct links; open an item on eBay to review or purchase (e.g., `ebay noise cancelling headphones`).
 * **😂 Joke Engines (icanhazdadjoke & Chuck Norris Database):** Delivers instant clean dad jokes (`joke`) and random Chuck Norris facts (`chuck`, `/chuck`).
 * **🎵 Music & Audio Previews (iTunes Search API):** Renders 30-second audio previews, album artwork, and Apple Music routing links (e.g., `song Bohemian Rhapsody`).
 * **⛩️ Anime & Manga Metadata (AniList GraphQL):** Fetches synopsis, popularity ratings, genres, authors, and episode counts with high request limits (e.g., `anime Attack on Titan`, `manga Berserk`).
@@ -72,7 +72,7 @@ Google Cloud security policies (`Error 403: disallowed_useragent`) block OAuth s
 
 ## 🔑 Environment & Setup
 
-Configure your API keys within `script.js`:
+Configure client-side API keys within `script.js`, and server-side credentials in your deployment environment:
 
 1. **Firebase Config:** Initialize your project credentials (`apiKey`, `authDomain`, `projectId`).
 2. **Google Maps API Key:** Required for spatial rendering and the Local Food Concierge (`&libraries=places`).
@@ -80,6 +80,7 @@ Configure your API keys within `script.js`:
 4. **YouTube Data API Key:** Required for creator subscriber metrics.
 5. **OMDb API Key:** Required for cinematic search queries.
 6. **GNews API Key:** Required for live news feeds.
+7. **SerpApi eBay search:** Set `SERPAPI_API_KEY` as a server environment variable. Create a SerpApi account and copy its API key from the dashboard. Keep the key server-side; do not add it to `script.js`.
 
 ---
 
