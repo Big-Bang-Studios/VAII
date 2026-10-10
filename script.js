@@ -1590,15 +1590,16 @@ function saveSessionsToDisk(sessions) {
 }
 
 function saveCurrentSessionState(customGeneratedTitle = null) {
-    if (chatHistory.length <= 2) return; 
+    if (chatHistory.length < 2) return;
     let sessions = getSavedSessions();
     let currentSession = sessions.find(s => s.id === currentSessionId);
     
     if (!currentSessionId) {
         currentSessionId = 'session_' + Date.now();
         let fallbackTitle = "Gemini Chat Thread";
-        if (chatHistory[2] && chatHistory[2].role === 'user') {
-            fallbackTitle = chatHistory[2].parts[0].text.substring(0, 25) + "...";
+        const firstUserMessage = chatHistory.find(msg => msg.role === 'user');
+        if (firstUserMessage?.parts[0]?.text) {
+            fallbackTitle = firstUserMessage.parts[0].text.substring(0, 25) + "...";
         }
         currentSession = { 
             id: currentSessionId, 
