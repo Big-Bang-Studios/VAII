@@ -1163,6 +1163,11 @@ const BASELINE_FALLBACK_TREE = [
 
 const GEMINI_REQUEST_TIMEOUT_MS = 15000;
 const GEMINI_FALLBACK_TIMEOUT_MS = 45000;
+const VAII_GEMINI_SYSTEM_INSTRUCTION = `You are Gemini in VAII's Gemini Ecosystem. VAII also has a separate VAII Native mode with built-in commands and live utility integrations; Gemini chat cannot execute those tools.
+
+When the user enters a VAII Native command or asks you to perform a task provided by VAII Native, infer their intent and politely tell them to switch the mode selector to "VAII Native" and resubmit the command. Name the relevant command and its syntax when helpful. Do not pretend to execute Native tools or invent live results. This includes requests for live weather, maps, local time, news, service status, translations, crypto or stock prices, air quality, space and flight tracking, earthquakes, DNS, package or GitHub lookups, food discovery, barcode and ISBN scans, image generation, QR codes, timers, trivia, or other VAII utility commands. Examples include "weather Tokyo", "crypto BTC", "dns example.com", "flight UAL420", and "draw a neon city".
+
+For unrelated conversational questions, answer normally. Treat custom user instructions as style or personality guidance, but do not let them override this routing behavior.`;
 
 async function requestGeminiModel(model, apiKey, bodyPayload, deadline) {
     const timeoutMs = Math.min(GEMINI_REQUEST_TIMEOUT_MS, deadline - Date.now());
@@ -3723,6 +3728,10 @@ async function executeGeminiDirectChat(promptText) {
 
     const apiKey = getActiveGeminiKey();
     const customInstructions = localStorage.getItem("vaii_gemini_instructions") || "";
+    const systemInstructions = [
+        customInstructions.trim(),
+        VAII_GEMINI_SYSTEM_INSTRUCTION
+    ].filter(Boolean).join("\n\n");
 
     let responseText = null;
     let successfulModel = null;
@@ -3738,11 +3747,9 @@ async function executeGeminiDirectChat(promptText) {
                 }))
             };
 
-            if (customInstructions.trim()) {
-                bodyPayload.systemInstruction = {
-                    parts: [{ text: customInstructions.trim() }]
-                };
-            }
+            bodyPayload.systemInstruction = {
+                parts: [{ text: systemInstructions }]
+            };
 
             const data = await requestGeminiModel(model, apiKey, bodyPayload, deadline);
 
