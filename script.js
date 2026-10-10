@@ -1161,6 +1161,51 @@ const BASELINE_FALLBACK_TREE = [
     { name: "Gemma 4 26B", id: "gemma-4-26b" }
 ];
 
+const GEMINI_REQUEST_TIMEOUT_MS = 15000;
+const GEMINI_FALLBACK_TIMEOUT_MS = 45000;
+
+async function requestGeminiModel(model, apiKey, bodyPayload, deadline) {
+    const timeoutMs = Math.min(GEMINI_REQUEST_TIMEOUT_MS, deadline - Date.now());
+    if (timeoutMs <= 0) {
+        throw new Error(`Gemini fallback timed out after ${GEMINI_FALLBACK_TIMEOUT_MS / 1000} seconds.`);
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent?key=${apiKey}`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(bodyPayload),
+                signal: controller.signal
+            }
+        );
+        const data = await response.json();
+
+        if (data?.error?.message) {
+            throw new Error(data.error.message);
+        }
+        if (!response.ok) {
+            throw new Error(`Gemini returned HTTP ${response.status}.`);
+        }
+
+        return data;
+    } catch (err) {
+        if (err.name === "AbortError") {
+            const message = timeoutMs < GEMINI_REQUEST_TIMEOUT_MS
+                ? `Gemini fallback timed out after ${GEMINI_FALLBACK_TIMEOUT_MS / 1000} seconds.`
+                : `Request timed out after ${GEMINI_REQUEST_TIMEOUT_MS / 1000} seconds.`;
+            throw new Error(message);
+        }
+        throw err;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
 const WMO_WEATHER_CODES = {
     0: { desc: "Clear Sky", icon: "☀️" },
     1: { desc: "Mainly Clear", icon: "🌤️" },
@@ -3403,6 +3448,8 @@ async function executeVisionAnalysis(promptText) {
 
     let descriptionResult = null;
     let successfulModel = null;
+    let lastError = null;
+    const deadline = Date.now() + GEMINI_FALLBACK_TIMEOUT_MS;
 
     // Use Gemini models from baseline fallback tree
     const visionModels = BASELINE_FALLBACK_TREE.filter(m => m.id.startsWith("gemini"));
@@ -3423,29 +3470,18 @@ async function executeVisionAnalysis(promptText) {
                 }]
             };
 
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent?key=${apiKey}`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(bodyPayload)
-                }
-            );
-
-            const data = await response.json();
-
-            if (data.error) {
-                console.warn(`Vision model ${model.id} rejected:`, data.error.message);
-                continue;
-            }
+            const data = await requestGeminiModel(model, apiKey, bodyPayload, deadline);
 
             if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
                 descriptionResult = data.candidates[0].content.parts[0].text;
                 successfulModel = model.name;
                 break;
             }
+            throw new Error("Gemini returned no text for the image request.");
         } catch (err) {
-            console.warn(`Vision network issue on ${model.id}:`, err);
+            lastError = err.message;
+            console.warn(`Vision request failed on ${model.id}:`, err);
+            if (Date.now() >= deadline) break;
             continue;
         }
     }
@@ -3465,10 +3501,10 @@ async function executeVisionAnalysis(promptText) {
         const errorHtml = `
             <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; text-align: left;">
                 <div style="font-size: 0.75rem; color: #ff4d4d; text-transform: uppercase; font-weight: bold; margin-bottom: 8px;">⚠️ Google API Error</div>
-                <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">All fallback vision models are currently experiencing high demand or rate limits. Please try again in a moment.</div>
+                <div style="color: #eee; font-size: 0.95rem; line-height: 1.5;">${escapeHtml(lastError || "All Gemini vision models failed to respond.")}</div>
             </div>
         `;
-        handleVaiiDataOutput("All vision models are currently unavailable.", errorHtml);
+        handleVaiiDataOutput("Gemini vision request failed.", errorHtml);
     }
 }
 
@@ -3581,6 +3617,8 @@ async function executeGeminiDirectChat(promptText) {
 
     let responseText = null;
     let successfulModel = null;
+    let lastError = null;
+    const deadline = Date.now() + GEMINI_FALLBACK_TIMEOUT_MS;
 
     for (const model of BASELINE_FALLBACK_TREE) {
         try {
@@ -3597,29 +3635,18 @@ async function executeGeminiDirectChat(promptText) {
                 };
             }
 
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent?key=${apiKey}`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(bodyPayload)
-                }
-            );
-
-            const data = await response.json();
-
-            if (data.error) {
-                console.warn(`Model ${model.id} rejected request:`, data.error.message);
-                continue;
-            }
+            const data = await requestGeminiModel(model, apiKey, bodyPayload, deadline);
 
             if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
                 responseText = data.candidates[0].content.parts[0].text;
                 successfulModel = model.name;
                 break;
             }
+            throw new Error("Gemini returned no text for the chat request.");
         } catch (err) {
-            console.warn(`Network failure on model ${model.id}:`, err);
+            lastError = err.message;
+            console.warn(`Gemini request failed on ${model.id}:`, err);
+            if (Date.now() >= deadline) break;
             continue;
         }
     }
@@ -3639,7 +3666,7 @@ async function executeGeminiDirectChat(promptText) {
             output.innerHTML += `
                 <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; margin-top: 10px; text-align: left;">
                     <div style="font-weight: bold; color: #ff4d4d;">⚠️ Generation Failure</div>
-                    <div style="color: #ddd; font-size: 0.9rem; margin-top: 4px;">All fallback models failed to respond. Verify that a valid Gemini API key is configured.</div>
+                    <div style="color: #ddd; font-size: 0.9rem; margin-top: 4px;">${escapeHtml(lastError || "All Gemini models failed to respond.")} Check that your Gemini API key is valid and enabled for the Gemini API.</div>
                 </div>
             `;
             output.scrollTop = output.scrollHeight;

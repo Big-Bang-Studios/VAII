@@ -58,7 +58,7 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 ### 2. Gemini Ecosystem (Conversational Mode)
 An isolated conversational layer designed for multi-turn conversational reasoning.
 * **Persistent History:** Tracks multi-turn dialogue with saved session titles and thread deletion.
-* **Model Fallback Matrix:** Cascades downstream starting from **Gemini 3.7 Flash** down to Gemma models to maintain uptime if rate limits occur.
+* **Model Fallback Matrix:** Cascades downstream starting from **Gemini 3.7 Flash** down to Gemma models to maintain uptime if rate limits occur. Each request has a timeout so the chat does not remain stuck connecting.
 * **Custom System Instructions:** User-defined personality parameters stored in `localStorage`.
 * **Isolated Environment:** Explicitly separated from native tools to preserve conversational integrity.
 
