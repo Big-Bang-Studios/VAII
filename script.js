@@ -1098,6 +1098,7 @@ const defaultAssistantSuggestions = [
     "/locate",
     "/chuck",
     "/crypto BTC",
+    "/ebay headphones",
     "quakes",
     "/quakes",
     "earthquakes",
@@ -4732,6 +4733,7 @@ hubInput?.addEventListener('input', () => {
             "/call 555-0199",
             "/text 555-0199 on my way",
             "/editor",
+            "/ebay headphones",
             "/note Check server deployments"
         ];
         customSuggestions = slashCommands.filter(c => c.toLowerCase().startsWith(cleanInput));
@@ -4763,6 +4765,9 @@ hubInput?.addEventListener('input', () => {
     }
     if ("holiday".startsWith(cleanInput)) {
         customSuggestions.push("holiday US", "holiday GB", "holiday CA");
+    }
+    if ("ebay".startsWith(cleanInput)) {
+        customSuggestions.push("ebay headphones", "ebay vintage camera");
     }
 
     if ("space".startsWith(cleanInput) || "whoisinspace".startsWith(cleanInput) || "astronauts".startsWith(cleanInput)) {
@@ -5766,6 +5771,62 @@ function getSingleCommandTypoDistance(input, candidate) {
     return { distance: 1, transposition: false };
 }
 
+async function handleEbayQuery(searchTerm) {
+    const cleanSearchTerm = searchTerm.trim();
+    if (!cleanSearchTerm) {
+        renderAdditionalApiUsage(
+            "eBay Shopping Search",
+            "🛍️",
+            "#e53238",
+            "Search eBay listings and open an item on eBay to review the details or purchase.",
+            "ebay [product]",
+            ["ebay noise cancelling headphones", "ebay vintage camera"]
+        );
+        return;
+    }
+
+    handleVaiiDataOutput("eBay Shopping Search", `<div style="color:#aaa; padding:12px;">Searching eBay for ${escapeHtml(cleanSearchTerm)}...</div>`);
+    try {
+        const response = await fetch(`/api/proxy?action=ebay_search&q=${encodeURIComponent(cleanSearchTerm)}&limit=8`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Search returned ${response.status}`);
+        if (!Array.isArray(data.listings)) throw new Error("eBay returned an invalid listings response");
+
+        const listingCards = data.listings.map((listing) => {
+            const image = typeof listing.image === "string" && listing.image
+                ? `<img src="${escapeHtml(listing.image)}" alt="" loading="lazy" style="width:76px; height:76px; object-fit:contain; border-radius:6px; background:#fff;">`
+                : "";
+            const detail = [listing.price, listing.condition].filter(Boolean).map(escapeHtml).join(" · ");
+            return `
+                <div style="display:flex; gap:12px; align-items:center; background:#222; border-radius:8px; padding:10px; margin-top:8px;">
+                    ${image}
+                    <div style="min-width:0; flex:1;">
+                        <a href="${escapeHtml(listing.link)}" target="_blank" rel="noopener noreferrer" style="color:#fff; font-weight:600; line-height:1.4; text-decoration:none;">${escapeHtml(listing.title)}</a>
+                        ${detail ? `<div style="color:#aaa; font-size:0.82rem; margin-top:5px;">${detail}</div>` : ""}
+                        <a href="${escapeHtml(listing.link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block; color:#e53238; font-size:0.8rem; margin-top:6px;">View on eBay ↗</a>
+                    </div>
+                </div>
+            `;
+        }).join("");
+        const ebaySearchLink = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(cleanSearchTerm)}`;
+        const resultContent = data.listings.length
+            ? listingCards
+            : `<div style="color:#aaa; padding:12px 0;">No listings were found in the scraped results.</div>`;
+
+        handleVaiiDataOutput(`eBay results for ${cleanSearchTerm}`, `
+            <div style="background:#181818; border:1px solid #e53238; border-radius:10px; padding:14px; color:#eee;">
+                <div style="font-size:0.76rem; color:#e53238; font-weight:bold; text-transform:uppercase;">🛍️ eBay Listings</div>
+                ${resultContent}
+                <a href="${ebaySearchLink}" target="_blank" rel="noopener noreferrer" style="display:inline-block; color:#e53238; font-size:0.85rem; margin-top:12px;">Browse all results on eBay ↗</a>
+                <div style="color:#777; font-size:0.72rem; margin-top:8px;">Prices and availability may change. Complete any purchase on eBay.</div>
+            </div>
+        `);
+    } catch (err) {
+        console.error("eBay search failed:", err);
+        handleVaiiDataOutput("eBay search failed.", `<div style="color:#ff5555; padding:12px;">⚠️ Could not load eBay listings: ${escapeHtml(err.message)}</div>`);
+    }
+}
+
 function autocorrectCommandQuery(query) {
     if (localStorage.getItem("vaii_autocorrect") !== "true") return query;
 
@@ -5780,7 +5841,7 @@ function autocorrectCommandQuery(query) {
         "isbn", "locate", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
         "onthisday", "postal", "qr", "qrcode", "repo", "snapshot", "sms", "solarwind", "song", "space", "spaceweather", "stream",
         "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
-        "watch", "wayback", "weather", "whereami", "zip", "status"
+        "watch", "wayback", "weather", "whereami", "zip", "status", "ebay"
     ];
     const candidates = commandNames
         .map(name => ({ name, match: getSingleCommandTypoDistance(typedCommand, name) }))
@@ -5806,6 +5867,11 @@ executeActionBtn?.addEventListener('click', () => {
     if (mode === "native") {
         query = autocorrectCommandQuery(query);
         const lq = query.trim().toLowerCase();
+
+        if (/^\/?ebay(?:\s|$)/i.test(lq)) {
+            handleEbayQuery(query.trim().replace(/^\/?ebay\s*/i, ""));
+            return;
+        }
 
         if (lq === "asciiweather" || lq === "/asciiweather" || lq.startsWith("asciiweather ") || lq.startsWith("/asciiweather ")) {
             handleAsciiWeatherQuery(query.trim().replace(/^\/?asciiweather\s*/i, ""));
