@@ -12,8 +12,10 @@ const {
     ensureChatRoom,
     getOtherRoomParticipant,
     getAuthenticatedUser,
+    getContactDisplayName,
     hasExpectedRoomParticipants,
-    mergeDiscoveredRoomContacts
+    mergeDiscoveredRoomContacts,
+    mergeMessageDisplayName
 } = chatModule;
 
 function configureMockAuth(currentUser = null, anonymousUser = { uid: "anonymous-uid" }) {
@@ -61,14 +63,37 @@ test("a single invite link lets the recipient create the shared room and the inv
     const recipientRoomId = buildChatRoomId(guestUid, inviteLinkTarget);
     const inviterRoomId = buildChatRoomId(loganUid, guestUid);
     const inviterView = mergeDiscoveredRoomContacts(
-        [{ participants: [guestUid, loganUid] }],
+        [{
+            participants: [guestUid, loganUid],
+            participantNames: {
+                [loganUid]: "Logan",
+                [guestUid]: "Guest_7637"
+            }
+        }],
         loganUid,
         []
     );
 
     assert.equal(recipientRoomId, inviterRoomId);
     assert.equal(getOtherRoomParticipant([guestUid, loganUid], loganUid), guestUid);
-    assert.deepEqual(inviterView.discovered, [{ id: guestUid, name: guestUid }]);
+    assert.deepEqual(inviterView.discovered, [{ id: guestUid, name: "Guest_7637" }]);
+    assert.equal(getContactDisplayName(inviterView.discovered[0]), "Guest_7637");
+});
+
+test("contact title uses a saved display name and falls back to UID until known", () => {
+    assert.equal(getContactDisplayName({ id: "uid-logan", name: "Logan" }), "Logan");
+    assert.equal(getContactDisplayName({ id: "uid-logan", name: "uid-logan" }), "uid-logan");
+    assert.equal(getContactDisplayName({ id: "uid-logan", name: "" }), "uid-logan");
+
+    const contacts = [{ id: "uid-logan", name: "uid-logan" }];
+    assert.deepEqual(
+        mergeMessageDisplayName(contacts, "uid-logan", "uid-logan", "Logan"),
+        [{ id: "uid-logan", name: "Logan" }]
+    );
+    assert.deepEqual(
+        mergeMessageDisplayName(contacts, "uid-logan", "someone-else", "Impersonated"),
+        contacts
+    );
 });
 
 test("room discovery ignores rooms that are not valid two-party memberships", () => {
@@ -83,6 +108,16 @@ test("room discovery ignores rooms that are not valid two-party memberships", ()
     ], "uid-a", [{ id: "uid-b", name: "Saved contact name" }]);
     assert.deepEqual(result.contacts, [{ id: "uid-b", name: "Saved contact name" }]);
     assert.deepEqual(result.discovered, []);
+});
+
+test("room discovery upgrades a UID fallback to the room's saved display name", () => {
+    const result = mergeDiscoveredRoomContacts([{
+        participants: ["uid-a", "uid-b"],
+        participantNames: { "uid-b": "Logan" }
+    }], "uid-a", [{ id: "uid-b", name: "uid-b" }]);
+
+    assert.deepEqual(result.contacts, [{ id: "uid-b", name: "Logan" }]);
+    assert.deepEqual(result.discovered, [{ id: "uid-b", name: "Logan" }]);
 });
 
 test("chat reuses an already authenticated Firebase user", async () => {
@@ -147,6 +182,10 @@ test("room creation uses sorted UIDs and server timestamp", async () => {
         reference: ["vaii_rooms", "uid-a_uid-z"],
         data: {
             participants: ["uid-a", "uid-z"],
+            participantNames: {
+                "uid-z": "",
+                "uid-a": ""
+            },
             createdAt: "server-timestamp"
         }
     }]);

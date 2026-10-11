@@ -84,6 +84,11 @@ export function getOtherRoomParticipant(participants, currentUid) {
     return participants.find(uid => uid !== currentUid) || null;
 }
 
+export function getContactDisplayName(contact) {
+    const savedName = typeof contact?.name === "string" ? contact.name.trim() : "";
+    return savedName && savedName !== contact.id ? savedName : contact?.id || "Unknown contact";
+}
+
 export function mergeDiscoveredRoomContacts(roomDataList, currentUid, contacts = []) {
     const merged = new Map(
         contacts
@@ -94,14 +99,35 @@ export function mergeDiscoveredRoomContacts(roomDataList, currentUid, contacts =
 
     roomDataList.forEach(roomData => {
         const peerUid = getOtherRoomParticipant(roomData?.participants, currentUid);
-        if (!peerUid || merged.has(peerUid)) return;
+        if (!peerUid) return;
 
-        const contact = { id: peerUid, name: peerUid };
-        merged.set(peerUid, contact);
-        discovered.push(contact);
+        const savedContact = merged.get(peerUid);
+        const roomName = typeof roomData.participantNames?.[peerUid] === "string"
+            ? roomData.participantNames[peerUid].trim().slice(0, 30)
+            : "";
+        const contactName = roomName || savedContact?.name || peerUid;
+        const contact = { id: peerUid, name: contactName };
+        if (!savedContact) {
+            discovered.push(contact);
+            merged.set(peerUid, contact);
+        } else if (savedContact.name === peerUid && roomName) {
+            merged.set(peerUid, contact);
+            discovered.push(contact);
+        }
     });
 
     return { contacts: Array.from(merged.values()), discovered };
+}
+
+export function mergeMessageDisplayName(contacts, contactUid, senderId, senderName) {
+    const normalizedName = typeof senderName === "string" ? senderName.trim().slice(0, 30) : "";
+    if (!normalizedName || senderId !== contactUid) return contacts;
+
+    return contacts.map(contact =>
+        contact.id === contactUid && (!contact.name || contact.name === contactUid)
+            ? { ...contact, name: normalizedName }
+            : contact
+    );
 }
 
 export function createChatMessage(senderId, senderName, text, createdAt) {
@@ -249,6 +275,13 @@ async function startRoomDiscovery(user) {
             if (result.discovered.length) {
                 saveContacts(result.contacts);
                 renderContacts();
+                if (activeContact) {
+                    const refreshedActiveContact = result.contacts.find(contact => contact.id === activeContact.id);
+                    if (refreshedActiveContact) {
+                        activeContact = refreshedActiveContact;
+                        elements.contactName.textContent = getContactDisplayName(activeContact);
+                    }
+                }
                 if (!activeContact) {
                     activeContact = result.discovered[result.discovered.length - 1];
                     if (overlay && !overlay.hidden) selectContact(activeContact);
@@ -364,7 +397,7 @@ function closeContactChat() {
     returnFocusToTerminal = false;
 }
 
-export async function ensureChatRoom(firebase, myUid, targetUid) {
+export async function ensureChatRoom(firebase, myUid, targetUid, displayNames = {}) {
     const roomId = buildChatRoomId(myUid, targetUid);
     const roomRef = firebase.doc(firebase.db, "vaii_rooms", roomId);
     const participants = [myUid, targetUid].sort();
@@ -388,6 +421,10 @@ export async function ensureChatRoom(firebase, myUid, targetUid) {
     try {
         await firebase.setDoc(roomRef, {
             participants,
+            participantNames: {
+                [myUid]: getValidDisplayName(displayNames[myUid]),
+                [targetUid]: getValidDisplayName(displayNames[targetUid])
+            },
             createdAt: firebase.serverTimestamp()
         });
         return { roomId, participants };
@@ -403,6 +440,12 @@ export async function ensureChatRoom(firebase, myUid, targetUid) {
     }
 }
 
+function getValidDisplayName(name) {
+    return typeof name === "string" && name.trim()
+        ? name.trim().slice(0, 30)
+        : "";
+}
+
 async function selectContact(contact) {
     if (unsubscribeMessages) {
         unsubscribeMessages();
@@ -410,7 +453,7 @@ async function selectContact(contact) {
     }
 
     activeContact = contact;
-    elements.contactName.textContent = contact.name || contact.id;
+    elements.contactName.textContent = getContactDisplayName(contact);
     elements.contactId.textContent = contact.id;
     elements.messages.replaceChildren();
     elements.composer.disabled = false;
@@ -428,7 +471,10 @@ async function selectContact(contact) {
         const firebase = await getFirebaseModules();
         if (overlay.hidden || activeContact?.id !== contact.id) return;
 
-        const { roomId } = await ensureChatRoom(firebase, user.uid, contact.id);
+        const { roomId } = await ensureChatRoom(firebase, user.uid, contact.id, {
+            [user.uid]: getDisplayName(),
+            [contact.id]: contact.name
+        });
         if (overlay.hidden || activeContact?.id !== contact.id) return;
         const messagesQuery = firebase.query(
             firebase.collection(firebase.db, "vaii_rooms", roomId, "messages"),
@@ -437,7 +483,24 @@ async function selectContact(contact) {
         );
         unsubscribeMessages = firebase.onSnapshot(messagesQuery, snapshot => {
             if (!overlay.hidden && activeContact?.id === contact.id) {
-                renderMessages(snapshot.docs.map(document => document.data()));
+                const messages = snapshot.docs.map(document => document.data());
+                renderMessages(messages);
+                const latestPeerMessage = [...messages].reverse().find(message => message.senderId === contact.id);
+                if (latestPeerMessage?.senderName) {
+                    const updatedContacts = mergeMessageDisplayName(
+                        readContacts(),
+                        contact.id,
+                        latestPeerMessage.senderId,
+                        latestPeerMessage.senderName
+                    );
+                    const updatedContact = updatedContacts.find(saved => saved.id === contact.id);
+                    if (updatedContact && updatedContact.name !== contact.name) {
+                        saveContacts(updatedContacts);
+                        contact.name = updatedContact.name;
+                        elements.contactName.textContent = getContactDisplayName(contact);
+                        renderContacts();
+                    }
+                }
                 setStatus("Connected");
             }
         }, error => {
@@ -491,7 +554,10 @@ async function sendMessage() {
             throw new Error("You cannot send a message to your own Firebase UID.");
         }
         const firebase = await getFirebaseModules();
-        const { roomId } = await ensureChatRoom(firebase, user.uid, contact.id);
+        const { roomId } = await ensureChatRoom(firebase, user.uid, contact.id, {
+            [user.uid]: getDisplayName(),
+            [contact.id]: contact.name
+        });
         const message = createChatMessage(
             user.uid,
             getDisplayName(),
