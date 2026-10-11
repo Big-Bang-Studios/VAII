@@ -1,7 +1,36 @@
+const PRODUCTION_ORIGIN = 'https://vaii-two.vercel.app';
+
+function isAllowedOrigin(origin) {
+    if (origin === PRODUCTION_ORIGIN) return true;
+
+    try {
+        const parsedOrigin = new URL(origin);
+        return parsedOrigin.origin === origin
+            && ['http:', 'https:'].includes(parsedOrigin.protocol)
+            && ['localhost', '127.0.0.1', '[::1]'].includes(parsedOrigin.hostname);
+    } catch {
+        return false;
+    }
+}
+
 export default async function handler(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    const origin = req.headers.origin;
+    const allowedOrigin = typeof origin === 'string' && isAllowedOrigin(origin);
+    const sameOriginRequest = !origin && req.headers['sec-fetch-site'] === 'same-origin';
+
+    res.setHeader('Vary', 'Origin, Sec-Fetch-Site');
+    if (!allowedOrigin && !sameOriginRequest) {
+        return res.status(403).json({ error: 'Origin not allowed' });
+    }
+
+    if (allowedOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    }
     if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'GET') {
+        return res.status(405).json({ error: 'Method not allowed' });
+    }
 
     const { url, q, limit, channelLimit, action, channelId, channelName, handle } = req.query;
 

@@ -84,6 +84,9 @@ Configure client-side API keys within `script.js`, and server-side credentials i
 6. **GNews API Key:** Required for live news feeds.
 7. **SerpApi eBay search:** Set `SERPAPI_API_KEY` as a server environment variable. Create a SerpApi account and copy its API key from the dashboard. Keep the key server-side; do not add it to `script.js`.
 
+### Proxy Origin Access
+The `/api/proxy` endpoint accepts browser requests from `https://vaii-two.vercel.app` and localhost origins. Same-origin browser requests without an `Origin` header are accepted only when the browser marks them as `same-origin`. This protects browser users from cross-origin sites reading proxy results; origin headers are not authentication and can be forged by non-browser clients.
+
 ---
 
 ## 📁 File Structure
