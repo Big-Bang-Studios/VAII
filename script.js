@@ -1,5 +1,6 @@
 import { LOCAL_FOOD_DB } from "./foodData.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { firebaseConfig } from "./firebaseConfig.js";
 import { 
     getAuth, 
     GoogleAuthProvider, 
@@ -12,6 +13,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 import { launchTerminalSandbox } from "./terminal.js";
+import { initializeContactChat } from "./chat.js";
 
 const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : function() {};
 
@@ -1123,19 +1125,10 @@ window.openVAIIHackerNewsView = function(storyId, rawTitle, rawUrl, points, auth
 // ==========================================
 // 1. CONFIG & KEYS
 // ==========================================
-const firebaseConfig = {
-    apiKey: "AIzaSyA6RmZ6rquzUR1dct30s355PzLu-r1_fwE",
-    authDomain: "vaiinternet.firebaseapp.com",
-    projectId: "vaiinternet",
-    storageBucket: "vaiinternet.firebasestorage.app",
-    messagingSenderId: "367548633672",
-    appId: "1:367548633672:web:44da44d1761085424b3e7d",
-    measurementId: "G-0XBYP585WQ"
-};
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+initializeContactChat();
 
 const GOOGLE_API_KEY = "AIzaSyAJ" + "KTkU0nd6" + "ZB_zjIcN" + "QCAQQsff" + "HEp4WH8";
 const GEMINI_VISION_KEY = "AQ.Ab8RN" + "6IiGSicf" + "y3sfYb6e" + "QFhREt91" + "jzzekq6x" + "bSDJKldM" + "LqOpg";

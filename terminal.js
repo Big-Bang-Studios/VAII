@@ -1,6 +1,8 @@
 // ==========================================
 // TERMINAL SANDBOX, VFS & EXTENDED UNIX ENGINE
 // ==========================================
+import { openContactChat } from "./chat.js";
+
 const VFS_STORAGE_KEY = 'vaii_terminal_vfs';
 const HISTORY_STORAGE_KEY = 'vaii_terminal_history';
 const PKG_STORAGE_KEY = 'vaii_terminal_pkgs';
@@ -73,7 +75,7 @@ export function getDefaultVFS() {
         "/": { type: "dir", children: ["home", "bin", "usr", "etc", "var", "tmp"], mtime: SYSTEM_INIT_TIME },
         "/home": { type: "dir", children: ["guest"], mtime: SYSTEM_INIT_TIME },
         "/home/guest": { type: "dir", children: ["readme.txt", "welcome.sh"], mtime: SYSTEM_INIT_TIME },
-        "/home/guest/readme.txt": { type: "file", content: "Welcome to VAII Unix 3.0!\nInstall tools with: apt install python3 git\nTry: git ide, python3, neofetch, pipes (|), &&, ||, ;", mtime: SYSTEM_INIT_TIME },
+        "/home/guest/readme.txt": { type: "file", content: "Welcome to VAII Unix 3.0!\nInstall tools with: apt install python3 git\nTry: chat, git ide, python3, neofetch, pipes (|), &&, ||, ;", mtime: SYSTEM_INIT_TIME },
         "/home/guest/welcome.sh": { type: "file", content: "echo 'VAII Matrix Engine Online!'", mtime: SYSTEM_INIT_TIME },
         "/bin": { type: "dir", children: ["sh", "echo", "ls", "cat", "pwd", "apt", "pkg"], mtime: SYSTEM_INIT_TIME },
         "/usr": { type: "dir", children: ["bin"], mtime: SYSTEM_INIT_TIME },
@@ -343,6 +345,7 @@ export async function executeShellCommand(cmdStr, logs, container, prompt, stdIn
   <span style="color:#58a6ff;">git pull &lt;file&gt;</span>         Download file from repo into VFS
   <span style="color:#58a6ff;">git push &lt;file&gt;</span>         Commit/upload local file to GitHub repo
   <span style="color:#58a6ff;">python3 [file.py]</span>       Run Python 3 code or open the interactive REPL (first run downloads the runtime)
+  <span style="color:#58a6ff;">chat / /chat</span>             Open VAII contact chat
   <span style="color:#58a6ff;">nano &lt;file&gt;</span>             Simple text editor (:wq to save, :q to quit)
   <span style="color:#58a6ff;">ls [-l]</span>                 List directory entries
   <span style="color:#58a6ff;">tree [path]</span>             Directory tree hierarchy
@@ -435,6 +438,11 @@ export async function executeShellCommand(cmdStr, logs, container, prompt, stdIn
                 printLog(`Python 3 (Pyodide, ${new Date().toLocaleDateString()})\nType "help", "copyright", "credits" or "license" for more information.\nType exit() or quit() to return to shell.\n`);
                 return { success: true, output: outputBuffer };
             }
+
+        case "chat":
+        case "/chat":
+            openContactChat();
+            return { success: true, output: outputBuffer };
 
         case "node":
         case "nodejs":

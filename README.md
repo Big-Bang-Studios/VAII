@@ -52,6 +52,7 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **🪙 Crypto & Market Tickers:** Queries CoinGecko asset prices, 24-hour changes, market caps, and volumes with `crypto [symbol]`; stock ticker routing remains available.
 * **📡 Service Status Monitor:** Checks live GitHub, Discord, and Cloudflare status summaries with `status [provider]`.
 * **🎨 AI Art Generation:** Generates on-demand graphics via **Pollinations AI**.
+* **💬 Contact Chat:** Type `chat` or `/chat` in the terminal for a fullscreen contact chat backed by Firebase Firestore. Share a user-specific invite link or add a contact by ID; contact profiles are stored locally in the browser.
 
 ---
 
@@ -76,7 +77,7 @@ Google Cloud security policies (`Error 403: disallowed_useragent`) block OAuth s
 
 Configure client-side API keys within `script.js`, and server-side credentials in your deployment environment:
 
-1. **Firebase Config:** Initialize your project credentials (`apiKey`, `authDomain`, `projectId`).
+1. **Firebase Config:** Initialize your project credentials (`apiKey`, `authDomain`, `projectId`) in `firebaseConfig.js`. The contact chat also requires Firestore to be enabled and client rules configured for your intended access model.
 2. **Google Maps API Key:** Required for spatial rendering and the Local Food Concierge (`&libraries=places`).
 3. **Google Cloud / Gemini API Key:** Required for Vision analysis and Gemini fallback tiers.
 4. **YouTube Data API Key:** Required for creator subscriber metrics.
@@ -92,5 +93,7 @@ The `/api/proxy` endpoint accepts browser requests from `https://vaii-two.vercel
 ## 📁 File Structure
 
 * `index.html`: Complete single-page layout, responsive CSS, and sliding drawer containers.
-* `script.js`: Core ES6 controller handling Firebase Auth, routing patterns, API fetchers, and chat state.
+* `script.js`: Core ES6 controller handling Firebase Auth, routing patterns, and API fetchers.
+* `firebaseConfig.js`: Shared Firebase project configuration for Auth and Firestore.
+* `chat.js`: Fullscreen terminal contact chat and Firestore message listeners.
 * `privacy.html`: Local data storage and API telemetry policies.
