@@ -32,7 +32,10 @@ let heredocTargetFile = null;
 let heredocAppend = false;
 
 let pythonReplMode = false;
-let pythonScope = {};
+let pythonRuntimePromise = null;
+let pythonNamespace = null;
+let pythonStdout = "";
+let pythonStderr = "";
 
 let nanoMode = false;
 let nanoTargetFile = null;
@@ -209,91 +212,59 @@ export function parseCommandPipeline(input) {
     return tokens;
 }
 
-export function executePythonCode(codeStr, logs) {
-    if (!codeStr || !codeStr.trim()) return;
+function escapeTerminalHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    })[character]);
+}
 
-    try {
-        const stdout = [];
-        const pyPrint = (...args) => {
-            stdout.push(args.map(a => typeof a === 'object' && a !== null ? JSON.stringify(a) : String(a)).join(" "));
-        };
-
-        const context = {
-            print: pyPrint,
-            len: (obj) => obj ? (obj.length ?? Object.keys(obj).length) : 0,
-            range: (start, stop, step = 1) => {
-                if (stop === undefined) { stop = start; start = 0; }
-                const arr = [];
-                for (let i = start; step > 0 ? i < stop : i > stop; i += step) arr.push(i);
-                return arr;
-            },
-            str: (v) => String(v),
-            int: (v) => parseInt(v, 10) || 0,
-            float: (v) => parseFloat(v) || 0.0,
-            bool: (v) => Boolean(v),
-            True: true,
-            False: false,
-            None: null,
-            ...pythonScope
-        };
-
-        const lines = codeStr.replace(/\r\n/g, "\n").split("\n");
-        const processedLines = lines.map(line => {
-            const trimmed = line.trim();
-            if (trimmed.startsWith("#")) return "";
-
-            let l = line;
-            l = l.replace(/(['"])(.*?)\1/g, (match) => match);
-            l = l.replace(/\bTrue\b/g, "true");
-            l = l.replace(/\bFalse\b/g, "false");
-            l = l.replace(/\bNone\b/g, "null");
-
-            // Python f-strings f"hello {name}" -> `hello ${name}`
-            l = l.replace(/\bf(["'])(.*?)\1/g, '`$2`');
-
-            // Handle bare single line expression in REPL
-            if (!l.includes("=") && !l.includes("print(") && !l.startsWith("def ") && !l.startsWith("for ") && !l.startsWith("if ") && !l.startsWith("while ")) {
-                if (trimmed.length > 0 && !trimmed.endsWith(";")) {
-                    return `__last_eval = (${l});`;
-                }
-            }
-
-            // Assign variables directly to context scope
-            const assignMatch = l.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
-            if (assignMatch && !l.startsWith("def ")) {
-                return `this.${assignMatch[1]} = ${assignMatch[2]};`;
-            }
-
-            return l;
+async function getPythonRuntime() {
+    if (!pythonRuntimePromise) {
+        const version = "0.27.7";
+        const indexURL = `https://cdn.jsdelivr.net/pyodide/v${version}/full/`;
+        pythonRuntimePromise = (async () => {
+            const { loadPyodide } = await import(`${indexURL}pyodide.mjs`);
+            const runtime = await loadPyodide({ indexURL });
+            runtime.setStdout({ raw: character => { pythonStdout += String.fromCodePoint(character); } });
+            runtime.setStderr({ raw: character => { pythonStderr += String.fromCodePoint(character); } });
+            return runtime;
+        })().catch(error => {
+            pythonRuntimePromise = null;
+            throw error;
         });
+    }
+    return pythonRuntimePromise;
+}
 
-        const scriptBody = `
-            let __last_eval = undefined;
-            ${processedLines.join("\n")};
-            return __last_eval;
-        `;
+export async function executePythonCode(codeStr, logs) {
+    if (!codeStr || !codeStr.trim()) return true;
 
-        const runner = new Function("context", `
-            with (context) {
-                ${scriptBody}
-            }
-        `);
-
-        const lastEval = runner.call(pythonScope, context);
-        Object.assign(pythonScope, context);
-
-        if (stdout.length > 0) {
-            logs.innerHTML += stdout.join("\n") + "\n";
+    pythonStdout = "";
+    pythonStderr = "";
+    try {
+        const runtime = await getPythonRuntime();
+        if (!pythonNamespace) {
+            pythonNamespace = runtime.runPython("dict(__name__='__main__', __builtins__=__builtins__)");
         }
-        if (lastEval !== undefined && stdout.length === 0) {
-            logs.innerHTML += `<span style="color:#3572A5;">${typeof lastEval === 'object' ? JSON.stringify(lastEval) : lastEval}</span>\n`;
+        await runtime.runPythonAsync(codeStr, { globals: pythonNamespace });
+
+        if (pythonStdout) logs.innerHTML += escapeTerminalHtml(pythonStdout);
+        if (pythonStderr) {
+            logs.innerHTML += `<span style="color:#f85149;">${escapeTerminalHtml(pythonStderr)}</span>`;
         }
-    } catch (e) {
-        logs.innerHTML += `<span style="color:#f85149;">Traceback (most recent call last):\n  File "&lt;stdin&gt;", line 1, in &lt;module&gt;\n${e.name}: ${e.message}</span>\n`;
+        return true;
+    } catch (error) {
+        const output = pythonStderr || error.message || String(error);
+        logs.innerHTML += `<span style="color:#f85149;">${escapeTerminalHtml(output)}${output.endsWith("\n") ? "" : "\n"}</span>`;
+        return false;
     }
 }
 
-export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "", captureOutput = false) {
+export async function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "", captureOutput = false) {
     if (!cmdStr) return { success: true, output: "" };
 
     let outputBuffer = "";
@@ -371,7 +342,7 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
   <span style="color:#58a6ff;">git ide</span>                 GitHub Cloud IDE instructions & connection
   <span style="color:#58a6ff;">git pull &lt;file&gt;</span>         Download file from repo into VFS
   <span style="color:#58a6ff;">git push &lt;file&gt;</span>         Commit/upload local file to GitHub repo
-  <span style="color:#58a6ff;">python3 [file.py]</span>       Interactive REPL, run file, or python3 -c "code"
+  <span style="color:#58a6ff;">python3 [file.py]</span>       Run Python 3 code or open the interactive REPL (first run downloads the runtime)
   <span style="color:#58a6ff;">nano &lt;file&gt;</span>             Simple text editor (:wq to save, :q to quit)
   <span style="color:#58a6ff;">ls [-l]</span>                 List directory entries
   <span style="color:#58a6ff;">tree [path]</span>             Directory tree hierarchy
@@ -444,15 +415,15 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
                 if ((codeStr.startsWith("'") && codeStr.endsWith("'")) || (codeStr.startsWith('"') && codeStr.endsWith('"'))) {
                     codeStr = codeStr.slice(1, -1);
                 }
-                executePythonCode(codeStr, logs);
-                return { success: true, output: outputBuffer };
+                const success = await executePythonCode(codeStr, logs);
+                return { success, output: outputBuffer };
             }
 
             if (args[0]) {
                 const pyFile = resolvePath(args[0]);
                 if (vfs[pyFile] && vfs[pyFile].type === "file") {
-                    executePythonCode(vfs[pyFile].content, logs);
-                    return { success: true, output: outputBuffer };
+                    const success = await executePythonCode(vfs[pyFile].content, logs);
+                    return { success, output: outputBuffer };
                 } else {
                     printLog(`<span style="color:#f85149;">python3: can't open file '${args[0]}': [Errno 2] No such file</span>\n`, true);
                     return { success: false, output: outputBuffer };
@@ -461,7 +432,7 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
                 pythonReplMode = true;
                 prompt.innerText = ">>>";
                 prompt.style.color = "#3572A5";
-                printLog(`Python 3.11.0 (vaii-subsystem, ${new Date().toLocaleDateString()})\nType "help", "copyright", "credits" or "license" for more information.\nType exit() or quit() to return to shell.\n`);
+                printLog(`Python 3 (Pyodide, ${new Date().toLocaleDateString()})\nType "help", "copyright", "credits" or "license" for more information.\nType exit() or quit() to return to shell.\n`);
                 return { success: true, output: outputBuffer };
             }
 
@@ -1046,7 +1017,10 @@ export function executeShellCommand(cmdStr, logs, container, prompt, stdIn = "",
             localStorage.removeItem(VFS_STORAGE_KEY);
             localStorage.removeItem(PKG_STORAGE_KEY);
             termCurrentPath = "/home/guest";
-            pythonScope = {};
+            if (pythonNamespace) {
+                pythonNamespace.destroy();
+                pythonNamespace = null;
+            }
             printLog(`Virtual filesystem and package registries reset to factory defaults.\n`);
             return { success: true, output: "" };
 
@@ -1075,7 +1049,7 @@ function renderTreeHelper(vfs, dirPath, prefix = "") {
     return output;
 }
 
-export function runCommandPipeline(rawCmd, logs, termContainer, prompt) {
+export async function runCommandPipeline(rawCmd, logs, termContainer, prompt) {
     const tokens = parseCommandPipeline(rawCmd);
     let lastSuccess = true;
     let pipeInput = "";
@@ -1101,7 +1075,7 @@ export function runCommandPipeline(rawCmd, logs, termContainer, prompt) {
             }
         } else if (token.type === 'cmd') {
             const isPiped = (tokens[i + 1] && tokens[i + 1].val === '|');
-            const result = executeShellCommand(token.val, logs, termContainer, prompt, pipeInput, isPiped);
+            const result = await executeShellCommand(token.val, logs, termContainer, prompt, pipeInput, isPiped);
             lastSuccess = result.success;
             pipeInput = result.output || "";
         }
@@ -1162,7 +1136,7 @@ export function launchTerminalSandbox() {
 
     termContainer.onclick = () => input.focus();
 
-    input.onkeydown = (e) => {
+    input.onkeydown = async (e) => {
         let history = getTerminalHistory();
         if (e.key === 'Enter') {
             const rawLine = input.value;
@@ -1215,7 +1189,12 @@ export function launchTerminalSandbox() {
                     prompt.style.color = "#7ee787";
                     logs.innerHTML += `[Python REPL session closed]\n`;
                 } else {
-                    executePythonCode(rawLine, logs);
+                    input.disabled = true;
+                    try {
+                        await executePythonCode(rawLine, logs);
+                    } finally {
+                        input.disabled = false;
+                    }
                 }
                 input.value = "";
                 logs.scrollTop = logs.scrollHeight;
@@ -1260,9 +1239,13 @@ export function launchTerminalSandbox() {
             }
             logs.innerHTML += `\n<span style="color:#7ee787;">${termEnvironment.USER}@${termEnvironment.HOSTNAME}:${termCurrentPath}$</span> ${rawLine}\n`;
 
-            runCommandPipeline(rawCmd, logs, termContainer, prompt);
-
             input.value = "";
+            input.disabled = true;
+            try {
+                await runCommandPipeline(rawCmd, logs, termContainer, prompt);
+            } finally {
+                input.disabled = false;
+            }
             if (!heredocMode && !pythonReplMode && !nanoMode) {
                 prompt.innerText = `${termEnvironment.USER}@${termEnvironment.HOSTNAME}:${termCurrentPath}$`;
             }
