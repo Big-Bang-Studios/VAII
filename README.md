@@ -52,7 +52,7 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **🪙 Crypto & Market Tickers:** Queries CoinGecko asset prices, 24-hour changes, market caps, and volumes with `crypto [symbol]`; stock ticker routing remains available.
 * **📡 Service Status Monitor:** Checks live GitHub, Discord, and Cloudflare status summaries with `status [provider]`.
 * **🎨 AI Art Generation:** Generates on-demand graphics via **Pollinations AI**.
-* **💬 Contact Chat:** Type `chat` or `/chat` in the terminal for a fullscreen contact chat backed by Firebase Firestore. Share a user-specific invite link or add a contact by ID; contact profiles are stored locally in the browser.
+* **💬 Contact Chat:** Type `chat` or `/chat` in the terminal for a fullscreen contact chat backed by Firebase Firestore. Chat uses the app's Firebase Auth identity (anonymous Auth for unauthenticated visitors), shares UID-based invite links, and stores contact lists and display names locally in the browser. Legacy contacts created with local-only IDs are intentionally not migrated.
 
 ---
 
@@ -77,7 +77,7 @@ Google Cloud security policies (`Error 403: disallowed_useragent`) block OAuth s
 
 Configure client-side API keys within `script.js`, and server-side credentials in your deployment environment:
 
-1. **Firebase Config:** Initialize your project credentials (`apiKey`, `authDomain`, `projectId`) in `firebaseConfig.js`. The contact chat also requires Firestore to be enabled and client rules configured for your intended access model.
+1. **Firebase Config:** Initialize your project credentials (`apiKey`, `authDomain`, `projectId`) in `firebaseConfig.js`. The contact chat requires Firestore and Firebase Anonymous Authentication to be enabled, as well as client rules that authorize authenticated room participants and validate messages. Anonymous identities persist with Firebase Auth on the current browser/device; users changing devices need a linked or otherwise recoverable Auth account to retain the same UID.
 2. **Google Maps API Key:** Required for spatial rendering and the Local Food Concierge (`&libraries=places`).
 3. **Google Cloud / Gemini API Key:** Required for Vision analysis and Gemini fallback tiers.
 4. **YouTube Data API Key:** Required for creator subscriber metrics.

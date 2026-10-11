@@ -9,11 +9,12 @@ import {
     signInWithEmailAndPassword, 
     createUserWithEmailAndPassword, 
     onAuthStateChanged, 
+    signInAnonymously,
     signOut 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 import { launchTerminalSandbox } from "./terminal.js";
-import { initializeContactChat, openContactChat } from "./chat.js";
+import { configureContactChat, initializeContactChat, openContactChat } from "./chat.js";
 
 const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : function() {};
 
@@ -1128,6 +1129,7 @@ window.openVAIIHackerNewsView = function(storyId, rawTitle, rawUrl, points, auth
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+configureContactChat({ app, auth, onAuthStateChanged, signInAnonymously });
 initializeContactChat();
 
 const GOOGLE_API_KEY = "AIzaSyAJ" + "KTkU0nd6" + "ZB_zjIcN" + "QCAQQsff" + "HEp4WH8";

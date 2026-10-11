@@ -1,13 +1,17 @@
-import { firebaseConfig } from "./firebaseConfig.js";
-
 const FIREBASE_VERSION = "10.8.0";
-const USER_ID_KEY = "vaii_chat_user_id";
 const USERNAME_KEY = "vaii_chat_username";
-const CONTACTS_KEY = "vaii_chat_contacts";
-const FIREBASE_APP_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`;
+const CONTACTS_KEY = "vaii_chat_contacts_v2";
 const FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`;
 
 let firebaseModulesPromise = null;
+let firebaseApp = null;
+let firebaseAuth = null;
+let observeAuthState = null;
+let signInAnonymously = null;
+let authStatePromise = null;
+let anonymousSignInPromise = null;
+let authIdentityUnsubscribe = null;
+let observedAuthUid;
 let overlay = null;
 let elements = null;
 let activeContact = null;
@@ -15,20 +19,13 @@ let unsubscribeMessages = null;
 let returnFocusToTerminal = false;
 let previousFocus = null;
 
-function getUserIdentity() {
-    let userId = localStorage.getItem(USER_ID_KEY);
-    if (!userId) {
-        userId = `user_${Math.random().toString(36).substring(2, 9)}`;
-        localStorage.setItem(USER_ID_KEY, userId);
-    }
-
+function getDisplayName() {
     let username = localStorage.getItem(USERNAME_KEY);
     if (!username) {
         username = `Guest_${Math.floor(1000 + Math.random() * 9000)}`;
         localStorage.setItem(USERNAME_KEY, username);
     }
-
-    return { userId, username };
+    return username.slice(0, 30);
 }
 
 function readContacts() {
@@ -51,7 +48,105 @@ function saveContacts(contacts) {
 }
 
 function isValidUserId(userId) {
-    return /^[A-Za-z0-9_-]{1,64}$/.test(userId);
+    return typeof userId === "string" &&
+        userId.length > 0 &&
+        userId.length <= 128 &&
+        !userId.includes("/");
+}
+
+export function buildChatRoomId(firstUid, secondUid) {
+    if (!isValidUserId(firstUid) || !isValidUserId(secondUid) || firstUid === secondUid) {
+        throw new Error("A chat room requires two different valid Firebase UIDs.");
+    }
+    return [firstUid, secondUid].sort().join("_");
+}
+
+export function hasExpectedRoomParticipants(participants, firstUid, secondUid) {
+    if (!isValidUserId(firstUid) || !isValidUserId(secondUid) || firstUid === secondUid) return false;
+    const expected = [firstUid, secondUid].sort();
+    return Array.isArray(participants) &&
+        participants.length === 2 &&
+        new Set(participants).size === 2 &&
+        participants[0] === expected[0] &&
+        participants[1] === expected[1];
+}
+
+export function createChatMessage(senderId, senderName, text, createdAt) {
+    const normalizedText = typeof text === "string" ? text.trim() : "";
+    const normalizedName = typeof senderName === "string" ? senderName.trim().slice(0, 30) : "";
+    if (!isValidUserId(senderId) || !normalizedName || normalizedText.length < 1 || normalizedText.length > 500) {
+        throw new Error("Message must include a valid sender, display name, and 1–500 characters of text.");
+    }
+    return { senderId, senderName: normalizedName, text: normalizedText, createdAt };
+}
+
+export function configureContactChat({ app, auth, onAuthStateChanged, signInAnonymously: anonymousSignIn }) {
+    if (!app || !auth || auth.app !== app || !onAuthStateChanged || !anonymousSignIn) {
+        throw new Error("Contact chat requires the VAII Firebase app and its Auth methods.");
+    }
+    firebaseApp = app;
+    firebaseAuth = auth;
+    observeAuthState = onAuthStateChanged;
+    signInAnonymously = anonymousSignIn;
+    authStatePromise = null;
+    anonymousSignInPromise = null;
+    firebaseModulesPromise = null;
+    authIdentityUnsubscribe?.();
+    observedAuthUid = undefined;
+    authIdentityUnsubscribe = observeAuthState(firebaseAuth, user => {
+        const nextUid = user?.uid || null;
+        if (observedAuthUid !== undefined && observedAuthUid !== null && observedAuthUid !== nextUid) {
+            if (unsubscribeMessages) {
+                unsubscribeMessages();
+                unsubscribeMessages = null;
+            }
+            activeContact = null;
+            closeContactChat();
+        }
+        if (!user) anonymousSignInPromise = null;
+        observedAuthUid = nextUid;
+    }, error => {
+        console.error("Chat authentication state listener failed:", error);
+        setStatus(`Authentication error: ${error.message}`, true);
+    });
+}
+
+export async function getAuthenticatedUser() {
+    if (!firebaseAuth || !observeAuthState || !signInAnonymously) {
+        throw new Error("Firebase Authentication is not configured for chat.");
+    }
+    if (firebaseAuth.currentUser) return firebaseAuth.currentUser;
+
+    if (!authStatePromise) {
+        authStatePromise = new Promise((resolve, reject) => {
+            let unsubscribe;
+            unsubscribe = observeAuthState(firebaseAuth, user => {
+                unsubscribe();
+                resolve(user);
+            }, error => {
+                unsubscribe?.();
+                reject(error);
+            });
+        }).catch(error => {
+            authStatePromise = null;
+            throw error;
+        });
+    }
+
+    await authStatePromise;
+    if (firebaseAuth.currentUser) return firebaseAuth.currentUser;
+    if (!anonymousSignInPromise) {
+        anonymousSignInPromise = signInAnonymously(firebaseAuth)
+            .then(credential => {
+                anonymousSignInPromise = null;
+                return credential.user;
+            })
+            .catch(error => {
+                anonymousSignInPromise = null;
+                throw error;
+            });
+    }
+    return anonymousSignInPromise;
 }
 
 function setStatus(message, isError = false) {
@@ -62,16 +157,15 @@ function setStatus(message, isError = false) {
 
 async function getFirebaseModules() {
     if (!firebaseModulesPromise) {
-        firebaseModulesPromise = Promise.all([
-            import(FIREBASE_APP_URL),
-            import(FIRESTORE_URL)
-        ]).then(([appModule, firestoreModule]) => {
-            const app = appModule.getApps().find(candidate =>
-                candidate.options.projectId === firebaseConfig.projectId
-            ) || appModule.initializeApp(firebaseConfig, "vaii-chat");
-
+        firebaseModulesPromise = import(FIRESTORE_URL).then(firestoreModule => {
+            if (!firebaseApp) {
+                throw new Error("Firebase is not configured for chat.");
+            }
             return {
-                db: firestoreModule.getFirestore(app),
+                db: firestoreModule.getFirestore(firebaseApp),
+                doc: firestoreModule.doc,
+                getDoc: firestoreModule.getDoc,
+                setDoc: firestoreModule.setDoc,
                 collection: firestoreModule.collection,
                 addDoc: firestoreModule.addDoc,
                 onSnapshot: firestoreModule.onSnapshot,
@@ -133,7 +227,7 @@ function renderMessages(messages) {
         empty.textContent = "No messages yet. Say hello!";
         elements.messages.append(empty);
     } else {
-        const { userId } = getUserIdentity();
+        const userId = firebaseAuth?.currentUser?.uid;
         messages.forEach(message => {
             const item = document.createElement("article");
             item.className = `vaii-chat-message${message.senderId === userId ? " vaii-chat-message-own" : ""}`;
@@ -142,6 +236,9 @@ function renderMessages(messages) {
             heading.className = "vaii-chat-message-heading";
             const sender = document.createElement("strong");
             sender.textContent = message.senderName || message.senderId || "Unknown";
+            const senderUid = document.createElement("span");
+            senderUid.className = "vaii-chat-message-uid";
+            senderUid.textContent = message.senderId ? `UID ${message.senderId}` : "Unverified sender";
             const time = document.createElement("time");
             if (message.createdAt?.toDate) {
                 time.dateTime = message.createdAt.toDate().toISOString();
@@ -152,7 +249,7 @@ function renderMessages(messages) {
             } else {
                 time.textContent = "Sending…";
             }
-            heading.append(sender, time);
+            heading.append(sender, senderUid, time);
 
             const text = document.createElement("p");
             text.textContent = typeof message.text === "string" ? message.text : "";
@@ -186,6 +283,45 @@ function closeContactChat() {
     returnFocusToTerminal = false;
 }
 
+export async function ensureChatRoom(firebase, myUid, targetUid) {
+    const roomId = buildChatRoomId(myUid, targetUid);
+    const roomRef = firebase.doc(firebase.db, "vaii_rooms", roomId);
+    const participants = [myUid, targetUid].sort();
+    const validateExistingRoom = snapshot => {
+        if (!snapshot.exists()) return false;
+        const roomData = snapshot.data();
+        if (!hasExpectedRoomParticipants(roomData.participants, myUid, targetUid)) {
+            throw new Error("This room already exists with a different participant list; access was not granted.");
+        }
+        return true;
+    };
+
+    let existingRoom;
+    try {
+        existingRoom = await firebase.getDoc(roomRef);
+    } catch {
+        // Rules may deny reads of a missing room; try the create-only write next.
+    }
+    if (existingRoom && validateExistingRoom(existingRoom)) return { roomId, participants };
+
+    try {
+        await firebase.setDoc(roomRef, {
+            participants,
+            createdAt: firebase.serverTimestamp()
+        });
+        return { roomId, participants };
+    } catch (createError) {
+        let roomSnapshot;
+        try {
+            roomSnapshot = await firebase.getDoc(roomRef);
+        } catch {
+            throw createError;
+        }
+        if (validateExistingRoom(roomSnapshot)) return { roomId, participants };
+        throw createError;
+    }
+}
+
 async function selectContact(contact) {
     if (unsubscribeMessages) {
         unsubscribeMessages();
@@ -202,11 +338,17 @@ async function selectContact(contact) {
     setStatus("Connecting to Firestore…");
 
     try {
+        const user = await getAuthenticatedUser();
+        if (overlay.hidden || activeContact?.id !== contact.id) return;
+        if (user.uid === contact.id) {
+            throw new Error("You cannot start a chat with your own Firebase UID.");
+        }
+
         const firebase = await getFirebaseModules();
         if (overlay.hidden || activeContact?.id !== contact.id) return;
 
-        const { userId } = getUserIdentity();
-        const roomId = [userId, contact.id].sort().join("_");
+        const { roomId } = await ensureChatRoom(firebase, user.uid, contact.id);
+        if (overlay.hidden || activeContact?.id !== contact.id) return;
         const messagesQuery = firebase.query(
             firebase.collection(firebase.db, "vaii_rooms", roomId, "messages"),
             firebase.orderBy("createdAt", "asc"),
@@ -229,13 +371,8 @@ async function selectContact(contact) {
 
 function addContact(userId, name = "") {
     const normalizedId = userId.trim();
-    const { userId: myUserId } = getUserIdentity();
     if (!isValidUserId(normalizedId)) {
-        setStatus("Enter a valid contact ID (letters, numbers, _ or -, up to 64 characters).", true);
-        return null;
-    }
-    if (normalizedId === myUserId) {
-        setStatus("You cannot add your own user ID.", true);
+        setStatus("Enter a valid Firebase UID (up to 128 characters, without /).", true);
         return null;
     }
 
@@ -243,7 +380,7 @@ function addContact(userId, name = "") {
     const existing = contacts.find(contact => contact.id === normalizedId);
     const contact = {
         id: normalizedId,
-        name: name.trim() || existing?.name || normalizedId
+        name: name.trim().slice(0, 30) || existing?.name || normalizedId
     };
     if (existing) {
         Object.assign(existing, contact);
@@ -268,17 +405,21 @@ async function sendMessage() {
     elements.send.disabled = true;
     setStatus("Sending…");
     try {
+        const user = await getAuthenticatedUser();
+        if (user.uid === contact.id) {
+            throw new Error("You cannot send a message to your own Firebase UID.");
+        }
         const firebase = await getFirebaseModules();
-        const { userId, username } = getUserIdentity();
-        const roomId = [userId, contact.id].sort().join("_");
+        const { roomId } = await ensureChatRoom(firebase, user.uid, contact.id);
+        const message = createChatMessage(
+            user.uid,
+            getDisplayName(),
+            text,
+            firebase.serverTimestamp()
+        );
         await firebase.addDoc(
             firebase.collection(firebase.db, "vaii_rooms", roomId, "messages"),
-            {
-                senderId: userId,
-                senderName: username,
-                text,
-                createdAt: firebase.serverTimestamp()
-            }
+            message
         );
         elements.composer.value = "";
         if (!overlay.hidden && activeContact?.id === contact.id) {
@@ -362,6 +503,7 @@ function createChatOverlay() {
         .vaii-chat-message-own { align-self: flex-end; background: #12251b; border-color: #245b37; border-radius: 10px 10px 3px 10px; }
         .vaii-chat-message-heading { display: flex; align-items: baseline; gap: 12px; }
         .vaii-chat-message-heading strong { color: #7ee787; font-size: 12px; }
+        .vaii-chat-message-uid { color: #8b949e; font-size: 10px; overflow-wrap: anywhere; }
         .vaii-chat-message-heading time { color: #8b949e; font-size: 10px; }
         .vaii-chat-message p { white-space: pre-wrap; margin: 6px 0 0; }
         .vaii-chat-empty { margin: auto; color: #8b949e; text-align: center; padding: 12px; }
@@ -393,16 +535,16 @@ function createChatOverlay() {
                     <button class="vaii-chat-button" id="vaii-chat-rename" type="button">Rename</button>
                 </div>
                 <div class="vaii-chat-rename-row" id="vaii-chat-rename-controls" hidden>
-                    <input id="vaii-chat-rename-input" maxlength="32" aria-label="Display name">
+                    <input id="vaii-chat-rename-input" maxlength="30" aria-label="Display name">
                     <button class="vaii-chat-button" id="vaii-chat-rename-save" type="button">Save</button>
                     <button class="vaii-chat-button" id="vaii-chat-rename-cancel" type="button">Cancel</button>
                 </div>
             </div>
             <button class="vaii-chat-button vaii-chat-invite" id="vaii-chat-invite" type="button">Copy My Invite Link</button>
             <div>
-                <label class="vaii-chat-label" for="vaii-chat-add-input">ADD CONTACT BY ID</label>
+                <label class="vaii-chat-label" for="vaii-chat-add-input">ADD CONTACT BY FIREBASE UID</label>
                 <div class="vaii-chat-add-row">
-                    <input id="vaii-chat-add-input" placeholder="user_abc123" autocomplete="off">
+                    <input id="vaii-chat-add-input" placeholder="Firebase Auth UID" autocomplete="off">
                     <button class="vaii-chat-button" id="vaii-chat-add" type="button">Add</button>
                 </div>
             </div>
@@ -448,7 +590,7 @@ function createChatOverlay() {
 
     elements.rename.addEventListener("click", () => {
         elements.renameControls.hidden = false;
-        elements.renameInput.value = getUserIdentity().username;
+        elements.renameInput.value = getDisplayName();
         elements.renameInput.focus();
     });
     const saveUsername = () => {
@@ -458,8 +600,8 @@ function createChatOverlay() {
             elements.renameInput.focus();
             return;
         }
-        localStorage.setItem(USERNAME_KEY, username.slice(0, 32));
-        elements.username.textContent = username.slice(0, 32);
+        localStorage.setItem(USERNAME_KEY, username.slice(0, 30));
+        elements.username.textContent = username.slice(0, 30);
         elements.renameControls.hidden = true;
         setStatus("Display name updated.");
     };
@@ -473,9 +615,9 @@ function createChatOverlay() {
     });
 
     elements.invite.addEventListener("click", async () => {
-        const { userId, username } = getUserIdentity();
-        const inviteLink = `https://${window.location.host}/?addContact=${userId}&name=${encodeURIComponent(username)}`;
         try {
+            const user = await getAuthenticatedUser();
+            const inviteLink = `https://${window.location.host}/?addContact=${encodeURIComponent(user.uid)}&name=${encodeURIComponent(getDisplayName())}`;
             await navigator.clipboard.writeText(inviteLink);
             setStatus("Invite link copied to clipboard.");
         } catch (error) {
@@ -483,11 +625,20 @@ function createChatOverlay() {
         }
     });
 
-    const addContactFromInput = () => {
-        const contact = addContact(elements.addInput.value);
-        if (contact) {
+    const addContactFromInput = async () => {
+        try {
+            const user = await getAuthenticatedUser();
+            const targetUid = elements.addInput.value.trim();
+            if (targetUid === user.uid) {
+                setStatus("You cannot add your own Firebase UID.", true);
+                return;
+            }
+            const contact = addContact(targetUid);
+            if (!contact) return;
             elements.addInput.value = "";
             selectContact(contact);
+        } catch (error) {
+            setStatus(`Could not authenticate: ${error.message}`, true);
         }
     };
     elements.add.addEventListener("click", addContactFromInput);
@@ -510,8 +661,12 @@ function createChatOverlay() {
     });
 }
 
-export function openContactChat(contactId = "") {
+export function openContactChat(contactId = "", contactName = "") {
     if (!overlay) createChatOverlay();
+    if (unsubscribeMessages) {
+        unsubscribeMessages();
+        unsubscribeMessages = null;
+    }
 
     previousFocus = document.activeElement;
     const terminal = document.getElementById("vaii-terminal-overlay");
@@ -522,47 +677,59 @@ export function openContactChat(contactId = "") {
     terminalInput?.blur();
 
     overlay.hidden = false;
-    elements.username.textContent = getUserIdentity().username;
+    elements.username.textContent = getDisplayName();
     renderContacts();
+    elements.composer.disabled = true;
+    elements.send.disabled = true;
+    elements.add.disabled = true;
+    setStatus("Authenticating…");
+    elements.addInput.focus();
 
-    if (contactId) {
-        const contact = readContacts().find(savedContact => savedContact.id === contactId);
+    getAuthenticatedUser().then(user => {
+        if (overlay.hidden) return;
+        elements.add.disabled = false;
+        elements.username.textContent = getDisplayName();
+
+        let contact = null;
+        if (contactId) {
+            if (contactId === user.uid) {
+                setStatus("This invite points to your own Firebase UID.", true);
+                return;
+            }
+            contact = addContact(contactId, contactName || contactId);
+        } else if (activeContact) {
+            contact = readContacts().find(savedContact => savedContact.id === activeContact.id) || activeContact;
+        }
+
         if (contact) {
             selectContact(contact);
             elements.composer.focus();
             return;
         }
-    }
-
-    elements.composer.disabled = !activeContact;
-    elements.send.disabled = !activeContact;
-    if (activeContact) {
-        selectContact(activeContact);
-    } else {
+        activeContact = null;
+        elements.contactName.textContent = "Select a contact";
+        elements.contactId.textContent = "";
+        elements.composer.disabled = true;
+        elements.send.disabled = true;
         elements.messages.replaceChildren();
         const empty = document.createElement("p");
         empty.className = "vaii-chat-empty";
         empty.textContent = "Add a contact to start a conversation.";
         elements.messages.append(empty);
         setStatus("Ready");
-    }
-    if (elements.composer.disabled) {
-        elements.addInput.focus();
-    } else {
-        elements.composer.focus();
-    }
+    }).catch(error => setStatus(`Could not authenticate: ${error.message}`, true));
 }
 
 export function initializeContactChat() {
-    const { userId } = getUserIdentity();
     const inviteParams = new URLSearchParams(window.location.search);
     const targetUserId = inviteParams.get("addContact");
     if (!targetUserId) return;
 
-    let contact = null;
-    if (isValidUserId(targetUserId) && targetUserId !== userId) {
-        contact = addContact(targetUserId, inviteParams.get("name") || "");
-    }
+    const targetName = inviteParams.get("name") || "";
     window.history.replaceState({}, document.title, window.location.pathname);
-    if (contact) openContactChat(contact.id);
+    if (isValidUserId(targetUserId)) {
+        openContactChat(targetUserId, targetName);
+    } else {
+        console.error("Ignoring an invite URL with an invalid Firebase UID.");
+    }
 }
