@@ -14,7 +14,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 import { launchTerminalSandbox } from "./terminal.js";
-import { configureContactChat, initializeContactChat, openContactChat } from "./chat.js";
+import { configureContactChat, handleContactChatAuthState, initializeContactChat, openContactChat } from "./chat.js";
 
 const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : function() {};
 
@@ -6499,6 +6499,7 @@ authSubmitBtn?.addEventListener('click', () => {
 logoutActionBtn?.addEventListener('click', () => signOut(auth).catch(err => console.error(err)));
 
 onAuthStateChanged(auth, (user) => {
+    handleContactChatAuthState(user);
     if (user) {
         if (authContainer) authContainer.style.display = "none";
         if (mainApp) mainApp.style.display = "block";

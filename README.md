@@ -52,7 +52,7 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **🪙 Crypto & Market Tickers:** Queries CoinGecko asset prices, 24-hour changes, market caps, and volumes with `crypto [symbol]`; stock ticker routing remains available.
 * **📡 Service Status Monitor:** Checks live GitHub, Discord, and Cloudflare status summaries with `status [provider]`.
 * **🎨 AI Art Generation:** Generates on-demand graphics via **Pollinations AI**.
-* **💬 Contact Chat:** Type `chat` or `/chat` in the terminal for a fullscreen contact chat backed by Firebase Firestore. Chat uses the app's Firebase Auth identity (anonymous Auth for unauthenticated visitors), shares UID-based invite links, and stores contact lists and display names locally in the browser. Legacy contacts created with local-only IDs are intentionally not migrated.
+* **💬 Contact Chat:** Type `chat` or `/chat` in the terminal for a fullscreen contact chat backed by Firebase Firestore. Chat uses the app's Firebase Auth identity (anonymous Auth for unauthenticated visitors), shares UID-based invite links, and stores contact lists and display names locally in the browser. Authenticated clients discover rooms containing their own UID, so the recipient can open one invite link and the inviter learns the recipient UID from the shared room. Legacy contacts created with local-only IDs are intentionally not migrated.
 
 ---
 

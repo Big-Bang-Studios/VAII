@@ -10,7 +10,8 @@ let observeAuthState = null;
 let signInAnonymously = null;
 let authStatePromise = null;
 let anonymousSignInPromise = null;
-let authIdentityUnsubscribe = null;
+let unsubscribeRoomDiscovery = null;
+let discoveredRoomsUid = null;
 let observedAuthUid;
 let overlay = null;
 let elements = null;
@@ -71,6 +72,38 @@ export function hasExpectedRoomParticipants(participants, firstUid, secondUid) {
         participants[1] === expected[1];
 }
 
+export function getOtherRoomParticipant(participants, currentUid) {
+    if (!isValidUserId(currentUid) ||
+        !Array.isArray(participants) ||
+        participants.length !== 2 ||
+        new Set(participants).size !== 2 ||
+        !participants.every(isValidUserId) ||
+        !participants.includes(currentUid)) {
+        return null;
+    }
+    return participants.find(uid => uid !== currentUid) || null;
+}
+
+export function mergeDiscoveredRoomContacts(roomDataList, currentUid, contacts = []) {
+    const merged = new Map(
+        contacts
+            .filter(contact => contact && isValidUserId(contact.id) && typeof contact.name === "string")
+            .map(contact => [contact.id, { id: contact.id, name: contact.name }])
+    );
+    const discovered = [];
+
+    roomDataList.forEach(roomData => {
+        const peerUid = getOtherRoomParticipant(roomData?.participants, currentUid);
+        if (!peerUid || merged.has(peerUid)) return;
+
+        const contact = { id: peerUid, name: peerUid };
+        merged.set(peerUid, contact);
+        discovered.push(contact);
+    });
+
+    return { contacts: Array.from(merged.values()), discovered };
+}
+
 export function createChatMessage(senderId, senderName, text, createdAt) {
     const normalizedText = typeof text === "string" ? text.trim() : "";
     const normalizedName = typeof senderName === "string" ? senderName.trim().slice(0, 30) : "";
@@ -91,23 +124,30 @@ export function configureContactChat({ app, auth, onAuthStateChanged, signInAnon
     authStatePromise = null;
     anonymousSignInPromise = null;
     firebaseModulesPromise = null;
-    authIdentityUnsubscribe?.();
+    unsubscribeRoomDiscovery?.();
+    unsubscribeRoomDiscovery = null;
+    discoveredRoomsUid = null;
     observedAuthUid = undefined;
-    authIdentityUnsubscribe = observeAuthState(firebaseAuth, user => {
-        const nextUid = user?.uid || null;
-        if (observedAuthUid !== undefined && observedAuthUid !== null && observedAuthUid !== nextUid) {
-            if (unsubscribeMessages) {
-                unsubscribeMessages();
-                unsubscribeMessages = null;
-            }
-            activeContact = null;
-            closeContactChat();
+}
+
+export function handleContactChatAuthState(user) {
+    const nextUid = user?.uid || null;
+    if (observedAuthUid !== undefined && observedAuthUid !== null && observedAuthUid !== nextUid) {
+        unsubscribeRoomDiscovery?.();
+        unsubscribeRoomDiscovery = null;
+        discoveredRoomsUid = null;
+        if (unsubscribeMessages) {
+            unsubscribeMessages();
+            unsubscribeMessages = null;
         }
-        if (!user) anonymousSignInPromise = null;
-        observedAuthUid = nextUid;
-    }, error => {
-        console.error("Chat authentication state listener failed:", error);
-        setStatus(`Authentication error: ${error.message}`, true);
+        activeContact = null;
+        closeContactChat();
+    }
+    if (!user) anonymousSignInPromise = null;
+    observedAuthUid = nextUid;
+    if (user) startRoomDiscovery(user).catch(error => {
+        console.error("Chat room discovery failed:", error);
+        setStatus(`Could not discover chats: ${error.message}`, true);
     });
 }
 
@@ -167,6 +207,7 @@ async function getFirebaseModules() {
                 getDoc: firestoreModule.getDoc,
                 setDoc: firestoreModule.setDoc,
                 collection: firestoreModule.collection,
+                where: firestoreModule.where,
                 addDoc: firestoreModule.addDoc,
                 onSnapshot: firestoreModule.onSnapshot,
                 query: firestoreModule.query,
@@ -180,6 +221,46 @@ async function getFirebaseModules() {
         });
     }
     return firebaseModulesPromise;
+}
+
+async function startRoomDiscovery(user) {
+    if (discoveredRoomsUid === user.uid && unsubscribeRoomDiscovery) return;
+
+    unsubscribeRoomDiscovery?.();
+    unsubscribeRoomDiscovery = null;
+    discoveredRoomsUid = user.uid;
+
+    const firebase = await getFirebaseModules();
+    if (firebaseAuth?.currentUser?.uid !== user.uid || discoveredRoomsUid !== user.uid) return;
+
+    const userRoomsQuery = firebase.query(
+        firebase.collection(firebase.db, "vaii_rooms"),
+        firebase.where("participants", "array-contains", user.uid)
+    );
+    unsubscribeRoomDiscovery = firebase.onSnapshot(userRoomsQuery, snapshot => {
+        if (firebaseAuth?.currentUser?.uid !== user.uid || discoveredRoomsUid !== user.uid) return;
+
+        try {
+            const result = mergeDiscoveredRoomContacts(
+                snapshot.docs.map(document => document.data()),
+                user.uid,
+                readContacts()
+            );
+            if (result.discovered.length) {
+                saveContacts(result.contacts);
+                renderContacts();
+                if (!activeContact) {
+                    activeContact = result.discovered[result.discovered.length - 1];
+                    if (overlay && !overlay.hidden) selectContact(activeContact);
+                }
+            }
+        } catch (error) {
+            setStatus(`Could not save discovered contacts: ${error.message}`, true);
+        }
+    }, error => {
+        console.error("Chat room discovery listener failed:", error);
+        setStatus(`Could not discover chats: ${error.message}`, true);
+    });
 }
 
 function renderContacts() {

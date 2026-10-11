@@ -10,8 +10,10 @@ const {
     configureContactChat,
     createChatMessage,
     ensureChatRoom,
+    getOtherRoomParticipant,
     getAuthenticatedUser,
-    hasExpectedRoomParticipants
+    hasExpectedRoomParticipants,
+    mergeDiscoveredRoomContacts
 } = chatModule;
 
 function configureMockAuth(currentUser = null, anonymousUser = { uid: "anonymous-uid" }) {
@@ -50,6 +52,37 @@ test("room participant validation requires exactly the two distinct UIDs", () =>
     assert.equal(hasExpectedRoomParticipants(["uid-a", "uid-a"], "uid-a", "uid-b"), false);
     assert.equal(hasExpectedRoomParticipants(["uid-a", "uid-b", "uid-c"], "uid-a", "uid-b"), false);
     assert.equal(hasExpectedRoomParticipants(["uid-a"], "uid-a", "uid-b"), false);
+});
+
+test("a single invite link lets the recipient create the shared room and the inviter discover them", () => {
+    const loganUid = "logan-auth-uid";
+    const guestUid = "guest-auth-uid";
+    const inviteLinkTarget = loganUid;
+    const recipientRoomId = buildChatRoomId(guestUid, inviteLinkTarget);
+    const inviterRoomId = buildChatRoomId(loganUid, guestUid);
+    const inviterView = mergeDiscoveredRoomContacts(
+        [{ participants: [guestUid, loganUid] }],
+        loganUid,
+        []
+    );
+
+    assert.equal(recipientRoomId, inviterRoomId);
+    assert.equal(getOtherRoomParticipant([guestUid, loganUid], loganUid), guestUid);
+    assert.deepEqual(inviterView.discovered, [{ id: guestUid, name: guestUid }]);
+});
+
+test("room discovery ignores rooms that are not valid two-party memberships", () => {
+    assert.equal(getOtherRoomParticipant(["uid-a", "uid-b"], "uid-c"), null);
+    assert.equal(getOtherRoomParticipant(["uid-a", "uid-a"], "uid-a"), null);
+    assert.equal(getOtherRoomParticipant(["uid-a", "uid-b", "uid-c"], "uid-a"), null);
+
+    const result = mergeDiscoveredRoomContacts([
+        { participants: ["uid-a", "uid-b"] },
+        { participants: ["uid-a", "uid-b"] },
+        { participants: ["uid-a", "uid-c", "uid-d"] }
+    ], "uid-a", [{ id: "uid-b", name: "Saved contact name" }]);
+    assert.deepEqual(result.contacts, [{ id: "uid-b", name: "Saved contact name" }]);
+    assert.deepEqual(result.discovered, []);
 });
 
 test("chat reuses an already authenticated Firebase user", async () => {
