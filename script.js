@@ -6169,7 +6169,7 @@ function autocorrectCommandQuery(query) {
     const commandNames = [
         "age", "anime", "archive", "asciiweather", "asteroid", "barcode", "book", "bsky", "bluesky",
         "bored", "call", "cat", "chuck", "college", "country", "convert", "crypto", "define", "dial", "dig", "dns",
-        "airquality", "aqi", "draw", "drink", "film", "flight", "food", "github", "history", "holiday", "joke", "movie", "manga",
+        "airquality", "aqi", "chat", "draw", "drink", "film", "flight", "food", "github", "history", "holiday", "joke", "movie", "manga",
         "ghuser", "isbn", "locate", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
         "onthisday", "postal", "qr", "qrcode", "repo", "snapshot", "sms", "solarwind", "song", "space", "spaceweather", "stream",
         "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
@@ -6518,7 +6518,7 @@ onAuthStateChanged(auth, (user) => {
 
     const hubDl = document.getElementById('hub-suggestions');
     if (hubDl) {
-        const v105Suggestions = ['/solarstorm', '/aurora', '/history', '/today', '/status github', '/status discord', '/status cloudflare', 'status github', 'aurora', 'solarstorm'];
+        const v105Suggestions = ['/solarstorm', '/aurora', '/history', '/today', '/chat', 'chat', '/status github', '/status discord', '/status cloudflare', 'status github', 'aurora', 'solarstorm'];
         v105Suggestions.forEach(cmd => {
             const opt = document.createElement('option');
             opt.value = cmd;
