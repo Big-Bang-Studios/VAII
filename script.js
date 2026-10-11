@@ -13,7 +13,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 import { launchTerminalSandbox } from "./terminal.js";
-import { initializeContactChat } from "./chat.js";
+import { initializeContactChat, openContactChat } from "./chat.js";
 
 const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : function() {};
 
@@ -4269,6 +4269,11 @@ function runInfoExecution(query) {
                 👋 <strong>Assistant:</strong><br><span>Hello! How can I help you today? System initialized.</span>
             </div>
         `;
+    }
+
+    if (cleanQuery === "chat" || cleanQuery === "/chat") {
+        openContactChat();
+        return;
     }
 
     if (cleanQuery === "terminal" || cleanQuery === "/terminal" || cleanQuery === "shell" || cleanQuery === "sandbox") {
