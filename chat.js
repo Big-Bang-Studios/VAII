@@ -129,7 +129,8 @@ export function mergeMessageDisplayName(contacts, contactUid, senderId, senderNa
     if (!normalizedName || senderId !== contactUid) return contacts;
 
     return contacts.map(contact =>
-        contact.id === contactUid && (!contact.name || contact.name === contactUid)
+        contact.id === contactUid &&
+        (!contact.name || contact.name === contactUid || /^Guest_\d+$/.test(contact.name))
             ? { ...contact, name: normalizedName }
             : contact
     );
@@ -706,20 +707,27 @@ async function selectContact(contact) {
                         messageSnapshotSequence !== sequence) return;
                     renderMessages(messages);
                     const latestPeerMessage = [...encryptedMessages].reverse()
-                        .find(message => message.senderId === contact.id);
+                        .find(message => message.senderId === contact.id && message.senderName);
                     if (latestPeerMessage?.senderName) {
+                        const contacts = readContacts();
                         const updatedContacts = mergeMessageDisplayName(
-                            readContacts(),
+                            contacts,
                             contact.id,
                             latestPeerMessage.senderId,
                             latestPeerMessage.senderName
                         );
                         const updatedContact = updatedContacts.find(saved => saved.id === contact.id);
-                        if (updatedContact && updatedContact.name !== contact.name) {
-                            saveContacts(updatedContacts);
+                        if (updatedContact) {
+                            const savedContact = contacts.find(saved => saved.id === contact.id);
+                            if (updatedContact.name !== savedContact?.name) {
+                                saveContacts(updatedContacts);
+                                renderContacts();
+                            }
                             contact.name = updatedContact.name;
-                            elements.contactName.textContent = getContactDisplayName(contact);
-                            renderContacts();
+                            if (activeContact?.id === contact.id) {
+                                activeContact = { ...activeContact, name: updatedContact.name };
+                                elements.contactName.textContent = getContactDisplayName(activeContact);
+                            }
                         }
                     }
                     setStatus("Connected");

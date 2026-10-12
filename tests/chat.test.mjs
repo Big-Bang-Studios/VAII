@@ -104,6 +104,25 @@ test("contact title uses a saved display name and falls back to UID until known"
     );
 });
 
+test("peer messages replace a temporary Guest display name with the peer's chosen name", () => {
+    const contacts = [{ id: "uid-carlos", name: "Guest_1094" }];
+
+    assert.deepEqual(
+        mergeMessageDisplayName(contacts, "uid-carlos", "uid-carlos", 'Carlos "dada" Baez'),
+        [{ id: "uid-carlos", name: 'Carlos "dada" Baez' }]
+    );
+    assert.deepEqual(contacts, [{ id: "uid-carlos", name: "Guest_1094" }]);
+    assert.deepEqual(
+        mergeMessageDisplayName(
+            [{ id: "uid-carlos", name: "Local alias" }],
+            "uid-carlos",
+            "uid-carlos",
+            "Carlos"
+        ),
+        [{ id: "uid-carlos", name: "Local alias" }]
+    );
+});
+
 test("room discovery ignores rooms that are not valid two-party memberships", () => {
     assert.equal(getOtherRoomParticipant(["uid-a", "uid-b"], "uid-c"), null);
     assert.equal(getOtherRoomParticipant(["uid-a", "uid-a"], "uid-a"), null);
