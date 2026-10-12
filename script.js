@@ -1327,6 +1327,8 @@ const defaultAssistantSuggestions = [
     "archive ",
     "npm ",
     "/npm",
+    "/chat",
+    "chat",
     "terminal",
     "/terminal",
             "/quakes",
@@ -6518,7 +6520,7 @@ onAuthStateChanged(auth, (user) => {
 
     const hubDl = document.getElementById('hub-suggestions');
     if (hubDl) {
-        const v105Suggestions = ['/solarstorm', '/aurora', '/history', '/today', '/chat', 'chat', '/status github', '/status discord', '/status cloudflare', 'status github', 'aurora', 'solarstorm'];
+        const v105Suggestions = ['/solarstorm', '/aurora', '/history', '/today', '/status github', '/status discord', '/status cloudflare', 'status github', 'aurora', 'solarstorm'];
         v105Suggestions.forEach(cmd => {
             const opt = document.createElement('option');
             opt.value = cmd;

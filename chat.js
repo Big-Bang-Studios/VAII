@@ -350,9 +350,6 @@ function renderMessages(messages) {
             heading.className = "vaii-chat-message-heading";
             const sender = document.createElement("strong");
             sender.textContent = message.senderName || message.senderId || "Unknown";
-            const senderUid = document.createElement("span");
-            senderUid.className = "vaii-chat-message-uid";
-            senderUid.textContent = message.senderId ? `UID ${message.senderId}` : "Unverified sender";
             const time = document.createElement("time");
             if (message.createdAt?.toDate) {
                 time.dateTime = message.createdAt.toDate().toISOString();
@@ -363,7 +360,7 @@ function renderMessages(messages) {
             } else {
                 time.textContent = "Sending…";
             }
-            heading.append(sender, senderUid, time);
+            heading.append(sender, time);
 
             const text = document.createElement("p");
             text.textContent = typeof message.text === "string" ? message.text : "";
@@ -648,10 +645,9 @@ function createChatOverlay() {
             border-radius: 10px 10px 10px 3px; background: #161b22; overflow-wrap: anywhere;
         }
         .vaii-chat-message-own { align-self: flex-end; background: #12251b; border-color: #245b37; border-radius: 10px 10px 3px 10px; }
-        .vaii-chat-message-heading { display: flex; align-items: baseline; gap: 12px; }
-        .vaii-chat-message-heading strong { color: #7ee787; font-size: 12px; }
-        .vaii-chat-message-uid { color: #8b949e; font-size: 10px; overflow-wrap: anywhere; }
-        .vaii-chat-message-heading time { color: #8b949e; font-size: 10px; }
+        .vaii-chat-message-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+        .vaii-chat-message-heading strong { color: #7ee787; font-size: 12px; white-space: nowrap; }
+        .vaii-chat-message-heading time { color: #8b949e; font-size: 10px; white-space: nowrap; margin-left: auto; }
         .vaii-chat-message p { white-space: pre-wrap; margin: 6px 0 0; }
         .vaii-chat-empty { margin: auto; color: #8b949e; text-align: center; padding: 12px; }
         .vaii-chat-composer { padding: 14px 20px 20px; border-top: 1px solid #30363d; }
@@ -664,7 +660,8 @@ function createChatOverlay() {
             .vaii-chat-messages { padding: 12px; }
             .vaii-chat-composer { padding: 10px 12px 12px; }
             .vaii-chat-add-row { flex-direction: column; }
-            .vaii-chat-message { max-width: 92%; }
+            .vaii-chat-message { max-width: 100%; padding: 8px 9px; }
+            .vaii-chat-message-heading strong { font-size: 11px; }
         }
     `;
     document.head.append(style);
