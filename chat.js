@@ -1,6 +1,8 @@
 const FIREBASE_VERSION = "10.8.0";
 const USERNAME_KEY = "vaii_chat_username";
 const CONTACTS_KEY = "vaii_chat_contacts_v2";
+const CHAT_KEYS_KEY = "vaii_chat_e2ee_keys_v1";
+const PENDING_INVITES_KEY = "vaii_chat_e2ee_invites_v1";
 const FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`;
 
 let firebaseModulesPromise = null;
@@ -16,6 +18,9 @@ let observedAuthUid;
 let overlay = null;
 let elements = null;
 let activeContact = null;
+let activeRoomKey = null;
+let activeRoomKeyContactId = null;
+let messageSnapshotSequence = 0;
 let unsubscribeMessages = null;
 let returnFocusToTerminal = false;
 let previousFocus = null;
@@ -130,13 +135,184 @@ export function mergeMessageDisplayName(contacts, contactUid, senderId, senderNa
     );
 }
 
-export function createChatMessage(senderId, senderName, text, createdAt) {
-    const normalizedText = typeof text === "string" ? text.trim() : "";
-    const normalizedName = typeof senderName === "string" ? senderName.trim().slice(0, 30) : "";
-    if (!isValidUserId(senderId) || !normalizedName || normalizedText.length < 1 || normalizedText.length > 500) {
-        throw new Error("Message must include a valid sender, display name, and 1–500 characters of text.");
+function getWebCrypto() {
+    const cryptoApi = typeof window !== "undefined" ? window.crypto : globalThis.crypto;
+    if (!cryptoApi?.subtle || !cryptoApi.getRandomValues) {
+        throw new Error("This browser does not support the Web Cryptography API required for encrypted chat.");
     }
-    return { senderId, senderName: normalizedName, text: normalizedText, createdAt };
+    return cryptoApi;
+}
+
+function bytesToBase64(bytes) {
+    let binary = "";
+    bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+    return btoa(binary);
+}
+
+function base64ToBytes(encoded) {
+    if (typeof encoded !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) {
+        throw new Error("Invalid base64 chat data.");
+    }
+    const binary = atob(encoded);
+    return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
+function bytesToBase64Url(bytes) {
+    return bytesToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlToBytes(encoded) {
+    if (typeof encoded !== "string" || !/^[A-Za-z0-9_-]+$/.test(encoded)) {
+        throw new Error("Invalid invite key encoding.");
+    }
+    const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    return base64ToBytes(base64 + "=".repeat((4 - base64.length % 4) % 4));
+}
+
+function isValidInviteMaterial(inviteId, secret) {
+    try {
+        return isValidInviteId(inviteId) && isValidChatSecret(secret);
+    } catch {
+        return false;
+    }
+}
+
+function isValidInviteId(inviteId) {
+    try {
+        return base64UrlToBytes(inviteId).length === 16;
+    } catch {
+        return false;
+    }
+}
+
+function isValidChatSecret(secret) {
+    try {
+        return base64UrlToBytes(secret).length === 32;
+    } catch {
+        return false;
+    }
+}
+
+export async function deriveChatRoomKey(sharedSecret, firstUid, secondUid) {
+    if (!isValidChatSecret(sharedSecret)) {
+        throw new Error("A valid 256-bit shared invite secret is required.");
+    }
+    if (!isValidUserId(firstUid) || !isValidUserId(secondUid) || firstUid === secondUid) {
+        throw new Error("A room key requires two different valid Firebase UIDs.");
+    }
+    const cryptoApi = getWebCrypto();
+    const secretBytes = base64UrlToBytes(sharedSecret);
+    const passwordKey = await cryptoApi.subtle.importKey("raw", secretBytes, "PBKDF2", false, ["deriveKey"]);
+    const salt = new TextEncoder().encode(
+        `VAII contact chat E2EE v1:${[firstUid, secondUid].sort().join(":")}`
+    );
+    return cryptoApi.subtle.deriveKey(
+        { name: "PBKDF2", salt, iterations: 310000, hash: "SHA-256" },
+        passwordKey,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"]
+    );
+}
+
+export async function encryptChatMessage(plaintext, key) {
+    if (typeof plaintext !== "string" || !plaintext.trim() || plaintext.length > 500) {
+        throw new Error("Message must contain 1–500 characters of text.");
+    }
+    const cryptoApi = getWebCrypto();
+    const iv = cryptoApi.getRandomValues(new Uint8Array(12));
+    const ciphertext = await cryptoApi.subtle.encrypt(
+        { name: "AES-GCM", iv },
+        key,
+        new TextEncoder().encode(plaintext.trim())
+    );
+    return {
+        ciphertext: bytesToBase64(new Uint8Array(ciphertext)),
+        iv: bytesToBase64(iv)
+    };
+}
+
+export async function decryptChatMessage(ciphertext, iv, key) {
+    const ivBytes = base64ToBytes(iv);
+    if (ivBytes.length !== 12) throw new Error("Invalid AES-GCM initialization vector.");
+    const encryptedBytes = base64ToBytes(ciphertext);
+    const plaintext = await getWebCrypto().subtle.decrypt(
+        { name: "AES-GCM", iv: ivBytes },
+        key,
+        encryptedBytes
+    );
+    return new TextDecoder().decode(plaintext);
+}
+
+export function createChatMessage(senderId, senderName, ciphertext, iv, createdAt) {
+    const normalizedName = typeof senderName === "string" ? senderName.trim().slice(0, 30) : "";
+    let validCiphertext = false;
+    let validIv = false;
+    try {
+        validCiphertext = base64ToBytes(ciphertext).length > 16;
+        validIv = base64ToBytes(iv).length === 12;
+    } catch {
+        validCiphertext = false;
+    }
+    if (!isValidUserId(senderId) || !normalizedName || !validCiphertext || !validIv) {
+        throw new Error("Message must include a valid sender, display name, ciphertext, and AES-GCM IV.");
+    }
+    return { senderId, senderName: normalizedName, ciphertext, iv, createdAt };
+}
+
+function readStoredSecretMap(storageKey) {
+    const value = localStorage.getItem(storageKey);
+    if (!value) return Object.create(null);
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Saved chat encryption keys have an invalid format.");
+    }
+    return Object.assign(Object.create(null), parsed);
+}
+
+function persistIncomingInvite(contactUid, inviteId, secret) {
+    if (!isValidInviteMaterial(inviteId, secret)) {
+        throw new Error("This invite does not contain a valid chat encryption key.");
+    }
+    const keys = readStoredSecretMap(CHAT_KEYS_KEY);
+    const existing = keys[contactUid];
+    if (existing && existing.inviteId !== inviteId) return false;
+    keys[contactUid] = { inviteId, secret };
+    localStorage.setItem(CHAT_KEYS_KEY, JSON.stringify(keys));
+    return true;
+}
+
+function getContactInviteKey(contactUid) {
+    const stored = readStoredSecretMap(CHAT_KEYS_KEY)[contactUid];
+    return stored && isValidInviteMaterial(stored.inviteId, stored.secret) ? stored : null;
+}
+
+function storePendingInvite(inviteId, secret) {
+    const invites = readStoredSecretMap(PENDING_INVITES_KEY);
+    invites[inviteId] = secret;
+    localStorage.setItem(PENDING_INVITES_KEY, JSON.stringify(invites));
+}
+
+function adoptDiscoveredInviteKeys(roomDataList, currentUid) {
+    const invites = readStoredSecretMap(PENDING_INVITES_KEY);
+    const keys = readStoredSecretMap(CHAT_KEYS_KEY);
+    const adopted = [];
+    let consumedInvite = false;
+    roomDataList.forEach(roomData => {
+        const peerUid = getOtherRoomParticipant(roomData?.participants, currentUid);
+        const secret = invites[roomData?.keyId];
+        if (!peerUid || !secret || !isValidInviteMaterial(roomData.keyId, secret)) return;
+        if (keys[peerUid] && keys[peerUid].inviteId !== roomData.keyId) return;
+        if (!keys[peerUid]) {
+            keys[peerUid] = { inviteId: roomData.keyId, secret };
+            adopted.push(peerUid);
+        }
+        delete invites[roomData.keyId];
+        consumedInvite = true;
+    });
+    if (adopted.length) localStorage.setItem(CHAT_KEYS_KEY, JSON.stringify(keys));
+    if (consumedInvite) localStorage.setItem(PENDING_INVITES_KEY, JSON.stringify(invites));
+    return adopted;
 }
 
 export function configureContactChat({ app, auth, onAuthStateChanged, signInAnonymously: anonymousSignIn }) {
@@ -267,11 +443,13 @@ async function startRoomDiscovery(user) {
         if (firebaseAuth?.currentUser?.uid !== user.uid || discoveredRoomsUid !== user.uid) return;
 
         try {
+            const roomDataList = snapshot.docs.map(document => document.data());
             const result = mergeDiscoveredRoomContacts(
-                snapshot.docs.map(document => document.data()),
+                roomDataList,
                 user.uid,
                 readContacts()
             );
+            const adoptedKeyPeers = adoptDiscoveredInviteKeys(roomDataList, user.uid);
             if (result.discovered.length) {
                 saveContacts(result.contacts);
                 renderContacts();
@@ -282,10 +460,12 @@ async function startRoomDiscovery(user) {
                         elements.contactName.textContent = getContactDisplayName(activeContact);
                     }
                 }
-                if (!activeContact) {
-                    activeContact = result.discovered[result.discovered.length - 1];
-                    if (overlay && !overlay.hidden) selectContact(activeContact);
-                }
+            }
+            if (!activeContact && result.discovered.length) {
+                activeContact = result.discovered[result.discovered.length - 1];
+                if (overlay && !overlay.hidden) selectContact(activeContact);
+            } else if (overlay && !overlay.hidden && adoptedKeyPeers.includes(activeContact?.id)) {
+                selectContact(activeContact);
             }
         } catch (error) {
             setStatus(`Could not save discovered contacts: ${error.message}`, true);
@@ -378,6 +558,10 @@ function closeContactChat() {
         unsubscribeMessages();
         unsubscribeMessages = null;
     }
+    activeRoomKey = null;
+    activeRoomKeyContactId = null;
+    messageSnapshotSequence++;
+    elements.encryptionNotice.hidden = true;
     overlay.hidden = true;
 
     if (returnFocusToTerminal) {
@@ -394,8 +578,11 @@ function closeContactChat() {
     returnFocusToTerminal = false;
 }
 
-export async function ensureChatRoom(firebase, myUid, targetUid, displayNames = {}) {
+export async function ensureChatRoom(firebase, myUid, targetUid, displayNames = {}, inviteId) {
     const roomId = buildChatRoomId(myUid, targetUid);
+    if (!isValidInviteId(inviteId)) {
+        throw new Error("A valid invite ID is required to create an encrypted chat room.");
+    }
     const roomRef = firebase.doc(firebase.db, "vaii_rooms", roomId);
     const participants = [myUid, targetUid].sort();
     const validateExistingRoom = snapshot => {
@@ -403,6 +590,9 @@ export async function ensureChatRoom(firebase, myUid, targetUid, displayNames = 
         const roomData = snapshot.data();
         if (!hasExpectedRoomParticipants(roomData.participants, myUid, targetUid)) {
             throw new Error("This room already exists with a different participant list; access was not granted.");
+        }
+        if (roomData.keyId !== inviteId) {
+            throw new Error("This room uses a different encryption invite. Use the original invite link.");
         }
         return true;
     };
@@ -422,6 +612,7 @@ export async function ensureChatRoom(firebase, myUid, targetUid, displayNames = 
                 [myUid]: getValidDisplayName(displayNames[myUid]),
                 [targetUid]: getValidDisplayName(displayNames[targetUid])
             },
+            keyId: inviteId,
             createdAt: firebase.serverTimestamp()
         });
         return { roomId, participants };
@@ -449,14 +640,18 @@ async function selectContact(contact) {
         unsubscribeMessages = null;
     }
 
+    activeRoomKey = null;
+    activeRoomKeyContactId = null;
+    messageSnapshotSequence++;
     activeContact = contact;
     elements.contactName.textContent = getContactDisplayName(contact);
     elements.contactId.textContent = contact.id;
+    elements.encryptionNotice.hidden = true;
     elements.messages.replaceChildren();
-    elements.composer.disabled = false;
-    elements.send.disabled = false;
+    elements.composer.disabled = true;
+    elements.send.disabled = true;
     renderContacts();
-    setStatus("Connecting to Firestore…");
+    setStatus("Establishing encrypted connection…");
 
     try {
         const user = await getAuthenticatedUser();
@@ -465,14 +660,26 @@ async function selectContact(contact) {
             throw new Error("You cannot start a chat with your own Firebase UID.");
         }
 
+        const inviteKey = getContactInviteKey(contact.id);
+        if (!inviteKey) {
+            throw new Error("No shared encryption key is available. Ask this contact to send you a secure invite link.");
+        }
+        const roomKey = await deriveChatRoomKey(inviteKey.secret, user.uid, contact.id);
+        if (overlay.hidden || activeContact?.id !== contact.id) return;
+
         const firebase = await getFirebaseModules();
         if (overlay.hidden || activeContact?.id !== contact.id) return;
 
         const { roomId } = await ensureChatRoom(firebase, user.uid, contact.id, {
             [user.uid]: getDisplayName(),
             [contact.id]: contact.name
-        });
+        }, inviteKey.inviteId);
         if (overlay.hidden || activeContact?.id !== contact.id) return;
+        activeRoomKey = roomKey;
+        activeRoomKeyContactId = contact.id;
+        elements.encryptionNotice.hidden = false;
+        elements.composer.disabled = false;
+        elements.send.disabled = false;
         const messagesQuery = firebase.query(
             firebase.collection(firebase.db, "vaii_rooms", roomId, "messages"),
             firebase.orderBy("createdAt", "asc"),
@@ -480,25 +687,47 @@ async function selectContact(contact) {
         );
         unsubscribeMessages = firebase.onSnapshot(messagesQuery, snapshot => {
             if (!overlay.hidden && activeContact?.id === contact.id) {
-                const messages = snapshot.docs.map(document => document.data());
-                renderMessages(messages);
-                const latestPeerMessage = [...messages].reverse().find(message => message.senderId === contact.id);
-                if (latestPeerMessage?.senderName) {
-                    const updatedContacts = mergeMessageDisplayName(
-                        readContacts(),
-                        contact.id,
-                        latestPeerMessage.senderId,
-                        latestPeerMessage.senderName
-                    );
-                    const updatedContact = updatedContacts.find(saved => saved.id === contact.id);
-                    if (updatedContact && updatedContact.name !== contact.name) {
-                        saveContacts(updatedContacts);
-                        contact.name = updatedContact.name;
-                        elements.contactName.textContent = getContactDisplayName(contact);
-                        renderContacts();
+                const sequence = ++messageSnapshotSequence;
+                const currentKey = activeRoomKey;
+                const encryptedMessages = snapshot.docs.map(document => document.data());
+                Promise.all(encryptedMessages.map(async message => {
+                    try {
+                        return {
+                            ...message,
+                            text: await decryptChatMessage(message.ciphertext, message.iv, currentKey)
+                        };
+                    } catch {
+                        return { ...message, text: "[Decryption error]" };
                     }
-                }
-                setStatus("Connected");
+                })).then(messages => {
+                    if (overlay.hidden ||
+                        activeContact?.id !== contact.id ||
+                        activeRoomKey !== currentKey ||
+                        messageSnapshotSequence !== sequence) return;
+                    renderMessages(messages);
+                    const latestPeerMessage = [...encryptedMessages].reverse()
+                        .find(message => message.senderId === contact.id);
+                    if (latestPeerMessage?.senderName) {
+                        const updatedContacts = mergeMessageDisplayName(
+                            readContacts(),
+                            contact.id,
+                            latestPeerMessage.senderId,
+                            latestPeerMessage.senderName
+                        );
+                        const updatedContact = updatedContacts.find(saved => saved.id === contact.id);
+                        if (updatedContact && updatedContact.name !== contact.name) {
+                            saveContacts(updatedContacts);
+                            contact.name = updatedContact.name;
+                            elements.contactName.textContent = getContactDisplayName(contact);
+                            renderContacts();
+                        }
+                    }
+                    setStatus("Connected");
+                }).catch(error => {
+                    if (activeContact?.id === contact.id) {
+                        setStatus(`Could not decrypt messages: ${error.message}`, true);
+                    }
+                });
             }
         }, error => {
             if (activeContact?.id === contact.id) {
@@ -543,6 +772,18 @@ async function sendMessage() {
     if (text.length > 500 || !activeContact) return;
 
     const contact = activeContact;
+    const key = activeRoomKeyContactId === contact.id ? activeRoomKey : null;
+    let inviteKey;
+    try {
+        inviteKey = getContactInviteKey(contact.id);
+    } catch (error) {
+        setStatus(`Could not load chat encryption key: ${error.message}`, true);
+        return;
+    }
+    if (!key || !inviteKey) {
+        setStatus("This chat is not encrypted yet. Get a secure invite link from your contact.", true);
+        return;
+    }
     elements.send.disabled = true;
     setStatus("Sending…");
     try {
@@ -554,11 +795,13 @@ async function sendMessage() {
         const { roomId } = await ensureChatRoom(firebase, user.uid, contact.id, {
             [user.uid]: getDisplayName(),
             [contact.id]: contact.name
-        });
+        }, inviteKey.inviteId);
+        const encrypted = await encryptChatMessage(text, key);
         const message = createChatMessage(
             user.uid,
             getDisplayName(),
-            text,
+            encrypted.ciphertext,
+            encrypted.iv,
             firebase.serverTimestamp()
         );
         await firebase.addDoc(
@@ -573,7 +816,7 @@ async function sendMessage() {
     } catch (error) {
         setStatus(`Could not send message: ${error.message}`, true);
     } finally {
-        elements.send.disabled = !activeContact;
+        elements.send.disabled = !activeContact || activeRoomKeyContactId !== activeContact.id;
     }
 }
 
@@ -636,6 +879,11 @@ function createChatOverlay() {
         .vaii-chat-close { font-size: 21px; line-height: 1; padding: 8px 11px; }
         .vaii-chat-status { padding: 7px 22px 0; color: #8b949e; font-size: 12px; min-height: 24px; }
         .vaii-chat-status[data-error="true"] { color: #ff7b72; }
+        .vaii-chat-encryption-notice {
+            flex: 0 0 auto; margin: 10px 20px 0; padding: 8px 12px;
+            color: #a9d6b2; background: #12251b; border: 1px solid #245b37;
+            border-radius: 7px; font-size: 12px; line-height: 1.4;
+        }
         .vaii-chat-messages {
             flex: 1; min-height: 0; overflow-y: auto; padding: 20px;
             display: flex; flex-direction: column; align-items: flex-start; gap: 12px;
@@ -657,6 +905,7 @@ function createChatOverlay() {
             .vaii-chat-main { min-width: 0; }
             .vaii-chat-header { padding: 12px; }
             .vaii-chat-status { padding-left: 12px; }
+            .vaii-chat-encryption-notice { margin: 8px 12px 0; padding: 7px 9px; }
             .vaii-chat-messages { padding: 12px; }
             .vaii-chat-composer { padding: 10px 12px 12px; }
             .vaii-chat-add-row { flex-direction: column; }
@@ -703,6 +952,9 @@ function createChatOverlay() {
                 <button class="vaii-chat-button vaii-chat-close" id="vaii-chat-close" type="button" aria-label="Close chat">✕</button>
             </header>
             <div class="vaii-chat-status" id="vaii-chat-status" role="status" aria-live="polite"></div>
+            <div class="vaii-chat-encryption-notice" id="vaii-chat-encryption-notice" hidden>
+                🔒 Messages in this chat are end-to-end encrypted. Only participants with this invite key can read them.
+            </div>
             <div class="vaii-chat-messages" id="vaii-chat-messages" aria-live="polite"></div>
             <div class="vaii-chat-composer">
                 <input id="vaii-chat-message-input" maxlength="500" placeholder="Select a contact to start chatting" disabled>
@@ -726,6 +978,7 @@ function createChatOverlay() {
         contactName: overlay.querySelector("#vaii-chat-contact-name"),
         contactId: overlay.querySelector("#vaii-chat-contact-id"),
         status: overlay.querySelector("#vaii-chat-status"),
+        encryptionNotice: overlay.querySelector("#vaii-chat-encryption-notice"),
         messages: overlay.querySelector("#vaii-chat-messages"),
         composer: overlay.querySelector("#vaii-chat-message-input"),
         send: overlay.querySelector("#vaii-chat-send"),
@@ -761,9 +1014,13 @@ function createChatOverlay() {
     elements.invite.addEventListener("click", async () => {
         try {
             const user = await getAuthenticatedUser();
-            const inviteLink = `https://${window.location.host}/?addContact=${encodeURIComponent(user.uid)}&name=${encodeURIComponent(getDisplayName())}`;
+            const cryptoApi = getWebCrypto();
+            const inviteId = bytesToBase64Url(cryptoApi.getRandomValues(new Uint8Array(16)));
+            const secret = bytesToBase64Url(cryptoApi.getRandomValues(new Uint8Array(32)));
+            storePendingInvite(inviteId, secret);
+            const inviteLink = `${window.location.origin}/?addContact=${encodeURIComponent(user.uid)}&name=${encodeURIComponent(getDisplayName())}&inviteId=${inviteId}#key=${secret}`;
             await navigator.clipboard.writeText(inviteLink);
-            setStatus("Invite link copied to clipboard.");
+            setStatus("Secure invite link copied. Share this link with one contact.");
         } catch (error) {
             setStatus(`Could not copy invite link: ${error.message}`, true);
         }
@@ -805,7 +1062,7 @@ function createChatOverlay() {
     });
 }
 
-export function openContactChat(contactId = "", contactName = "") {
+export function openContactChat(contactId = "", contactName = "", inviteMaterial = null) {
     if (!overlay) createChatOverlay();
     if (unsubscribeMessages) {
         unsubscribeMessages();
@@ -840,6 +1097,9 @@ export function openContactChat(contactId = "", contactName = "") {
                 setStatus("This invite points to your own Firebase UID.", true);
                 return;
             }
+            if (inviteMaterial) {
+                persistIncomingInvite(contactId, inviteMaterial.inviteId, inviteMaterial.secret);
+            }
             contact = addContact(contactId, contactName || contactId);
         } else if (activeContact) {
             contact = readContacts().find(savedContact => savedContact.id === activeContact.id) || activeContact;
@@ -870,9 +1130,12 @@ export function initializeContactChat() {
     if (!targetUserId) return;
 
     const targetName = inviteParams.get("name") || "";
+    const inviteId = inviteParams.get("inviteId") || "";
+    const secret = new URLSearchParams(window.location.hash.slice(1)).get("key") || "";
+    const inviteMaterial = isValidInviteMaterial(inviteId, secret) ? { inviteId, secret } : null;
     window.history.replaceState({}, document.title, window.location.pathname);
     if (isValidUserId(targetUserId)) {
-        openContactChat(targetUserId, targetName);
+        openContactChat(targetUserId, targetName, inviteMaterial);
     } else {
         console.error("Ignoring an invite URL with an invalid Firebase UID.");
     }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { webcrypto } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -9,6 +10,9 @@ const {
     buildChatRoomId,
     configureContactChat,
     createChatMessage,
+    decryptChatMessage,
+    deriveChatRoomKey,
+    encryptChatMessage,
     ensureChatRoom,
     getOtherRoomParticipant,
     getAuthenticatedUser,
@@ -17,6 +21,10 @@ const {
     mergeDiscoveredRoomContacts,
     mergeMessageDisplayName
 } = chatModule;
+globalThis.window = { crypto: webcrypto };
+const inviteId = Buffer.alloc(16, 1).toString("base64url");
+const alternateInviteId = Buffer.alloc(16, 4).toString("base64url");
+const inviteSecret = Buffer.alloc(32, 2).toString("base64url");
 
 function configureMockAuth(currentUser = null, anonymousUser = { uid: "anonymous-uid" }) {
     const app = {};
@@ -173,7 +181,7 @@ test("room creation uses sorted UIDs and server timestamp", async () => {
         }
     };
 
-    const result = await ensureChatRoom(firebase, "uid-z", "uid-a");
+    const result = await ensureChatRoom(firebase, "uid-z", "uid-a", {}, inviteId);
     assert.deepEqual(result, {
         roomId: "uid-a_uid-z",
         participants: ["uid-a", "uid-z"]
@@ -186,13 +194,14 @@ test("room creation uses sorted UIDs and server timestamp", async () => {
                 "uid-z": "",
                 "uid-a": ""
             },
+            keyId: inviteId,
             createdAt: "server-timestamp"
         }
     }]);
 });
 
 test("an existing deterministic room is accepted only for the exact participants", async () => {
-    let roomData = { participants: ["uid-a", "uid-b"] };
+    let roomData = { participants: ["uid-a", "uid-b"], keyId: inviteId };
     const firebase = {
         db: {},
         doc(_db, ...segments) {
@@ -209,9 +218,14 @@ test("an existing deterministic room is accepted only for the exact participants
         }
     };
 
-    assert.equal((await ensureChatRoom(firebase, "uid-b", "uid-a")).roomId, "uid-a_uid-b");
+    assert.equal((await ensureChatRoom(firebase, "uid-b", "uid-a", {}, inviteId)).roomId, "uid-a_uid-b");
+    roomData = { participants: ["uid-a", "uid-b"], keyId: alternateInviteId };
+    await assert.rejects(
+        ensureChatRoom(firebase, "uid-b", "uid-a", {}, inviteId),
+        /different encryption invite/
+    );
     roomData = { participants: ["uid-a", "uid-c"] };
-    await assert.rejects(ensureChatRoom(firebase, "uid-b", "uid-a"), /different participant list/);
+    await assert.rejects(ensureChatRoom(firebase, "uid-b", "uid-a", {}, inviteId), /different participant list/);
 });
 
 test("a concurrent room creator is accepted only after validating the created room", async () => {
@@ -224,11 +238,12 @@ test("a concurrent room creator is accepted only after validating the created ro
         async getDoc() {
             return {
                 exists: () => roomExists,
-                data: () => ({ participants: ["uid-a", "uid-b"] })
+                data: () => ({ participants: ["uid-a", "uid-b"], keyId: inviteId })
             };
         },
         async setDoc(_reference, data) {
             assert.deepEqual(data.participants, ["uid-a", "uid-b"]);
+            assert.equal(data.keyId, inviteId);
             roomExists = true;
             throw new Error("duplicate create");
         },
@@ -237,7 +252,7 @@ test("a concurrent room creator is accepted only after validating the created ro
         }
     };
 
-    assert.equal((await ensureChatRoom(firebase, "uid-b", "uid-a")).roomId, "uid-a_uid-b");
+    assert.equal((await ensureChatRoom(firebase, "uid-b", "uid-a", {}, inviteId)).roomId, "uid-a_uid-b");
 });
 
 test("room creation errors are not hidden when no readable room exists", async () => {
@@ -257,19 +272,45 @@ test("room creation errors are not hidden when no readable room exists", async (
         }
     };
 
-    await assert.rejects(ensureChatRoom(firebase, "uid-a", "uid-b"), /permission denied/);
+    await assert.rejects(ensureChatRoom(firebase, "uid-a", "uid-b", {}, inviteId), /permission denied/);
 });
 
-test("message validation preserves the authenticated sender and Firestore timestamp", () => {
-    const message = createChatMessage("auth-uid", "Guest_1234", " hello ", "server-timestamp");
+test("message validation stores only the encrypted payload and Firestore timestamp", () => {
+    const ciphertext = Buffer.from("encrypted payload").toString("base64");
+    const iv = Buffer.alloc(12, 3).toString("base64");
+    const message = createChatMessage("auth-uid", "Guest_1234", ciphertext, iv, "server-timestamp");
     assert.deepEqual(message, {
         senderId: "auth-uid",
         senderName: "Guest_1234",
-        text: "hello",
+        ciphertext,
+        iv,
         createdAt: "server-timestamp"
     });
-    assert.throws(() => createChatMessage("", "Guest_1234", "hello", "timestamp"), /valid sender/);
-    assert.throws(() => createChatMessage("auth-uid", "", "hello", "timestamp"), /valid sender/);
-    assert.throws(() => createChatMessage("auth-uid", "Guest_1234", "  ", "timestamp"), /valid sender/);
-    assert.throws(() => createChatMessage("auth-uid", "Guest_1234", "x".repeat(501), "timestamp"), /valid sender/);
+    assert.equal(Object.hasOwn(message, "text"), false);
+    assert.throws(() => createChatMessage("", "Guest_1234", ciphertext, iv, "timestamp"), /valid sender/);
+    assert.throws(() => createChatMessage("auth-uid", "", ciphertext, iv, "timestamp"), /valid sender/);
+    assert.throws(() => createChatMessage("auth-uid", "Guest_1234", "", iv, "timestamp"), /ciphertext/);
+    assert.throws(() => createChatMessage("auth-uid", "Guest_1234", ciphertext, "bad", "timestamp"), /ciphertext/);
+});
+
+test("PBKDF2 room keys are deterministic, pair-specific, and encrypt/decrypt AES-GCM payloads", async () => {
+    const key = await deriveChatRoomKey(inviteSecret, "uid-a", "uid-b");
+    const reversedKey = await deriveChatRoomKey(inviteSecret, "uid-b", "uid-a");
+    const otherRoomKey = await deriveChatRoomKey(inviteSecret, "uid-a", "uid-c");
+    const first = await encryptChatMessage(" private 🔒 message ", key);
+    const second = await encryptChatMessage("private 🔒 message", key);
+
+    assert.notEqual(first.iv, second.iv);
+    assert.notEqual(first.ciphertext, second.ciphertext);
+    assert.equal(await decryptChatMessage(first.ciphertext, first.iv, reversedKey), "private 🔒 message");
+    await assert.rejects(
+        decryptChatMessage(first.ciphertext, first.iv, otherRoomKey)
+    );
+});
+
+test("message encryption rejects empty or overlong plaintext and malformed key material", async () => {
+    const key = await deriveChatRoomKey(inviteSecret, "uid-a", "uid-b");
+    await assert.rejects(encryptChatMessage("  ", key), /1–500/);
+    await assert.rejects(encryptChatMessage("x".repeat(501), key), /1–500/);
+    await assert.rejects(deriveChatRoomKey("not-a-key", "uid-a", "uid-b"), /shared invite secret/);
 });

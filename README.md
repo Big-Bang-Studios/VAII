@@ -52,7 +52,7 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **🪙 Crypto & Market Tickers:** Queries CoinGecko asset prices, 24-hour changes, market caps, and volumes with `crypto [symbol]`; stock ticker routing remains available.
 * **📡 Service Status Monitor:** Checks live GitHub, Discord, and Cloudflare status summaries with `status [provider]`.
 * **🎨 AI Art Generation:** Generates on-demand graphics via **Pollinations AI**.
-* **💬 Contact Chat:** Type `chat` or `/chat` in the terminal or normal menu for a fullscreen contact chat backed by Firebase Firestore. Chat uses the app's Firebase Auth identity (anonymous Auth for unauthenticated visitors), shares UID-based invite links, and stores contact lists and display names locally in the browser. Authenticated clients discover rooms containing their own UID, so the recipient can open one invite link and the inviter learns the recipient UID from the shared room. Legacy contacts created with local-only IDs are intentionally not migrated.
+* **💬 Contact Chat:** Type `chat` or `/chat` in the terminal or normal menu for a fullscreen contact chat backed by Firebase Firestore. Chat uses the app's Firebase Auth identity (anonymous Auth for unauthenticated visitors) and stores contact lists, display names, and shared invite secrets locally in the browser. Secure invite links carry a random secret in the URL fragment; share each link with only one contact. Messages use browser Web Crypto (PBKDF2-derived AES-GCM room keys), and Firestore stores ciphertext and IV rather than message text. Losing the browser's local storage or invite secret prevents decrypting that room's history. Authenticated clients discover rooms containing their own UID, so the recipient can open an invite link and the inviter learns the recipient UID from the shared room. Legacy contacts created with local-only IDs are intentionally not migrated.
 
 ---
 
@@ -77,7 +77,7 @@ Google Cloud security policies (`Error 403: disallowed_useragent`) block OAuth s
 
 Configure client-side API keys within `script.js`, and server-side credentials in your deployment environment:
 
-1. **Firebase Config:** Initialize your project credentials (`apiKey`, `authDomain`, `projectId`) in `firebaseConfig.js`. The contact chat requires Firestore and Firebase Anonymous Authentication to be enabled, as well as client rules that authorize authenticated room participants and validate messages. Anonymous identities persist with Firebase Auth on the current browser/device; users changing devices need a linked or otherwise recoverable Auth account to retain the same UID.
+1. **Firebase Config:** Initialize your project credentials (`apiKey`, `authDomain`, `projectId`) in `firebaseConfig.js`. The contact chat requires Firestore and Firebase Anonymous Authentication to be enabled, as well as rules that authorize authenticated room participants and validate the encrypted `ciphertext`/`iv` message schema without allowing plaintext `text` fields. Anonymous identities persist with Firebase Auth on the current browser/device; users changing devices need a linked or otherwise recoverable Auth account to retain the same UID.
 2. **Google Maps API Key:** Required for spatial rendering and the Local Food Concierge (`&libraries=places`).
 3. **Google Cloud / Gemini API Key:** Required for Vision analysis and Gemini fallback tiers.
 4. **YouTube Data API Key:** Required for creator subscriber metrics.
