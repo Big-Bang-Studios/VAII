@@ -59,7 +59,7 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 ### 2. Gemini Ecosystem (Conversational Mode)
 An isolated conversational layer designed for multi-turn conversational reasoning.
 * **Persistent History:** Tracks multi-turn dialogue with saved session titles and thread deletion.
-* **Model Fallback Matrix:** Cascades downstream starting from **Gemini 3.7 Flash** down to Gemma models to maintain uptime if rate limits occur. Each request has a timeout so the chat does not remain stuck connecting.
+* **Model Fallback Matrix:** Cascades downstream starting from **Gemini 3.8 Flash** down to Gemma models to maintain uptime if rate limits occur. Each request has a timeout so the chat does not remain stuck connecting.
 * **Custom System Instructions:** User-defined personality parameters stored in `localStorage`.
 * **VAII Native Guidance:** Recognizes requests for VAII Native commands and directs users to switch modes to run those commands; Gemini does not claim to execute Native tools or provide their live results.
 
