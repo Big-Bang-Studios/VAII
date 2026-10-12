@@ -1,4 +1,4 @@
-# ⚡ VAII v6.0
+# ⚡ VAII
 > **Virtual Assistant with Internet Integrations**
 
 VAII is a lightweight, frontend-only web application designed to act as a localized, multi-modal smart assistant. Built entirely on vanilla JavaScript (ES6 Modules), HTML5, and CSS3, it bypasses the need for heavy backend frameworks by interacting directly with a matrix of client-safe REST APIs and Google Cloud services.
