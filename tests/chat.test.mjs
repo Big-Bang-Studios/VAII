@@ -13,6 +13,7 @@ const {
     decryptChatMessage,
     deriveChatRoomKey,
     encryptChatMessage,
+    endChatRoom,
     ensureChatRoom,
     getOtherRoomParticipant,
     getAuthenticatedUser,
@@ -147,6 +148,16 @@ test("room discovery upgrades a UID fallback to the room's saved display name", 
     assert.deepEqual(result.discovered, [{ id: "uid-b", name: "Logan" }]);
 });
 
+test("room discovery ignores ended rooms", () => {
+    const result = mergeDiscoveredRoomContacts([{
+        participants: ["uid-a", "uid-b"],
+        participantNames: { "uid-b": "Logan" },
+        endedAt: "ended"
+    }], "uid-a");
+
+    assert.deepEqual(result, { contacts: [], discovered: [] });
+});
+
 test("chat reuses an already authenticated Firebase user", async () => {
     const user = { uid: "existing-auth-uid" };
     const auth = configureMockAuth(user);
@@ -245,6 +256,61 @@ test("an existing deterministic room is accepted only for the exact participants
     );
     roomData = { participants: ["uid-a", "uid-c"] };
     await assert.rejects(ensureChatRoom(firebase, "uid-b", "uid-a", {}, inviteId), /different participant list/);
+});
+
+test("an ended room cannot be reopened", async () => {
+    const firebase = {
+        db: {},
+        doc(_db, ...segments) {
+            return segments;
+        },
+        async getDoc() {
+            return {
+                exists: () => true,
+                data: () => ({
+                    participants: ["uid-a", "uid-b"],
+                    keyId: inviteId,
+                    endedAt: "ended"
+                })
+            };
+        },
+        async setDoc() {
+            assert.fail("an ended room must not be recreated");
+        }
+    };
+
+    await assert.rejects(
+        ensureChatRoom(firebase, "uid-a", "uid-b", {}, inviteId),
+        /has ended and cannot be reopened/
+    );
+});
+
+test("ending a room marks it ended for both participants", async () => {
+    const calls = [];
+    const firebase = {
+        db: {},
+        doc(_db, ...segments) {
+            return segments;
+        },
+        async getDoc() {
+            return {
+                exists: () => true,
+                data: () => ({ participants: ["uid-a", "uid-b"] })
+            };
+        },
+        async updateDoc(reference, data) {
+            calls.push({ reference, data });
+        },
+        serverTimestamp() {
+            return "server-timestamp";
+        }
+    };
+
+    await endChatRoom(firebase, "uid-b", "uid-a");
+    assert.deepEqual(calls, [{
+        reference: ["vaii_rooms", "uid-a_uid-b"],
+        data: { endedAt: "server-timestamp", endedBy: "uid-b" }
+    }]);
 });
 
 test("a concurrent room creator is accepted only after validating the created room", async () => {

@@ -20,6 +20,7 @@ let elements = null;
 let activeContact = null;
 let activeRoomKey = null;
 let activeRoomKeyContactId = null;
+let activeRoomId = null;
 let messageSnapshotSequence = 0;
 let unsubscribeMessages = null;
 let returnFocusToTerminal = false;
@@ -103,6 +104,7 @@ export function mergeDiscoveredRoomContacts(roomDataList, currentUid, contacts =
     const discovered = [];
 
     roomDataList.forEach(roomData => {
+        if (roomData?.endedAt) return;
         const peerUid = getOtherRoomParticipant(roomData?.participants, currentUid);
         if (!peerUid) return;
 
@@ -300,6 +302,7 @@ function adoptDiscoveredInviteKeys(roomDataList, currentUid) {
     const adopted = [];
     let consumedInvite = false;
     roomDataList.forEach(roomData => {
+        if (roomData?.endedAt) return;
         const peerUid = getOtherRoomParticipant(roomData?.participants, currentUid);
         const secret = invites[roomData?.keyId];
         if (!peerUid || !secret || !isValidInviteMaterial(roomData.keyId, secret)) return;
@@ -412,6 +415,7 @@ async function getFirebaseModules() {
                 collection: firestoreModule.collection,
                 where: firestoreModule.where,
                 addDoc: firestoreModule.addDoc,
+                updateDoc: firestoreModule.updateDoc,
                 onSnapshot: firestoreModule.onSnapshot,
                 query: firestoreModule.query,
                 orderBy: firestoreModule.orderBy,
@@ -445,6 +449,9 @@ async function startRoomDiscovery(user) {
 
         try {
             const roomDataList = snapshot.docs.map(document => document.data());
+            if (snapshot.docs.some(document => document.id === activeRoomId && document.data()?.endedAt)) {
+                endActiveRoomLocally("This chat room has been ended.");
+            }
             const result = mergeDiscoveredRoomContacts(
                 roomDataList,
                 user.uid,
@@ -561,6 +568,7 @@ function closeContactChat() {
     }
     activeRoomKey = null;
     activeRoomKeyContactId = null;
+    activeRoomId = null;
     messageSnapshotSequence++;
     elements.encryptionNotice.hidden = true;
     overlay.hidden = true;
@@ -579,6 +587,54 @@ function closeContactChat() {
     returnFocusToTerminal = false;
 }
 
+function endActiveRoomLocally(message) {
+    if (unsubscribeMessages) {
+        unsubscribeMessages();
+        unsubscribeMessages = null;
+    }
+    activeRoomKey = null;
+    activeRoomKeyContactId = null;
+    activeRoomId = null;
+    messageSnapshotSequence++;
+    elements.encryptionNotice.hidden = true;
+    elements.messages.replaceChildren();
+    elements.composer.disabled = true;
+    elements.send.disabled = true;
+    elements.endRoom.disabled = true;
+    setStatus(message);
+}
+
+async function endActiveChatRoom() {
+    if (!activeRoomId || !activeContact || elements.endRoom.disabled) return;
+    const roomId = activeRoomId;
+    const contact = activeContact;
+    if (!window.confirm("End this chat room for both participants? This cannot be undone. Existing encrypted messages will remain stored.")) {
+        return;
+    }
+
+    elements.endRoom.disabled = true;
+    setStatus("Ending chat room…");
+    try {
+        const user = await getAuthenticatedUser();
+        if (buildChatRoomId(user.uid, contact.id) !== roomId) {
+            throw new Error("The active account or chat room changed. Select the room again before ending it.");
+        }
+        const firebase = await getFirebaseModules();
+        if (activeRoomId !== roomId) return;
+        await endChatRoom(firebase, user.uid, contact.id);
+        if (activeRoomId === roomId) {
+            endActiveRoomLocally("This chat room has been ended.");
+        }
+    } catch (error) {
+        if (activeRoomId === roomId) {
+            elements.endRoom.disabled = false;
+            setStatus(`Could not end chat room: ${error.message}`, true);
+        } else {
+            console.error("Could not end chat room:", error);
+        }
+    }
+}
+
 export async function ensureChatRoom(firebase, myUid, targetUid, displayNames = {}, inviteId) {
     const roomId = buildChatRoomId(myUid, targetUid);
     if (!isValidInviteId(inviteId)) {
@@ -594,6 +650,9 @@ export async function ensureChatRoom(firebase, myUid, targetUid, displayNames = 
         }
         if (roomData.keyId !== inviteId) {
             throw new Error("This room uses a different encryption invite. Use the original invite link.");
+        }
+        if (roomData.endedAt) {
+            throw new Error("This chat room has ended and cannot be reopened.");
         }
         return true;
     };
@@ -629,6 +688,24 @@ export async function ensureChatRoom(firebase, myUid, targetUid, displayNames = 
     }
 }
 
+export async function endChatRoom(firebase, myUid, targetUid) {
+    const roomId = buildChatRoomId(myUid, targetUid);
+    const roomRef = firebase.doc(firebase.db, "vaii_rooms", roomId);
+    const roomSnapshot = await firebase.getDoc(roomRef);
+    if (!roomSnapshot.exists()) {
+        throw new Error("This chat room no longer exists.");
+    }
+    const roomData = roomSnapshot.data();
+    if (!hasExpectedRoomParticipants(roomData.participants, myUid, targetUid)) {
+        throw new Error("This room has a different participant list; it cannot be ended.");
+    }
+    if (roomData.endedAt) return;
+    await firebase.updateDoc(roomRef, {
+        endedAt: firebase.serverTimestamp(),
+        endedBy: myUid
+    });
+}
+
 function getValidDisplayName(name) {
     return typeof name === "string" && name.trim()
         ? name.trim().slice(0, 30)
@@ -643,6 +720,8 @@ async function selectContact(contact) {
 
     activeRoomKey = null;
     activeRoomKeyContactId = null;
+    activeRoomId = null;
+    elements.endRoom.disabled = true;
     messageSnapshotSequence++;
     activeContact = contact;
     elements.contactName.textContent = getContactDisplayName(contact);
@@ -678,9 +757,11 @@ async function selectContact(contact) {
         if (overlay.hidden || activeContact?.id !== contact.id) return;
         activeRoomKey = roomKey;
         activeRoomKeyContactId = contact.id;
+        activeRoomId = roomId;
         elements.encryptionNotice.hidden = false;
         elements.composer.disabled = false;
         elements.send.disabled = false;
+        elements.endRoom.disabled = false;
         const messagesQuery = firebase.query(
             firebase.collection(firebase.db, "vaii_rooms", roomId, "messages"),
             firebase.orderBy("createdAt", "asc"),
@@ -885,6 +966,7 @@ function createChatOverlay() {
         .vaii-chat-contact-heading strong { display: block; color: #f0f6fc; font-size: 16px; }
         .vaii-chat-contact-heading span { color: #8b949e; overflow-wrap: anywhere; font-size: 12px; }
         .vaii-chat-close { font-size: 21px; line-height: 1; padding: 8px 11px; }
+        .vaii-chat-end-room { color: #ff7b72 !important; }
         .vaii-chat-status { padding: 7px 22px 0; color: #8b949e; font-size: 12px; min-height: 24px; }
         .vaii-chat-status[data-error="true"] { color: #ff7b72; }
         .vaii-chat-encryption-notice {
@@ -957,6 +1039,7 @@ function createChatOverlay() {
                     <strong id="vaii-chat-contact-name">Select a contact</strong>
                     <span id="vaii-chat-contact-id"></span>
                 </div>
+                <button class="vaii-chat-button vaii-chat-end-room" id="vaii-chat-end-room" type="button" disabled>End Room</button>
                 <button class="vaii-chat-button vaii-chat-close" id="vaii-chat-close" type="button" aria-label="Close chat">✕</button>
             </header>
             <div class="vaii-chat-status" id="vaii-chat-status" role="status" aria-live="polite"></div>
@@ -990,6 +1073,7 @@ function createChatOverlay() {
         messages: overlay.querySelector("#vaii-chat-messages"),
         composer: overlay.querySelector("#vaii-chat-message-input"),
         send: overlay.querySelector("#vaii-chat-send"),
+        endRoom: overlay.querySelector("#vaii-chat-end-room"),
         close: overlay.querySelector("#vaii-chat-close")
     };
 
@@ -1055,6 +1139,7 @@ function createChatOverlay() {
         if (event.key === "Enter") addContactFromInput();
     });
     elements.send.addEventListener("click", sendMessage);
+    elements.endRoom.addEventListener("click", endActiveChatRoom);
     elements.composer.addEventListener("keydown", event => {
         if (event.key === "Enter") {
             event.preventDefault();
@@ -1090,6 +1175,7 @@ export function openContactChat(contactId = "", contactName = "", inviteMaterial
     renderContacts();
     elements.composer.disabled = true;
     elements.send.disabled = true;
+    elements.endRoom.disabled = true;
     elements.add.disabled = true;
     setStatus("Authenticating…");
     elements.addInput.focus();
@@ -1123,6 +1209,7 @@ export function openContactChat(contactId = "", contactName = "", inviteMaterial
         elements.contactId.textContent = "";
         elements.composer.disabled = true;
         elements.send.disabled = true;
+        elements.endRoom.disabled = true;
         elements.messages.replaceChildren();
         const empty = document.createElement("p");
         empty.className = "vaii-chat-empty";
