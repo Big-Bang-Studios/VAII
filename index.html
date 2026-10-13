@@ -816,7 +816,7 @@
                             <li>For VAII utility commands or live integrations (such as <code>weather Tokyo</code> or <code>crypto BTC</code>), switch to <strong>VAII Native</strong> and submit the command there.</li>
                             <li><strong>Custom Instructions:</strong> Click the gear icon (⚙️) next to Gemini to set long-term system instructions or personality guidelines.</li>
                             <li><strong>Thread Management:</strong> Access historical chat sessions via the scroll icon (📜) or start a new thread using the edit icon (📝).</li>
-                            <li><strong>Model Fallback Matrix:</strong> Cascades from <strong>Gemini 3.8 Flash</strong> down to Gemma models automatically if quota limits are reached.</li>
+                            <li><strong>Chat Model:</strong> Choose an available Gemini or Gemma model from the dropdown. Your selection is saved and changing it keeps the current conversation.</li>
                         </ul>
 
                         <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 15px 0;">
@@ -896,6 +896,11 @@
                                 <div class="mode-desc" style="color: #b185ff;">
                                     Conversational AI, vision analysis, continuous reasoning threads, and custom personas.
                                 </div>
+                                <label for="gemini-model-select" style="display: block; margin-top: 8px; color: #aaa; font-size: 0.72rem; font-weight: bold;">CHAT MODEL</label>
+                                <select id="gemini-model-select" aria-label="Gemini chat model" disabled style="width: 100%; margin-top: 4px; padding: 6px 8px; background: #1a1a1a; color: #eee; border: 1px solid #3d3d3d; border-radius: 5px; font-size: 0.78rem;">
+                                    <option value="">Loading models...</option>
+                                </select>
+                                <div id="gemini-model-status" role="status" aria-live="polite" style="margin-top: 4px; color: #888; font-size: 0.68rem;"></div>
                             </div>
                         </div>
                     </div>

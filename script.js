@@ -1158,6 +1158,7 @@ const BASELINE_FALLBACK_TREE = [
 
 const GEMINI_REQUEST_TIMEOUT_MS = 15000;
 const GEMINI_FALLBACK_TIMEOUT_MS = 45000;
+const GEMINI_MODEL_STORAGE_KEY = "vaii_gemini_model";
 const VAII_GEMINI_SYSTEM_INSTRUCTION = `You are Gemini in VAII's Gemini Ecosystem. VAII also has a separate VAII Native mode with built-in commands and live utility integrations; Gemini chat cannot execute those tools.
 
 When the user enters a VAII Native command or asks you to perform a task provided by VAII Native, infer their intent and politely tell them to switch the mode selector to "VAII Native" and resubmit the command. Name the relevant command and its syntax when helpful. Do not pretend to execute Native tools or invent live results. This includes requests for live weather, maps, local time, news, service status, translations, crypto or stock prices, air quality, space and flight tracking, earthquakes, DNS, package or GitHub lookups, food discovery, barcode and ISBN scans, image generation, QR codes, timers, trivia, or other VAII utility commands. Examples include "weather Tokyo", "crypto BTC", "dns example.com", "flight UAL420", and "draw a neon city".
@@ -1204,6 +1205,43 @@ async function requestGeminiModel(model, apiKey, bodyPayload, deadline) {
     } finally {
         clearTimeout(timeoutId);
     }
+}
+
+async function fetchAvailableGeminiModels(apiKey) {
+    const models = [];
+    let pageToken = "";
+
+    do {
+        const params = new URLSearchParams({ key: apiKey, pageSize: "1000" });
+        if (pageToken) params.set("pageToken", pageToken);
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?${params}`);
+        const data = await response.json();
+        if (data?.error?.message) {
+            throw new Error(data.error.message);
+        }
+        if (!response.ok) {
+            throw new Error(`Gemini returned HTTP ${response.status} while listing models.`);
+        }
+
+        models.push(...(Array.isArray(data.models) ? data.models : []));
+        pageToken = data.nextPageToken || "";
+    } while (pageToken);
+
+    return models
+        .filter(model => {
+            const modelId = typeof model.name === "string" ? model.name.replace(/^models\//i, "") : "";
+            const searchableName = `${modelId} ${model.displayName || ""}`;
+            return /^(gemini|gemma)/i.test(modelId)
+                && !/omni/i.test(searchableName)
+                && !/nano[\s_-]*banana/i.test(searchableName)
+                && Array.isArray(model.supportedGenerationMethods)
+                && model.supportedGenerationMethods.includes("generateContent");
+        })
+        .map(model => ({
+            id: model.name.replace(/^models\//i, ""),
+            name: model.displayName || model.name.replace(/^models\//i, "")
+        }));
 }
 
 const WMO_WEATHER_CODES = {
@@ -1269,6 +1307,8 @@ const prefsThemeSelect = document.getElementById('prefs-theme-select');
 const prefsAutocorrectToggle = document.getElementById('prefs-autocorrect-toggle');
 const apiKeyNote = document.getElementById('api-key-note');
 const prefsSaveBtn = document.getElementById('prefs-save-btn');
+const geminiModelSelect = document.getElementById('gemini-model-select');
+const geminiModelStatus = document.getElementById('gemini-model-status');
 
 const micBtn = document.getElementById('mic-trigger-btn');
 const ttsBtn = document.getElementById('tts-trigger-btn');
@@ -1288,6 +1328,8 @@ let autoSpeak = false;
 let chatHistory = [];
 let currentSessionId = null;
 let activeTimerInterval = null;
+let availableGeminiModels = [];
+let geminiModelRefreshId = 0;
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 const welcomeVaiiText = `Welcome to VAII Native! Enter a search query, app routing command, calculation sequence, weather location, translation phrase, crypto ticker, map request, or art prompt to begin...`;
@@ -1577,6 +1619,44 @@ function updateWelcomeMessageText() {
     const selectedMode = document.querySelector('input[name="vaii-mode"]:checked')?.value;
     output.innerHTML = (selectedMode === "gemini") ? welcomeGeminiText : welcomeVaiiText;
     if (ttsBtn) ttsBtn.style.display = 'none';
+}
+
+async function refreshGeminiModelOptions() {
+    if (!geminiModelSelect || !geminiModelStatus) return;
+
+    const refreshId = ++geminiModelRefreshId;
+    const previouslySelectedModel = geminiModelSelect.value || localStorage.getItem(GEMINI_MODEL_STORAGE_KEY);
+    geminiModelSelect.disabled = true;
+    geminiModelStatus.textContent = "Loading available models...";
+
+    try {
+        const models = await fetchAvailableGeminiModels(getActiveGeminiKey());
+        if (refreshId !== geminiModelRefreshId) return;
+
+        availableGeminiModels = models;
+        geminiModelSelect.replaceChildren();
+        if (models.length === 0) {
+            geminiModelSelect.add(new Option("No eligible models available", ""));
+            geminiModelStatus.textContent = "No Gemini or Gemma models supporting chat were returned for this API key.";
+            return;
+        }
+
+        models.forEach(model => {
+            geminiModelSelect.add(new Option(model.name, model.id));
+        });
+
+        const selectedModel = models.find(model => model.id === previouslySelectedModel) || models[0];
+        geminiModelSelect.value = selectedModel.id;
+        localStorage.setItem(GEMINI_MODEL_STORAGE_KEY, selectedModel.id);
+        geminiModelSelect.disabled = false;
+        geminiModelStatus.textContent = `${models.length} eligible model${models.length === 1 ? "" : "s"} available`;
+    } catch (err) {
+        if (refreshId !== geminiModelRefreshId) return;
+        availableGeminiModels = [];
+        geminiModelSelect.replaceChildren(new Option("Could not load models", ""));
+        geminiModelStatus.textContent = `Could not load models: ${err.message}`;
+        console.error("Could not load Gemini models:", err);
+    }
 }
 
 function getSavedSessions() {
@@ -3688,6 +3768,12 @@ async function executeGeminiDirectChat(promptText) {
     const cleanPrompt = (promptText && promptText.trim()) ? promptText.trim() : (hasImage ? "Describe this image in detail and answer any questions." : "");
     if (!cleanPrompt && !hasImage) return;
 
+    const selectedModel = availableGeminiModels.find(model => model.id === geminiModelSelect?.value);
+    if (!selectedModel) {
+        if (geminiModelStatus) geminiModelStatus.textContent = "Wait for the model list to load, then choose a chat model.";
+        return;
+    }
+
     const userParts = [{ text: cleanPrompt }];
     if (hasImage) {
         userParts.push({
@@ -3731,37 +3817,28 @@ async function executeGeminiDirectChat(promptText) {
     ].filter(Boolean).join("\n\n");
 
     let responseText = null;
-    let successfulModel = null;
     let lastError = null;
     const deadline = Date.now() + GEMINI_FALLBACK_TIMEOUT_MS;
-
-    for (const model of BASELINE_FALLBACK_TREE) {
-        try {
-            const bodyPayload = {
-                contents: chatHistory.map(msg => ({
-                    role: msg.role === "user" ? "user" : "model",
-                    parts: msg.parts
-                }))
-            };
-
-            bodyPayload.systemInstruction = {
-                parts: [{ text: systemInstructions }]
-            };
-
-            const data = await requestGeminiModel(model, apiKey, bodyPayload, deadline);
-
-            if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-                responseText = data.candidates[0].content.parts[0].text;
-                successfulModel = model.name;
-                break;
-            }
-            throw new Error("Gemini returned no text for the chat request.");
-        } catch (err) {
-            lastError = err.message;
-            console.warn(`Gemini request failed on ${model.id}:`, err);
-            if (Date.now() >= deadline) break;
-            continue;
+    const bodyPayload = {
+        contents: chatHistory.map(msg => ({
+            role: msg.role === "user" ? "user" : "model",
+            parts: msg.parts
+        })),
+        systemInstruction: {
+            parts: [{ text: systemInstructions }]
         }
+    };
+
+    try {
+        const data = await requestGeminiModel(selectedModel, apiKey, bodyPayload, deadline);
+        if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+            responseText = data.candidates[0].content.parts[0].text;
+        } else {
+            throw new Error("Gemini returned no text for the chat request.");
+        }
+    } catch (err) {
+        lastError = err.message;
+        console.warn(`Gemini request failed on ${selectedModel.id}:`, err);
     }
 
     loadingDiv.remove();
@@ -3770,7 +3847,7 @@ async function executeGeminiDirectChat(promptText) {
         chatHistory.push({
             role: "model",
             parts: [{ text: responseText }],
-            activeModelName: successfulModel
+            activeModelName: selectedModel.name
         });
         renderFullChatLogBubble();
         saveCurrentSessionState();
@@ -3779,7 +3856,7 @@ async function executeGeminiDirectChat(promptText) {
             output.innerHTML += `
                 <div style="background: #1a1a1a; padding: 14px; border-radius: 8px; border-left: 3px solid #ff4d4d; margin-top: 10px; text-align: left;">
                     <div style="font-weight: bold; color: #ff4d4d;">⚠️ Generation Failure</div>
-                    <div style="color: #ddd; font-size: 0.9rem; margin-top: 4px;">${escapeHtml(lastError || "All Gemini models failed to respond.")} Check that your Gemini API key is valid and enabled for the Gemini API.</div>
+                    <div style="color: #ddd; font-size: 0.9rem; margin-top: 4px;">${escapeHtml(lastError || "The selected Gemini model failed to respond.")} Check that your Gemini API key is valid and enabled for the Gemini API.</div>
                 </div>
             `;
             output.scrollTop = output.scrollHeight;
@@ -4856,6 +4933,12 @@ function compileFinalSourceIndexBox(query, wikiData) {
 // 9. EVENT LISTENERS
 // ==========================================
 document.querySelectorAll('input[name="vaii-mode"]').forEach(r => r.addEventListener('change', updateWelcomeMessageText));
+geminiModelSelect?.addEventListener('change', () => {
+    if (geminiModelSelect.value) {
+        localStorage.setItem(GEMINI_MODEL_STORAGE_KEY, geminiModelSelect.value);
+    }
+});
+void refreshGeminiModelOptions();
 
 function updateApiKeyNoteVisibility() {
     if (!prefsApiKeyInput || !apiKeyNote) return;
@@ -4912,6 +4995,7 @@ prefsSaveBtn?.addEventListener('click', () => {
     applyVaiiTheme(selectedTheme);
     if (prefsDrawer) prefsDrawer.style.display = "none";
     initializeFreshChatSession();
+    void refreshGeminiModelOptions();
 });
 
 helpToggle?.addEventListener('click', () => {
