@@ -4994,7 +4994,6 @@ prefsSaveBtn?.addEventListener('click', () => {
     localStorage.setItem("vaii_autocorrect", String(prefsAutocorrectToggle?.checked === true));
     applyVaiiTheme(selectedTheme);
     if (prefsDrawer) prefsDrawer.style.display = "none";
-    initializeFreshChatSession();
     void refreshGeminiModelOptions();
 });
 
