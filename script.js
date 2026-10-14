@@ -1234,6 +1234,7 @@ async function fetchAvailableGeminiModels(apiKey) {
             const searchableName = `${modelId} ${model.displayName || ""}`;
             return /^(gemini|gemma)/i.test(modelId)
                 && !/omni/i.test(searchableName)
+                && !/gemini[\s_-]*2[.]5/i.test(searchableName)
                 && !/nano[\s_-]*banana/i.test(searchableName)
                 && Array.isArray(model.supportedGenerationMethods)
                 && model.supportedGenerationMethods.includes("generateContent");
