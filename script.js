@@ -1235,6 +1235,7 @@ async function fetchAvailableGeminiModels(apiKey) {
             const searchableName = `${modelId} ${model.displayName || ""}`;
             const isGemmaModel = /gemma/i.test(searchableName);
             return /^(gemini|gemma)/i.test(modelId)
+                && !/robotics|tts/i.test(searchableName)
                 && (isGemmaModel || (
                     !/omni/i.test(searchableName)
                     && !/gemini[\s_-]*2[.]5/i.test(searchableName)
