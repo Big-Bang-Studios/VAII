@@ -1159,6 +1159,7 @@ const BASELINE_FALLBACK_TREE = [
 const GEMINI_REQUEST_TIMEOUT_MS = 15000;
 const GEMINI_FALLBACK_TIMEOUT_MS = 45000;
 const GEMINI_MODEL_STORAGE_KEY = "vaii_gemini_model";
+const GEMINI_MODEL_USER_SELECTED_KEY = "vaii_gemini_model_user_selected";
 const VAII_GEMINI_SYSTEM_INSTRUCTION = `You are Gemini in VAII's Gemini Ecosystem. VAII also has a separate VAII Native mode with built-in commands and live utility integrations; Gemini chat cannot execute those tools.
 
 When the user enters a VAII Native command or asks you to perform a task provided by VAII Native, infer their intent and politely tell them to switch the mode selector to "VAII Native" and resubmit the command. Name the relevant command and its syntax when helpful. Do not pretend to execute Native tools or invent live results. This includes requests for live weather, maps, local time, news, service status, translations, crypto or stock prices, air quality, space and flight tracking, earthquakes, DNS, package or GitHub lookups, food discovery, barcode and ISBN scans, image generation, QR codes, timers, trivia, or other VAII utility commands. Examples include "weather Tokyo", "crypto BTC", "dns example.com", "flight UAL420", and "draw a neon city".
@@ -1232,10 +1233,13 @@ async function fetchAvailableGeminiModels(apiKey) {
         .filter(model => {
             const modelId = typeof model.name === "string" ? model.name.replace(/^models\//i, "") : "";
             const searchableName = `${modelId} ${model.displayName || ""}`;
+            const isGemmaModel = /gemma/i.test(searchableName);
             return /^(gemini|gemma)/i.test(modelId)
-                && !/omni/i.test(searchableName)
-                && !/gemini[\s_-]*2[.]5/i.test(searchableName)
-                && !/nano[\s_-]*banana/i.test(searchableName)
+                && (isGemmaModel || (
+                    !/omni/i.test(searchableName)
+                    && !/gemini[\s_-]*2[.]5/i.test(searchableName)
+                    && !/nano[\s_-]*banana/i.test(searchableName)
+                ))
                 && Array.isArray(model.supportedGenerationMethods)
                 && model.supportedGenerationMethods.includes("generateContent");
         })
@@ -1626,7 +1630,9 @@ async function refreshGeminiModelOptions() {
     if (!geminiModelSelect || !geminiModelStatus) return;
 
     const refreshId = ++geminiModelRefreshId;
-    const previouslySelectedModel = geminiModelSelect.value || localStorage.getItem(GEMINI_MODEL_STORAGE_KEY);
+    const previouslySelectedModel = localStorage.getItem(GEMINI_MODEL_USER_SELECTED_KEY) === "true"
+        ? geminiModelSelect.value || localStorage.getItem(GEMINI_MODEL_STORAGE_KEY)
+        : null;
     geminiModelSelect.disabled = true;
     geminiModelStatus.textContent = "Loading available models...";
 
@@ -1642,13 +1648,14 @@ async function refreshGeminiModelOptions() {
             return;
         }
 
+        geminiModelSelect.add(new Option("Choose a model", ""));
         models.forEach(model => {
             geminiModelSelect.add(new Option(model.name, model.id));
         });
 
-        const selectedModel = models.find(model => model.id === previouslySelectedModel) || models[0];
-        geminiModelSelect.value = selectedModel.id;
-        localStorage.setItem(GEMINI_MODEL_STORAGE_KEY, selectedModel.id);
+        const selectedModel = models.find(model => model.id === previouslySelectedModel)
+            || models.find(model => !/^gemma/i.test(model.id));
+        geminiModelSelect.value = selectedModel?.id || "";
         geminiModelSelect.disabled = false;
         geminiModelStatus.textContent = `${models.length} eligible model${models.length === 1 ? "" : "s"} available`;
     } catch (err) {
@@ -4937,6 +4944,7 @@ document.querySelectorAll('input[name="vaii-mode"]').forEach(r => r.addEventList
 geminiModelSelect?.addEventListener('change', () => {
     if (geminiModelSelect.value) {
         localStorage.setItem(GEMINI_MODEL_STORAGE_KEY, geminiModelSelect.value);
+        localStorage.setItem(GEMINI_MODEL_USER_SELECTED_KEY, "true");
     }
 });
 void refreshGeminiModelOptions();
