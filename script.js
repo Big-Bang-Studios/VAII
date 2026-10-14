@@ -989,10 +989,19 @@ window.openVAIIHtmlEditor = function(initialCode = "") {
 // ==========================================
 window.openVAIIHackerNewsView = function(storyId, rawTitle, rawUrl, points, author) {
     const title = safeStr(rawTitle);
-    const storyUrl = rawUrl || ("https://news.ycombinator.com/item?id=" + storyId);
+    const fallbackStoryUrl = "https://news.ycombinator.com/item?id=" + storyId;
+    let storyUrl = fallbackStoryUrl;
+    let websiteLink = "";
     let domain = "news.ycombinator.com";
     try {
-        if (storyUrl) domain = new URL(storyUrl).hostname.replace(/^www\./, "");
+        if (rawUrl) {
+            const parsedUrl = new URL(rawUrl);
+            if (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") {
+                storyUrl = parsedUrl.href;
+                websiteLink = parsedUrl.href;
+                domain = parsedUrl.hostname.replace(/^www\./, "");
+            }
+        }
     } catch(e) {}
 
     let overlay = document.getElementById("vaii-hn-page");
@@ -1025,7 +1034,12 @@ window.openVAIIHackerNewsView = function(storyId, rawTitle, rawUrl, points, auth
                         <span style="color: #777; font-size: 0.75rem;">▲ ${points || 0} pts • by ${author || "hn"}</span>
                     </div>
                     <div style="font-size: 1.1rem; font-weight: bold; color: #fff; line-height: 1.4; margin-bottom: 12px;">${title}</div>
-                    <a href="${storyUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; background: #ff6600; color: #fff; text-decoration: none; padding: 8px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: bold;">
+                    ${websiteLink ? `<div style="font-size: 0.8rem; color: #aaa; margin-bottom: 12px;">Website: <a href="${escapeHtml(websiteLink)}" target="_blank" rel="noopener noreferrer" style="color: #4da3ff; text-decoration: none;">${escapeHtml(domain)} ↗</a></div>` : ""}
+                    ${websiteLink ? `
+                        <div style="font-size: 0.75rem; color: #888; font-weight: bold; text-transform: uppercase; margin: 14px 0 8px; letter-spacing: 0.5px;">Website Preview</div>
+                        <iframe title="Article website: ${escapeHtml(domain)}" src="${escapeHtml(websiteLink)}" sandbox="allow-scripts allow-forms allow-popups" referrerpolicy="no-referrer" style="display: block; width: 100%; height: 70vh; min-height: 360px; border: 1px solid #333; border-radius: 6px; background: #fff;"></iframe>
+                    ` : ""}
+                    <a href="${escapeHtml(storyUrl)}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; background: #ff6600; color: #fff; text-decoration: none; padding: 8px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 12px;">
                         <span>Open Article</span>
                         <span>➔</span>
                     </a>
