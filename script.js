@@ -1407,6 +1407,9 @@ const defaultAssistantSuggestions = [
     "/npm",
     "/chat",
     "chat",
+    "vaii school",
+    "school",
+    "/school",
     "terminal",
     "/terminal",
             "/quakes",
@@ -6302,7 +6305,7 @@ function autocorrectCommandQuery(query) {
         "airquality", "aqi", "chat", "draw", "drink", "film", "flight", "food", "github", "history", "holiday", "joke", "movie", "manga",
         "ghuser", "isbn", "locate", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
         "onthisday", "postal", "qr", "qrcode", "repo", "snapshot", "sms", "solarwind", "song", "space", "spaceweather", "stream",
-        "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
+        "school", "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
         "watch", "wayback", "weather", "whereami", "zip", "status", "ebay"
     ];
     const candidates = commandNames
