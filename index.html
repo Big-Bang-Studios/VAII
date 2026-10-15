@@ -634,6 +634,13 @@
                 <div id="routing-warning" class="global-warning-msg">
                     ⚠️ Website routing is not 100% accurate because the AI cannot scrape live websites.
                 </div>
+                <div id="school-notification" role="alert" style="display:none;align-items:center;justify-content:space-between;gap:10px;background:#163324;border:1px solid #2b8655;color:#caffdc;padding:10px 12px;border-radius:8px;margin-bottom:8px;text-align:left;">
+                    <span id="school-notification-message"></span>
+                    <span style="display:flex;gap:6px;flex-shrink:0;">
+                        <button id="school-notification-open" type="button" style="background:#257a50;border:0;color:#fff;padding:6px 9px;border-radius:5px;font-weight:700;cursor:pointer;">Open School</button>
+                        <button id="school-notification-dismiss" type="button" aria-label="Dismiss assessment notification" style="background:transparent;border:0;color:#caffdc;font-size:1rem;cursor:pointer;">✕</button>
+                    </span>
+                </div>
 
                 <section class="widget" id="search-widget">
                     <!-- NAVIGATION BUTTON BAR -->
@@ -646,6 +653,9 @@
                         </button>
                         <button id="help-toggle" class="nav-hub-btn help-style" title="System Operation Guide">
                             <span>❓</span> Guide
+                        </button>
+                        <button id="school-launch-btn" class="nav-hub-btn" title="Open VAII School" style="background:#173d2a;border:1px solid #2b8655;color:#caffdc;">
+                            <span>📚</span> School
                         </button>
                     </div>
 
@@ -935,6 +945,7 @@
                         <div class="palette-item" data-cmd="/text "><span>💬 /text</span><span style="color:#666; font-size:0.75rem;">Send SMS text</span></div>
                         <div class="palette-item" data-cmd="/editor"><span>📝 /editor</span><span style="color:#666; font-size:0.75rem;">HTML live sandbox</span></div>
                         <div class="palette-item" data-cmd="/terminal"><span>💻 /terminal</span><span style="color:#666; font-size:0.75rem;">Launch sandbox</span></div>
+                        <div class="palette-item" data-cmd="/school"><span>📚 /school</span><span style="color:#666; font-size:0.75rem;">VAII School assessments</span></div>
                         <div class="palette-item" data-cmd="/weather "><span>🌦 /weather</span><span style="color:#666; font-size:0.75rem;">Get local weather</span></div>
                         <div class="palette-item" data-cmd="/play "><span>🎵 /play</span><span style="color:#666; font-size:0.75rem;">Music stream</span></div>
                         <div class="palette-item" data-cmd="/movie "><span>🎬 /movie</span><span style="color:#666; font-size:0.75rem;">Search films</span></div>

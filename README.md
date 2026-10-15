@@ -53,6 +53,7 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **📡 Service Status Monitor:** Checks live GitHub, Discord, and Cloudflare status summaries with `status [provider]`.
 * **🎨 AI Art Generation:** Generates on-demand graphics via **Pollinations AI**.
 * **💬 Contact Chat:** Type `chat` or `/chat` in the terminal or normal menu for a fullscreen contact chat backed by Firebase Firestore. Chat uses the app's Firebase Auth identity (anonymous Auth for unauthenticated visitors) and stores contact lists, display names, and shared invite secrets locally in the browser. Secure invite links carry a random secret in the URL fragment; share each link with only one contact. Messages use browser Web Crypto (PBKDF2-derived AES-GCM room keys), and Firestore stores ciphertext and IV rather than message text. Losing the browser's local storage or invite secret prevents decrypting that room's history. Authenticated clients discover rooms containing their own UID, so the recipient can open an invite link and the inviter learns the recipient UID from the shared room. Either participant can end a room for both people; ended rooms cannot be reopened, and their encrypted message history remains stored. Legacy contacts created with local-only IDs are intentionally not migrated.
+* **📚 VAII School:** Open with `vaii school`, `school`, `/school`, or the School button. Teachers can create math, ELA, and science multiple-choice assessments and share a teacher invite URL; students who open that URL are linked to the teacher and see outstanding assessments. Students submit one scored result per assessment, teachers can review submitted answers and scores, and the menu displays a boot-time alert when assessments are waiting. Teacher links are stored in the current browser's local storage, while membership, assessments, and submissions are stored in Firestore.
 
 ---
 
@@ -77,7 +78,7 @@ Google Cloud security policies (`Error 403: disallowed_useragent`) block OAuth s
 
 Configure client-side API keys within `script.js`, and server-side credentials in your deployment environment:
 
-1. **Firebase Config:** Initialize your project credentials (`apiKey`, `authDomain`, `projectId`) in `firebaseConfig.js`. The contact chat requires Firestore and Firebase Anonymous Authentication to be enabled, as well as rules that authorize authenticated room participants and validate the encrypted `ciphertext`/`iv` message schema without allowing plaintext `text` fields. Anonymous identities persist with Firebase Auth on the current browser/device; users changing devices need a linked or otherwise recoverable Auth account to retain the same UID.
+1. **Firebase Config:** Initialize your project credentials (`apiKey`, `authDomain`, `projectId`) in `firebaseConfig.js`. The contact chat and VAII School require Firestore and Firebase Authentication to be enabled. Deploy the configured [firestore.rules](./firestore.rules) with `firebase deploy --only firestore:rules` to authorize authenticated E2EE room participants and validate encrypted messages, as well as to restrict school records, assessments, and student submissions. Anonymous identities persist with Firebase Auth on the current browser/device; users changing devices need a linked or otherwise recoverable Auth account to retain the same UID.
 2. **Google Maps API Key:** Required for spatial rendering and the Local Food Concierge (`&libraries=places`).
 3. **Google Cloud / Gemini API Key:** Required for Vision analysis and Gemini fallback tiers.
 4. **YouTube Data API Key:** Required for creator subscriber metrics.
@@ -96,4 +97,6 @@ The `/api/proxy` endpoint accepts browser requests from `https://vaii-two.vercel
 * `script.js`: Core ES6 controller handling Firebase Auth, routing patterns, and API fetchers.
 * `firebaseConfig.js`: Shared Firebase project configuration for Auth and Firestore.
 * `chat.js`: Fullscreen terminal contact chat and Firestore message listeners.
+* `school.js`: VAII School teacher/student linking, assessment creation, test-taking, scoring, and results.
+* `firestore.rules`: Firestore authorization and schema validation for E2EE chat and VAII School.
 * `privacy.html`: Local data storage and API telemetry policies.

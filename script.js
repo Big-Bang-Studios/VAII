@@ -15,6 +15,7 @@ import {
 
 import { launchTerminalSandbox } from "./terminal.js";
 import { configureContactChat, handleContactChatAuthState, initializeContactChat, openContactChat } from "./chat.js";
+import { configureVAiiSchool, handleSchoolAuthState, openVAiiSchool } from "./school.js";
 
 const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : function() {};
 
@@ -1145,6 +1146,21 @@ const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 configureContactChat({ app, auth, onAuthStateChanged, signInAnonymously });
 initializeContactChat();
+configureVAiiSchool({
+    app,
+    auth,
+    onPendingAssessments(count) {
+        const alert = document.getElementById("school-notification");
+        const message = document.getElementById("school-notification-message");
+        if (!alert || !message) return;
+        if (count > 0) {
+            message.textContent = `You have ${count} new assessment${count === 1 ? "" : "s"} to complete.`;
+            alert.style.display = "flex";
+        } else {
+            alert.style.display = "none";
+        }
+    }
+});
 
 const GOOGLE_API_KEY = "AIzaSyAJ" + "KTkU0nd6" + "ZB_zjIcN" + "QCAQQsff" + "HEp4WH8";
 const GEMINI_VISION_KEY = "AQ.Ab8RN" + "6IiGSicf" + "y3sfYb6e" + "QFhREt91" + "jzzekq6x" + "bSDJKldM" + "LqOpg";
@@ -4380,6 +4396,11 @@ function runInfoExecution(query) {
         return;
     }
 
+    if (["vaii school", "school", "/school"].includes(cleanQuery)) {
+        openVAiiSchool();
+        return;
+    }
+
     if (cleanQuery === "terminal" || cleanQuery === "/terminal" || cleanQuery === "shell" || cleanQuery === "sandbox") {
         launchTerminalSandbox();
         return;
@@ -6304,6 +6325,11 @@ executeActionBtn?.addEventListener('click', () => {
     const mode = modeEl ? modeEl.value : "native";
     
     if (!query && !activeImageBase64) return;
+    if (["vaii school", "school", "/school"].includes(query.toLowerCase())) {
+        if (hubInput) hubInput.value = "";
+        openVAiiSchool();
+        return;
+    }
 
     if (mode === "native") {
         query = autocorrectCommandQuery(query);
@@ -6609,6 +6635,15 @@ logoutActionBtn?.addEventListener('click', () => signOut(auth).catch(err => cons
 
 onAuthStateChanged(auth, (user) => {
     handleContactChatAuthState(user);
+    handleSchoolAuthState(user).catch(error => {
+        console.error("VAII School boot check failed:", error);
+        const alert = document.getElementById("school-notification");
+        const message = document.getElementById("school-notification-message");
+        if (alert && message) {
+            message.textContent = "VAII School could not check your assessments. Open School to retry.";
+            alert.style.display = "flex";
+        }
+    });
     if (user) {
         if (authContainer) authContainer.style.display = "none";
         if (mainApp) mainApp.style.display = "block";
@@ -6621,7 +6656,16 @@ onAuthStateChanged(auth, (user) => {
     } else {
         if (authContainer) authContainer.style.display = "block";
         if (mainApp) mainApp.style.display = "none";
+        const schoolAlert = document.getElementById("school-notification");
+        if (schoolAlert) schoolAlert.style.display = "none";
     }
+});
+
+document.getElementById("school-launch-btn")?.addEventListener("click", openVAiiSchool);
+document.getElementById("school-notification-open")?.addEventListener("click", openVAiiSchool);
+document.getElementById("school-notification-dismiss")?.addEventListener("click", () => {
+    const alert = document.getElementById("school-notification");
+    if (alert) alert.style.display = "none";
 });
 
 
