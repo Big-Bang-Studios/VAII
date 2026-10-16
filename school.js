@@ -15,6 +15,10 @@ let activeUserId = null;
 let processedInvite = null;
 let activeAssessment = null;
 
+export function isAssessmentActive(assessment = activeAssessment) {
+    return Boolean(assessment);
+}
+
 export function isMathAssessmentActive(assessment = activeAssessment) {
     return assessment?.subject === "math";
 }

@@ -15,7 +15,7 @@ import {
 
 import { launchTerminalSandbox } from "./terminal.js";
 import { configureContactChat, handleContactChatAuthState, initializeContactChat, openContactChat } from "./chat.js";
-import { configureVAiiSchool, handleSchoolAuthState, isMathAssessmentActive, openVAiiSchool } from "./school.js";
+import { configureVAiiSchool, handleSchoolAuthState, isAssessmentActive, isMathAssessmentActive, openVAiiSchool } from "./school.js";
 
 const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : function() {};
 
@@ -3667,6 +3667,7 @@ function fetchDadJoke() {
 }
 
 async function executeVisionAnalysis(promptText) {
+    if (blockGeminiDuringAssessment()) return;
     if (!activeImageBase64) return;
 
     const apiKey = getActiveGeminiKey();
@@ -3805,7 +3806,14 @@ function launchTargetUrl(url) {
 // ==========================================
 // GEMINI DIRECT CHAT ENGINE
 // ==========================================
+function blockGeminiDuringAssessment() {
+    if (!isAssessmentActive()) return false;
+    handleVaiiDataOutput("Gemini unavailable", '<div role="alert" style="padding:12px;color:#f0c674;">Gemini is unavailable while you are taking an assessment. Submit the assessment to use it again.</div>');
+    return true;
+}
+
 async function executeGeminiDirectChat(promptText) {
+    if (blockGeminiDuringAssessment()) return;
     const hasImage = !!activeImageBase64;
     const cleanPrompt = (promptText && promptText.trim()) ? promptText.trim() : (hasImage ? "Describe this image in detail and answer any questions." : "");
     if (!cleanPrompt && !hasImage) return;

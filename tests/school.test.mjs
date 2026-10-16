@@ -5,7 +5,7 @@ import test from "node:test";
 
 const schoolSource = await readFile(fileURLToPath(new URL("../school.js", import.meta.url)), "utf8");
 const schoolModule = await import(`data:text/javascript;base64,${Buffer.from(schoolSource).toString("base64")}`);
-const { getSchoolDisplayName, isMathAssessmentActive, normalizeAssessmentQuestions, scoreAssessment } = schoolModule;
+const { getSchoolDisplayName, isAssessmentActive, isMathAssessmentActive, normalizeAssessmentQuestions, scoreAssessment } = schoolModule;
 
 test("School display name is independent from the chat name", () => {
     assert.equal(
@@ -22,6 +22,12 @@ test("calculator is blocked only during an active math assessment", () => {
     assert.equal(isMathAssessmentActive(), false);
     assert.equal(isMathAssessmentActive({ subject: "math" }), true);
     assert.equal(isMathAssessmentActive({ subject: "science" }), false);
+});
+
+test("Gemini is blocked during any active assessment", () => {
+    assert.equal(isAssessmentActive(), false);
+    assert.equal(isAssessmentActive({ subject: "math" }), true);
+    assert.equal(isAssessmentActive({ subject: "science" }), true);
 });
 
 test("assessment questions accept multiple choice questions with valid answer indexes", () => {
