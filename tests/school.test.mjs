@@ -5,7 +5,18 @@ import test from "node:test";
 
 const schoolSource = await readFile(fileURLToPath(new URL("../school.js", import.meta.url)), "utf8");
 const schoolModule = await import(`data:text/javascript;base64,${Buffer.from(schoolSource).toString("base64")}`);
-const { normalizeAssessmentQuestions, scoreAssessment } = schoolModule;
+const { getSchoolDisplayName, normalizeAssessmentQuestions, scoreAssessment } = schoolModule;
+
+test("School display name is independent from the chat name", () => {
+    assert.equal(
+        getSchoolDisplayName({ displayName: "Real Name", email: "chatname@example.com" }, "School Name"),
+        "School Name"
+    );
+    assert.equal(
+        getSchoolDisplayName({ displayName: "Real Name", email: "chatname@example.com" }, ""),
+        "Real Name"
+    );
+});
 
 test("assessment questions accept multiple choice questions with valid answer indexes", () => {
     assert.deepEqual(normalizeAssessmentQuestions([{

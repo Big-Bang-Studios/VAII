@@ -1,6 +1,7 @@
 const FIREBASE_VERSION = "10.8.0";
 const FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`;
 const TEACHERS_KEY = "vaii_school_teachers_v1";
+const SCHOOL_NAME_KEY = "vaii_school_display_name_v1";
 const SUBJECTS = ["math", "ela", "science"];
 
 let firebaseApp = null;
@@ -24,8 +25,7 @@ function escapeHtml(value) {
     })[character]);
 }
 
-function getDisplayName(user = firebaseAuth?.currentUser) {
-    const savedName = localStorage.getItem("vaii_chat_username");
+export function getSchoolDisplayName(user = firebaseAuth?.currentUser, savedName = localStorage.getItem(SCHOOL_NAME_KEY)) {
     const name = savedName || user?.displayName || user?.email?.split("@")[0] || "Student";
     return String(name).trim().slice(0, 30) || "Student";
 }
@@ -172,13 +172,15 @@ async function renderHome() {
             }
         }
 
-        const inviteUrl = teacherData ? buildInviteUrl(user.uid, teacherData.teacherName || getDisplayName(user)) : "";
+        const inviteUrl = teacherData ? buildInviteUrl(user.uid, teacherData.teacherName || getSchoolDisplayName(user)) : "";
+        const schoolProfile = `<section style="${cardStyle()}"><h2 style="margin:0 0 8px;">School profile</h2><label style="display:block;color:#aab4bf;">Your name in VAII School<input id="vaii-school-display-name" aria-label="Your School name" maxlength="30" required value="${escapeHtml(getSchoolDisplayName(user))}" style="${inputStyle()}display:block;width:100%;margin-top:5px;"></label><button type="button" data-school-action="save-name" style="${buttonStyle("#257a50")}margin-top:10px;">Save School name</button><span id="vaii-school-name-status" role="status" style="margin-left:10px;color:#72d99a;"></span><div id="vaii-school-name-error" role="alert" style="color:#ff8b8b;margin-top:8px;"></div></section>`;
         const teacherSection = teacherData
             ? `<section style="${cardStyle()}"><h2 style="margin:0 0 8px;">Teacher dashboard</h2><p style="color:#aab4bf;">Share this invite link with students:</p><div style="display:flex;gap:8px;flex-wrap:wrap;"><input readonly value="${escapeHtml(inviteUrl)}" aria-label="Teacher invite link" style="${inputStyle()}flex:1;min-width:220px;"><button type="button" data-school-action="copy-invite" style="${buttonStyle("#257a50")}">Copy invite</button></div><button type="button" data-school-action="builder" style="${buttonStyle("#257a50")}margin-top:14px;">＋ Create assessment</button><div id="vaii-school-teacher-tests" style="margin-top:14px;">Loading assessments…</div></section>`
             : `<section style="${cardStyle()}"><h2 style="margin:0 0 8px;">Teach with VAII School</h2><p style="color:#aab4bf;">Create assessments, share an invite link, and review student results.</p><button type="button" data-school-action="become-teacher" style="${buttonStyle("#257a50")}">Become a teacher</button></section>`;
 
         content.innerHTML = `
             <div style="display:grid;gap:16px;">
+                ${schoolProfile}
                 ${teacherSection}
                 <section style="${cardStyle()}"><h2 style="margin:0 0 12px;">Assigned assessments</h2>
                     ${linkedTeachers.length ? `<p style="color:#aab4bf;margin-top:0;">Linked to: ${linkedTeachers.map(teacher => escapeHtml(teacher.name)).join(", ")}</p>` : `<p style="color:#aab4bf;">No teachers linked yet. Ask your teacher to share their VAII School invite link.</p>`}
@@ -234,7 +236,7 @@ function buildInviteUrl(teacherId, teacherName) {
 
 async function becomeTeacher() {
     const user = getUser();
-    const teacherName = getDisplayName(user);
+    const teacherName = getSchoolDisplayName(user);
     const firestore = await getFirestore();
     const teacherRef = firestore.doc(firestore.db, "vaii_schools", user.uid);
     const existing = await firestore.getDoc(teacherRef);
@@ -249,6 +251,21 @@ async function becomeTeacher() {
         });
     }
     await renderHome();
+}
+
+async function saveSchoolName() {
+    const user = getUser();
+    const input = overlay.querySelector("#vaii-school-display-name");
+    const name = input.value.trim();
+    if (!name || name.length > 30) throw new Error("Enter a School name between 1 and 30 characters.");
+    const firestore = await getFirestore();
+    const teacherRef = firestore.doc(firestore.db, "vaii_schools", user.uid);
+    const teacherSnapshot = await firestore.getDoc(teacherRef);
+    if (teacherSnapshot.exists()) await firestore.updateDoc(teacherRef, { teacherName: name });
+    localStorage.setItem(SCHOOL_NAME_KEY, name);
+    await renderHome();
+    const status = document.getElementById("vaii-school-name-status");
+    if (status) status.textContent = "Name saved.";
 }
 
 function renderBuilder() {
@@ -394,7 +411,7 @@ async function submitAssessment(form) {
     const submissionRef = firestore.doc(firestore.db, "vaii_schools", assessment.teacherId, "assessments", assessment.testId, "submissions", user.uid);
     await firestore.setDoc(submissionRef, {
         studentId: user.uid,
-        studentName: getDisplayName(user),
+        studentName: getSchoolDisplayName(user),
         score,
         totalQuestions,
         answers,
@@ -406,7 +423,7 @@ async function submitAssessment(form) {
 }
 
 function showFormError(error) {
-    const errorElement = document.getElementById("vaii-school-form-error");
+    const errorElement = document.querySelector("#vaii-school-form-error, #vaii-school-name-error");
     if (errorElement) errorElement.textContent = error.message || "Could not save the assessment.";
     else openSchoolError(error);
 }
@@ -420,6 +437,7 @@ async function handleSchoolClick(event) {
         if (action === "close") closeSchool();
         if (action === "home") await renderHome();
         if (action === "become-teacher") await becomeTeacher();
+        if (action === "save-name") await saveSchoolName();
         if (action === "builder") renderBuilder();
         if (action === "take") await openAssessment(button.dataset.teacherId, button.dataset.testId);
         if (action === "results") await renderAssessmentResults(button.dataset.testId);
@@ -429,7 +447,8 @@ async function handleSchoolClick(event) {
             button.textContent = "Copied!";
         }
     } catch (error) {
-        openSchoolError(error);
+        if (action === "save-name") showFormError(error);
+        else openSchoolError(error);
     }
 }
 
