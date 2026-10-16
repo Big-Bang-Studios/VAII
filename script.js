@@ -1327,7 +1327,7 @@ const routingWarning = document.getElementById('routing-warning');
 
 const helpToggle = document.getElementById('help-toggle');
 const helpGuide = document.getElementById('help-guide');
-const changelogToggle = document.getElementById('changelog-toggle');
+const contactChatToggle = document.getElementById('contact-chat-toggle');
 const changelogDrawer = document.getElementById('changelog-drawer');
 const historyToggle = document.getElementById('history-toggle');
 const historyDrawer = document.getElementById('history-drawer');
@@ -5056,11 +5056,7 @@ helpToggle?.addEventListener('click', () => {
     helpGuide.style.display = isVisible ? "none" : "block";
 });
 
-changelogToggle?.addEventListener('click', () => {
-    const isVisible = changelogDrawer.style.display === "block";
-    closeAllDrawers();
-    changelogDrawer.style.display = isVisible ? "none" : "block";
-});
+contactChatToggle?.addEventListener('click', openContactChat);
 
 historyToggle?.addEventListener('click', () => {
     const isVisible = historyDrawer.style.display === "block";
