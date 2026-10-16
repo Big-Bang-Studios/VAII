@@ -61,6 +61,15 @@ function isValidUserId(userId) {
         !userId.includes("/");
 }
 
+export function normalizeChatUserId(userId) {
+    const userIdValue = typeof userId === "string"
+        ? userId
+        : typeof userId?.uid === "string"
+            ? userId.uid
+            : "";
+    return userIdValue.trim();
+}
+
 export function buildChatRoomId(firstUid, secondUid) {
     if (!isValidUserId(firstUid) || !isValidUserId(secondUid) || firstUid === secondUid) {
         throw new Error("A chat room requires two different valid Firebase UIDs.");
@@ -829,7 +838,7 @@ async function selectContact(contact) {
 }
 
 function addContact(userId, name = "") {
-    const normalizedId = userId.trim();
+    const normalizedId = normalizeChatUserId(userId);
     if (!isValidUserId(normalizedId)) {
         setStatus("Enter a valid Firebase UID (up to 128 characters, without /).", true);
         return null;

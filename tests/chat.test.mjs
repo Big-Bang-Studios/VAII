@@ -20,7 +20,8 @@ const {
     getContactDisplayName,
     hasExpectedRoomParticipants,
     mergeDiscoveredRoomContacts,
-    mergeMessageDisplayName
+    mergeMessageDisplayName,
+    normalizeChatUserId
 } = chatModule;
 globalThis.window = { crypto: webcrypto };
 const inviteId = Buffer.alloc(16, 1).toString("base64url");
@@ -56,6 +57,14 @@ test("room IDs are deterministic and reject identical or missing UIDs", () => {
     assert.equal(buildChatRoomId("uid-b", "uid-a"), "uid-a_uid-b");
     assert.throws(() => buildChatRoomId("uid-a", "uid-a"), /two different/);
     assert.throws(() => buildChatRoomId("", "uid-b"), /two different/);
+});
+
+test("chat user IDs normalize string UIDs and Firebase user/profile objects", () => {
+    assert.equal(normalizeChatUserId("  valid-user-uid  "), "valid-user-uid");
+    assert.equal(normalizeChatUserId({ uid: "  firebase-user-uid  " }), "firebase-user-uid");
+    assert.equal(normalizeChatUserId({ uid: "  profile-user-uid  ", name: "Guest" }), "profile-user-uid");
+    assert.equal(normalizeChatUserId({ uid: 123 }), "");
+    assert.equal(normalizeChatUserId(null), "");
 });
 
 test("room participant validation requires exactly the two distinct UIDs", () => {
@@ -163,6 +172,7 @@ test("chat reuses an already authenticated Firebase user", async () => {
     const auth = configureMockAuth(user);
 
     assert.equal(await getAuthenticatedUser(), user);
+    assert.equal(normalizeChatUserId(await getAuthenticatedUser()), user.uid);
     assert.equal(auth.getAnonymousSignInCalls(), 0);
 });
 
