@@ -124,7 +124,7 @@ function ensureOverlay() {
             <div><div id="vaii-school-title" style="font-size:1.1rem;font-weight:800;color:#72d99a;">📚 VAII School</div><div style="font-size:.76rem;color:#9ba6b2;">Learning and assessment center</div></div>
             <button type="button" data-school-action="close" aria-label="Close VAII School" style="border:1px solid #424c5b;background:#252c36;color:#fff;padding:8px 12px;border-radius:7px;cursor:pointer;">✕ Close</button>
         </header>
-        <main id="vaii-school-content" style="overflow:auto;flex:1;padding:20px;max-width:1000px;width:100%;margin:0 auto;"></main>`;
+        <main id="vaii-school-content" style="min-height:0;overflow-y:auto!important;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;flex:1;padding:20px;max-width:1000px;width:100%;margin:0 auto;"></main>`;
     document.body.appendChild(overlay);
     content = overlay.querySelector("#vaii-school-content");
     overlay.addEventListener("click", handleSchoolClick);

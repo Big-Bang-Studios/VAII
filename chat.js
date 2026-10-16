@@ -957,7 +957,7 @@ function createChatOverlay() {
         .vaii-chat-contact[aria-current="true"] { background: #21262d; border-color: #30363d; }
         .vaii-chat-contact strong { color: #f0f6fc; }
         .vaii-chat-contact span { color: #8b949e; font-size: 11px; overflow-wrap: anywhere; }
-        .vaii-chat-main { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+        .vaii-chat-main { min-width: 0; min-height: 0; flex: 1; display: flex; flex-direction: column; }
         .vaii-chat-header {
             min-height: 76px; padding: 15px 22px; border-bottom: 1px solid #30363d;
             display: flex; align-items: center; justify-content: space-between; gap: 16px;
@@ -975,7 +975,8 @@ function createChatOverlay() {
             border-radius: 7px; font-size: 12px; line-height: 1.4;
         }
         .vaii-chat-messages {
-            flex: 1; min-height: 0; overflow-y: auto; padding: 20px;
+            flex: 1 1 0%; min-height: 0; overflow-y: auto !important;
+            overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 20px;
             display: flex; flex-direction: column; align-items: flex-start; gap: 12px;
         }
         .vaii-chat-message {
