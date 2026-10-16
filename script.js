@@ -15,7 +15,7 @@ import {
 
 import { launchTerminalSandbox } from "./terminal.js";
 import { configureContactChat, handleContactChatAuthState, initializeContactChat, openContactChat } from "./chat.js";
-import { configureVAiiSchool, handleSchoolAuthState, openVAiiSchool } from "./school.js";
+import { configureVAiiSchool, handleSchoolAuthState, isMathAssessmentActive, openVAiiSchool } from "./school.js";
 
 const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : function() {};
 
@@ -4186,8 +4186,13 @@ function runInfoExecution(query) {
     // NATIVE TELEPHONY & MESSAGING PROTOCOLS
     // ==========================================
     
-    // Catch math expressions directly
     const mathAnswer = evaluateSafeMath(query);
+    if (isMathAssessmentActive() && mathAnswer) {
+        handleVaiiDataOutput("Calculator unavailable", '<div role="status" style="padding:12px;color:#f0c674;">The calculator is unavailable while you are taking a math assessment. Submit the assessment to use it again.</div>');
+        return;
+    }
+
+    // Catch math expressions directly
     if (mathAnswer) {
         const mathCard = '<div style="background: #181818; border: 1px solid #9c27b0; border-radius: 12px; padding: 16px; margin: 12px 0; color: #fff; font-family: sans-serif;">' +
             '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">' +
@@ -5267,7 +5272,7 @@ hubInput?.addEventListener('input', () => {
 
     // Live math calculation suggestion
     const rawVal = (typeof hubInput !== "undefined" && hubInput ? hubInput.value : cleanInput);
-    const liveMath = evaluateSafeMath(rawVal);
+    const liveMath = isMathAssessmentActive() ? null : evaluateSafeMath(rawVal);
     if (liveMath) {
         customSuggestions.unshift(rawVal.trim() + " = " + liveMath.result);
     }

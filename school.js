@@ -15,6 +15,10 @@ let activeUserId = null;
 let processedInvite = null;
 let activeAssessment = null;
 
+export function isMathAssessmentActive(assessment = activeAssessment) {
+    return assessment?.subject === "math";
+}
+
 function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, character => ({
         "&": "&amp;",
@@ -376,7 +380,7 @@ async function openAssessment(teacherId, testId) {
         if (submissionSnapshot.exists()) throw new Error("You have already submitted this assessment.");
         const assessment = testSnapshot.data();
         const questions = normalizeAssessmentQuestions(assessment.questions);
-        activeAssessment = { teacherId, testId, title: assessment.title, questions };
+        activeAssessment = { teacherId, testId, title: assessment.title, subject: assessment.subject, questions };
         content.innerHTML = `
             <section style="${cardStyle()}">
                 <button type="button" data-school-action="home" style="${buttonStyle()}margin-bottom:12px;">← School home</button>
@@ -517,6 +521,7 @@ export async function handleSchoolAuthState(user) {
     const userId = user?.uid || null;
     if (userId !== activeUserId) {
         activeUserId = userId;
+        activeAssessment = null;
         processedInvite = null;
         setPendingAssessmentCount(0);
     }
