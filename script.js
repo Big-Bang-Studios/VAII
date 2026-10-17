@@ -72,10 +72,10 @@ async function handleSpaceWeatherQuery() {
     }
 }
 
-function clearTelemetryListeners() {
-    if (telemetryCleanup) {
-        telemetryCleanup();
-        telemetryCleanup = null;
+function clearActiveWidget() {
+    if (activeWidgetCleanup) {
+        activeWidgetCleanup();
+        activeWidgetCleanup = null;
     }
 }
 
@@ -150,7 +150,7 @@ async function handleBatteryTelemetry() {
         };
         const events = ["chargingchange", "levelchange", "chargingtimechange", "dischargingtimechange"];
         events.forEach(eventName => battery.addEventListener(eventName, render));
-        telemetryCleanup = () => events.forEach(eventName => battery.removeEventListener(eventName, render));
+        activeWidgetCleanup = () => events.forEach(eventName => battery.removeEventListener(eventName, render));
         render();
     } catch (err) {
         if (generation !== telemetryGeneration) return;
@@ -219,12 +219,413 @@ function handleNetworkTelemetry() {
     connection.addEventListener("change", render);
     window.addEventListener("online", handleOnlineChange);
     window.addEventListener("offline", handleOnlineChange);
-    telemetryCleanup = () => {
+    activeWidgetCleanup = () => {
         connection.removeEventListener("change", render);
         window.removeEventListener("online", handleOnlineChange);
         window.removeEventListener("offline", handleOnlineChange);
     };
     render();
+}
+
+async function fetchProxyAction(action, params = {}) {
+    const search = new URLSearchParams({ action, ...params });
+    const response = await fetch(`/api/proxy?${search}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || data.message || `Request failed (${response.status})`);
+    return data;
+}
+
+function normalizeUtilityUrl(value) {
+    const candidate = /^[a-z][a-z\d+.-]*:/i.test(value) ? value : `https://${value}`;
+    let parsed;
+    try {
+        parsed = new URL(candidate);
+    } catch {
+        throw new Error("Enter a valid URL.");
+    }
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) {
+        throw new Error("Only HTTP and HTTPS URLs without embedded credentials are supported.");
+    }
+    return parsed.href;
+}
+
+function bindCopyButtons() {
+    output?.querySelectorAll("[data-copy-value]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const message = button.parentElement?.querySelector("[data-copy-message]");
+            try {
+                await navigator.clipboard.writeText(button.dataset.copyValue || "");
+                if (message) {
+                    message.textContent = "Copied to clipboard.";
+                    message.style.color = "#39ffb6";
+                }
+            } catch (err) {
+                console.error("Could not copy value to clipboard:", err);
+                if (message) {
+                    message.textContent = "Clipboard access failed. Select and copy the link manually.";
+                    message.style.color = "#ff9a9a";
+                }
+            }
+        });
+    });
+}
+
+function bindDownloadButtons() {
+    output?.querySelectorAll("[data-download-url]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const message = button.parentElement?.querySelector("[data-download-message]");
+            try {
+                const response = await fetch(button.dataset.downloadUrl || "");
+                if (!response.ok) throw new Error(`Download request failed (${response.status}).`);
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = objectUrl;
+                link.download = button.dataset.fileName || "avatar";
+                link.click();
+                window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+                if (message) {
+                    message.textContent = "Download started.";
+                    message.style.color = "#39ffb6";
+                }
+            } catch (err) {
+                console.error("Avatar download failed:", err);
+                if (message) {
+                    message.textContent = err.message || "Could not download the avatar.";
+                    message.style.color = "#ff9a9a";
+                }
+            }
+        });
+    });
+}
+
+function showUtilityError(title, err) {
+    console.error(`${title} failed:`, err);
+    handleVaiiDataOutput(title, `<div style="color:#ff9a9a;padding:12px;">⚠️ ${escapeHtml(err.message || String(err))}</div>`);
+}
+
+async function handleShortUrlCommand(value, expand = false) {
+    const actionName = expand ? "Short URL Expansion" : "URL Shortener";
+    const title = expand ? "Expanded URL" : "Shortened URL";
+    if (!value.trim()) {
+        handleVaiiDataOutput(actionName, `
+            <div style="background:#181818;border:1px solid #00e5ff;border-radius:9px;padding:14px;color:#eee;">
+                <strong style="color:#00e5ff;">🔗 ${actionName}</strong>
+                <p style="color:#aaa;font-size:.82rem;">${expand ? "Provide a short URL to reveal its destination." : "Provide a long URL to create a compact link."}</p>
+                Syntax: <code>${expand ? "expand [short URL]" : "shorten [URL]"}</code>
+            </div>
+        `);
+        return;
+    }
+
+    let targetUrl;
+    try {
+        targetUrl = normalizeUtilityUrl(value.trim());
+    } catch (err) {
+        showUtilityError(actionName, err);
+        return;
+    }
+
+    handleVaiiDataOutput(actionName, `<div style="color:#00e5ff;padding:12px;">${expand ? "🔎 Expanding" : "🗜️ Shortening"} ${escapeHtml(targetUrl)}...</div>`);
+    const generation = telemetryGeneration;
+    try {
+        const data = await fetchProxyAction(expand ? "expand" : "shorten", { target: targetUrl });
+        if (generation !== telemetryGeneration || !output) return;
+        const resultUrl = expand ? data.expandedUrl : data.shortUrl;
+        const resultLabel = expand ? "Destination" : "Short link";
+        handleVaiiDataOutput(actionName, `
+            <div style="background:linear-gradient(145deg,#101820,#090d12);border:1px solid #00e5ff;border-radius:11px;padding:15px;color:#eee;">
+                <div style="color:#00e5ff;font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;">${expand ? "🔎 Link destination" : "🗜️ is.gd short link"}</div>
+                <div style="word-break:break-all;font-size:.92rem;margin:10px 0;"><strong>${resultLabel}:</strong> <a href="${escapeHtml(resultUrl)}" target="_blank" rel="noopener noreferrer" style="color:#78dfff;">${escapeHtml(resultUrl)}</a></div>
+                <div style="word-break:break-all;color:#80969e;font-size:.74rem;margin-bottom:10px;">${expand ? "Short URL: " + escapeHtml(targetUrl) : "Original: " + escapeHtml(targetUrl)}</div>
+                <button type="button" data-copy-value="${escapeHtml(resultUrl)}" style="background:#073341;border:1px solid #00e5ff;color:#dffaff;border-radius:7px;padding:8px 12px;font-weight:700;cursor:pointer;">📋 Copy ${expand ? "destination" : "short link"}</button>
+                <div data-copy-message aria-live="polite" style="font-size:.72rem;color:#78949e;margin-top:7px;"></div>
+            </div>
+        `);
+        bindCopyButtons();
+    } catch (err) {
+        if (generation === telemetryGeneration) showUtilityError(actionName, err);
+    }
+}
+
+function getLaunchCountdown(launchTime) {
+    const timestamp = Date.parse(launchTime);
+    if (!Number.isFinite(timestamp)) return "Launch time pending";
+    const remaining = timestamp - Date.now();
+    if (remaining <= 0) return "Liftoff underway / time passed";
+    const seconds = Math.floor(remaining / 1000);
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${days}d ${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
+}
+
+async function handleUpcomingLaunches() {
+    handleVaiiDataOutput("Upcoming Rocket Launches", '<div style="color:#9f8cff;padding:12px;">🚀 Loading upcoming orbital launches...</div>');
+    const generation = telemetryGeneration;
+    try {
+        const data = await fetchProxyAction("upcoming_launches", { limit: "5" });
+        if (generation !== telemetryGeneration || !output) return;
+        const launches = Array.isArray(data.results) ? data.results : [];
+        if (!launches.length) throw new Error("No upcoming launches were returned.");
+        const cards = launches.map(launch => {
+            const launchTime = typeof launch.net === "string" ? launch.net : launch.window_start;
+            const pad = launch.pad?.name || "Pad not announced";
+            const location = launch.pad?.location?.name || "";
+            const provider = launch.launch_service_provider?.name || "Provider unlisted";
+            const mission = launch.mission?.name || launch.name || "Mission details pending";
+            const status = launch.status?.name || "Status pending";
+            const streamLinks = Array.isArray(launch.vidURLs) ? launch.vidURLs
+                .filter(video => typeof video.url === "string" && /^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(video.url))
+                .slice(0, 2)
+                .map(video => `<a href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer" style="color:#87dfff;margin-right:10px;">▶ ${escapeHtml(video.title || "Live stream")}</a>`)
+                .join("") : "";
+            return `
+                <article style="background:#101820;border:1px solid #263a50;border-radius:10px;padding:13px;margin-top:10px;color:#eee;">
+                    <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+                        <strong style="font-size:.96rem;">${escapeHtml(mission)}</strong>
+                        <span style="font-size:.68rem;color:#b39aff;">${escapeHtml(status)}</span>
+                    </div>
+                    <div style="color:#9f8cff;font-size:.74rem;font-weight:700;margin-top:5px;">${escapeHtml(provider)}</div>
+                    <div style="color:#b5c0ce;font-size:.78rem;margin-top:8px;">📍 ${escapeHtml(pad)}${location ? ` · ${escapeHtml(location)}` : ""}</div>
+                    <div data-launch-time="${escapeHtml(String(launchTime || ""))}" style="color:#49f5cf;font:700 .88rem ui-monospace,monospace;margin-top:9px;">${escapeHtml(getLaunchCountdown(launchTime))}</div>
+                    ${streamLinks ? `<div style="margin-top:9px;">${streamLinks}</div>` : ""}
+                </article>
+            `;
+        }).join("");
+        handleVaiiDataOutput("Upcoming Rocket Launches", `<div style="background:linear-gradient(145deg,#10131d,#090d12);border:1px solid #9f8cff;border-radius:12px;padding:15px;color:#eee;"><div style="color:#b39aff;font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;">🚀 Launch Library 2 · Next ${launches.length}</div>${cards}</div>`);
+        const widgetGeneration = telemetryGeneration;
+        const interval = window.setInterval(() => {
+            if (widgetGeneration !== telemetryGeneration || !output) return;
+            output.querySelectorAll("[data-launch-time]").forEach(element => {
+                element.textContent = getLaunchCountdown(element.dataset.launchTime || "");
+            });
+        }, 1000);
+        activeWidgetCleanup = () => window.clearInterval(interval);
+    } catch (err) {
+        if (generation === telemetryGeneration) showUtilityError("Upcoming Rocket Launches", err);
+    }
+}
+
+function rgbToHsl(r, g, b) {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+    if (delta) {
+        s = delta / (1 - Math.abs(2 * l - 1));
+        if (max === r) h = ((g - b) / delta) % 6;
+        else if (max === g) h = (b - r) / delta + 2;
+        else h = (r - g) / delta + 4;
+        h = Math.round(h * 60);
+        if (h < 0) h += 360;
+    }
+    return { h, s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+function hslToHex(hue, saturation, lightness) {
+    const h = ((hue % 360) + 360) % 360 / 360;
+    const s = saturation / 100;
+    const l = lightness / 100;
+    const channel = n => {
+        const k = (n + h * 12) % 12;
+        const a = s * Math.min(l, 1 - l);
+        return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
+    };
+    return `#${[channel(0), channel(8), channel(4)].map(value => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function colorContrastRatio(rgb, background) {
+    const linear = component => {
+        const normalized = component / 255;
+        return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = values => 0.2126 * linear(values[0]) + 0.7152 * linear(values[1]) + 0.0722 * linear(values[2]);
+    const first = luminance(rgb);
+    const second = luminance(background);
+    return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
+async function handleColorQuery(value) {
+    const cleaned = value.trim().replace(/^#/, "");
+    if (!/^(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(cleaned)) {
+        handleVaiiDataOutput("Color Palette & Hex Inspector", '<div style="color:#ff9a9a;padding:12px;">Usage: <code>color #ff0055</code> or <code>hex 7289da</code>. Enter a 3- or 6-digit hexadecimal color.</div>');
+        return;
+    }
+    handleVaiiDataOutput("Color Palette & Hex Inspector", '<div style="color:#ff79a8;padding:12px;">🎨 Inspecting color and generating palette...</div>');
+    const generation = telemetryGeneration;
+    try {
+        const data = await fetchProxyAction("color_lookup", { hex: cleaned });
+        if (generation !== telemetryGeneration || !output) return;
+        if (!data.rgb || ![data.rgb.r, data.rgb.g, data.rgb.b].every(Number.isFinite) || typeof data.hex?.clean !== "string") {
+            throw new Error("Color service returned incomplete color data.");
+        }
+        const rgb = [data.rgb.r, data.rgb.g, data.rgb.b];
+        const hsl = rgbToHsl(...rgb);
+        const hex = `#${data.hex.clean.toLowerCase()}`;
+        const contrastWhite = colorContrastRatio(rgb, [255, 255, 255]);
+        const contrastBlack = colorContrastRatio(rgb, [0, 0, 0]);
+        const palette = [
+            { label: "Complementary", color: hslToHex(hsl.h + 180, hsl.s, hsl.l) },
+            { label: "Triadic A", color: hslToHex(hsl.h + 120, hsl.s, hsl.l) },
+            { label: "Triadic B", color: hslToHex(hsl.h + 240, hsl.s, hsl.l) }
+        ];
+        const swatches = palette.map(item => `
+            <button type="button" data-copy-value="${item.color}" style="display:flex;align-items:center;gap:8px;background:#101820;border:1px solid #283744;color:#eee;border-radius:8px;padding:7px;cursor:pointer;">
+                <span style="width:24px;height:24px;background:${item.color};border-radius:5px;"></span>
+                <span style="text-align:left;font-size:.72rem;">${item.label}<br>${item.color}</span>
+            </button>
+        `).join("");
+        handleVaiiDataOutput("Color Palette & Hex Inspector", `
+            <div style="background:#10131a;border:1px solid ${hex};border-radius:12px;padding:15px;color:#eee;box-shadow:0 0 14px ${hex}55;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div role="img" aria-label="${escapeHtml(data.name?.value || hex)} color swatch" style="width:68px;height:68px;flex:none;border-radius:10px;background:${hex};box-shadow:0 0 18px ${hex}88;"></div>
+                    <div><div style="font-size:1.2rem;font-weight:800;">${escapeHtml(data.name?.value || hex)}</div><div style="color:${hex};font-weight:700;">${hex}</div></div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px;margin-top:13px;font-size:.78rem;">
+                    <div style="background:#171e27;padding:9px;border-radius:7px;">RGB<br><strong>${rgb.join(", ")}</strong></div>
+                    <div style="background:#171e27;padding:9px;border-radius:7px;">HSL<br><strong>${hsl.h}°, ${hsl.s}%, ${hsl.l}%</strong></div>
+                    <div style="background:#171e27;padding:9px;border-radius:7px;">Text contrast<br><strong>White ${contrastWhite.toFixed(2)}:1 · ${contrastWhite >= 4.5 ? "AA pass" : "AA fail"}</strong><br><strong>Black ${contrastBlack.toFixed(2)}:1 · ${contrastBlack >= 4.5 ? "AA pass" : "AA fail"}</strong></div>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:12px;">${swatches}</div>
+                <div data-copy-message aria-live="polite" style="font-size:.72rem;color:#78949e;margin-top:7px;"></div>
+            </div>
+        `);
+        bindCopyButtons();
+    } catch (err) {
+        if (generation === telemetryGeneration) showUtilityError("Color lookup", err);
+    }
+}
+
+function ipv4ToNumber(address) {
+    const octets = address.split(".");
+    if (octets.length !== 4 || octets.some(octet => !/^\d{1,3}$/.test(octet) || Number(octet) > 255)) return null;
+    return octets.reduce((value, octet) => value * 256 + Number(octet), 0);
+}
+
+function numberToIpv4(value) {
+    return [24, 16, 8, 0].map(shift => Math.floor(value / (2 ** shift)) % 256).join(".");
+}
+
+function handleSubnetQuery(value) {
+    const match = value.trim().match(/^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/);
+    if (!match) {
+        handleVaiiDataOutput("Subnet & CIDR Calculator", '<div style="color:#ff9a9a;padding:12px;">Usage: <code>subnet 192.168.1.0/24</code> or <code>cidr 10.0.0.0/16</code>.</div>');
+        return;
+    }
+    const address = ipv4ToNumber(match[1]);
+    const prefix = Number(match[2]);
+    if (address === null || prefix > 32) {
+        handleVaiiDataOutput("Subnet & CIDR Calculator", '<div style="color:#ff9a9a;padding:12px;">Enter a valid IPv4 address and CIDR prefix from /0 through /32.</div>');
+        return;
+    }
+
+    const blockSize = 2 ** (32 - prefix);
+    const network = Math.floor(address / blockSize) * blockSize;
+    const broadcast = network + blockSize - 1;
+    const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+    const hostCount = prefix === 32 ? 1 : prefix === 31 ? 2 : Math.max(0, blockSize - 2);
+    const firstHost = prefix <= 30 ? network + 1 : network;
+    const lastHost = prefix <= 30 ? broadcast - 1 : broadcast;
+    handleVaiiDataOutput("Subnet & CIDR Calculator", `
+        <div style="background:#0e1920;border:1px solid #39ffb6;border-radius:11px;padding:15px;color:#e5fff5;">
+            <div style="color:#39ffb6;font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;">🧮 IPv4 subnet · /${prefix}</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-top:12px;font-size:.78rem;">
+                <div style="background:#14242b;padding:10px;border-radius:7px;">Network<br><strong>${numberToIpv4(network)}</strong></div>
+                <div style="background:#14242b;padding:10px;border-radius:7px;">Subnet mask<br><strong>${numberToIpv4(mask)}</strong></div>
+                <div style="background:#14242b;padding:10px;border-radius:7px;">Broadcast<br><strong>${numberToIpv4(broadcast)}</strong></div>
+                <div style="background:#14242b;padding:10px;border-radius:7px;">Usable host range<br><strong>${numberToIpv4(firstHost)} – ${numberToIpv4(lastHost)}</strong></div>
+                <div style="background:#14242b;padding:10px;border-radius:7px;">Assignable addresses<br><strong>${hostCount.toLocaleString()}</strong></div>
+                <div style="background:#14242b;padding:10px;border-radius:7px;">Total addresses<br><strong>${blockSize.toLocaleString()}</strong></div>
+            </div>
+            <div style="color:#809c92;font-size:.68rem;margin-top:10px;">/31 counts both addresses as assignable for point-to-point links; /32 is one assignable host route.</div>
+        </div>
+    `);
+}
+
+async function handleMinecraftQuery(address) {
+    const server = address.trim();
+    if (!server) {
+        handleVaiiDataOutput("Minecraft Server Status", '<div style="color:#ff9a9a;padding:12px;">Usage: <code>mc [server address]</code>, for example <code>mc hypixel.net</code>.</div>');
+        return;
+    }
+    handleVaiiDataOutput("Minecraft Server Status", `<div style="color:#74f3a2;padding:12px;">⛏️ Pinging ${escapeHtml(server)}...</div>`);
+    const generation = telemetryGeneration;
+    try {
+        const data = await fetchProxyAction("minecraft_status", { address: server });
+        if (generation !== telemetryGeneration || !output) return;
+        const online = data.online === true;
+        const color = online ? "#39ffb6" : "#ff5577";
+        const motdValue = data.motd?.clean;
+        const motd = Array.isArray(motdValue) ? motdValue.join("\n") : typeof motdValue === "string" ? motdValue : "";
+        const icon = typeof data.icon === "string" && /^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(data.icon) ? data.icon : "";
+        const version = data.version?.name_clean || data.version?.name || "Version unavailable";
+        const playersOnline = Number.isFinite(data.players?.online) ? data.players.online : 0;
+        const playersMax = Number.isFinite(data.players?.max) ? data.players.max : 0;
+        const latency = Number.isFinite(data.latency) ? `${Math.round(data.latency)} ms` : "Not reported";
+        handleVaiiDataOutput("Minecraft Server Status", `
+            <div style="background:#101a16;border:1px solid ${color};border-radius:12px;padding:15px;color:#eee;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                    <div style="display:flex;align-items:center;gap:10px;">${icon ? `<img src="${icon}" alt="" width="48" height="48" style="border-radius:8px;">` : '<span style="font-size:2rem;">⛏️</span>'}<div><div style="font-size:1.05rem;font-weight:800;">${escapeHtml(server)}</div><div style="color:#9aaa9e;font-size:.76rem;">${escapeHtml(version)}</div></div></div>
+                    <span style="background:${online ? "#123c2c" : "#401d28"};border:1px solid ${color};color:${color};border-radius:999px;padding:5px 9px;font-size:.7rem;font-weight:800;">${online ? "ONLINE" : "OFFLINE"}</span>
+                </div>
+                ${online && motd ? `<div style="white-space:pre-wrap;background:#17221c;border-radius:7px;padding:10px;margin-top:12px;color:#cef2d7;font-size:.8rem;">${escapeHtml(motd)}</div>` : ""}
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:10px;font-size:.77rem;">
+                    <div style="background:#17221c;padding:9px;border-radius:7px;">Players<br><strong>${playersOnline.toLocaleString()} / ${playersMax.toLocaleString()}</strong></div>
+                    <div style="background:#17221c;padding:9px;border-radius:7px;">Latency<br><strong>${latency}</strong></div>
+                </div>
+            </div>
+        `);
+    } catch (err) {
+        if (generation === telemetryGeneration) showUtilityError("Minecraft Server Status", err);
+    }
+}
+
+function handleHttpCatQuery(value) {
+    const code = value.trim();
+    if (!/^[1-5]\d{2}$/.test(code)) {
+        handleVaiiDataOutput("HTTP Status Cat", '<div style="color:#ff9a9a;padding:12px;">Usage: <code>http [status code]</code>, for example <code>http 404</code>. Enter a 100–599 status code.</div>');
+        return;
+    }
+    const imageUrl = `https://http.cat/${code}`;
+    handleVaiiDataOutput(`HTTP ${code}`, `
+        <div style="background:#181818;border:1px solid #ffb84d;border-radius:11px;padding:13px;color:#eee;text-align:center;">
+            <div style="color:#ffb84d;font-size:.72rem;font-weight:800;letter-spacing:.12em;margin-bottom:10px;">🐱 HTTP STATUS ${code}</div>
+            <img src="${imageUrl}" alt="Cat illustration for HTTP status ${code}" style="display:block;width:100%;max-width:500px;max-height:420px;object-fit:contain;margin:auto;border-radius:8px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+            <div style="display:none;color:#ff9a9a;font-size:.8rem;padding:16px;">No cat image is available for this status code.</div>
+            <a href="${imageUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;color:#ffca74;font-size:.75rem;margin-top:9px;">Open image ↗</a>
+        </div>
+    `);
+}
+
+function handleAvatarQuery(value) {
+    const seed = value.trim();
+    if (!seed) {
+        handleVaiiDataOutput("DiceBear Avatar", '<div style="color:#ff9a9a;padding:12px;">Usage: <code>avatar [username or seed]</code>, for example <code>avatar VAiiGuest</code>.</div>');
+        return;
+    }
+    const seedParam = encodeURIComponent(seed);
+    const svgUrl = `https://api.dicebear.com/8.x/bottts/svg?seed=${seedParam}`;
+    const pngUrl = `https://api.dicebear.com/8.x/bottts/png?seed=${seedParam}&size=512`;
+    handleVaiiDataOutput(`Avatar for ${seed}`, `
+        <div style="background:#10131d;border:1px solid #9f8cff;border-radius:12px;padding:15px;color:#eee;text-align:center;">
+            <div style="color:#b39aff;font-size:.72rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;">👾 Procedural Bottts Avatar</div>
+            <img src="${svgUrl}" alt="Generated robot avatar for ${escapeHtml(seed)}" style="display:block;width:192px;height:192px;max-width:100%;margin:12px auto;background:#1a2030;border-radius:16px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+            <div style="display:none;color:#ff9a9a;font-size:.78rem;margin:10px;">Could not load the DiceBear avatar.</div>
+            <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;">
+                <button type="button" data-download-url="${svgUrl}" data-file-name="avatar-${seedParam}.svg" style="background:#29213f;border:1px solid #9f8cff;color:#eee;border-radius:7px;padding:8px 11px;cursor:pointer;font-size:.78rem;font-weight:700;">⬇ Download SVG</button>
+                <button type="button" data-download-url="${pngUrl}" data-file-name="avatar-${seedParam}.png" style="background:#29213f;border:1px solid #9f8cff;color:#eee;border-radius:7px;padding:8px 11px;cursor:pointer;font-size:.78rem;font-weight:700;">⬇ Download PNG</button>
+            </div>
+            <div data-download-message aria-live="polite" style="font-size:.72rem;color:#78949e;margin-top:7px;"></div>
+        </div>
+    `);
+    bindDownloadButtons();
 }
 
 // 2. Wikipedia Historical Event Time-Machine
@@ -1522,7 +1923,7 @@ let activeTimerInterval = null;
 let availableGeminiModels = [];
 let geminiModelRefreshId = 0;
 let telemetryGeneration = 0;
-let telemetryCleanup = null;
+let activeWidgetCleanup = null;
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 const welcomeVaiiText = `Welcome to VAII Native! Enter a search query, app routing command, calculation sequence, weather location, translation phrase, crypto ticker, map request, or art prompt to begin...`;
@@ -1533,6 +1934,14 @@ const defaultAssistantSuggestions = [
     "power",
     "speed",
     "network",
+    "shorten https://example.com",
+    "expand https://is.gd/shortcode",
+    "launches",
+    "color #ff0055",
+    "subnet 192.168.1.0/24",
+    "mc hypixel.net",
+    "http 404",
+    "avatar VAiiGuest",
     "call ",
     "/call",
     "/bored",
@@ -2042,7 +2451,7 @@ function updateDatalist(cities = [], wikiTitles = [], wikitubiaTitles = [], comb
 
 function handleVaiiDataOutput(rawTextContent, defaultHtmlOutput, runMapCallback = null) {
     if (!output) return;
-    clearTelemetryListeners();
+    clearActiveWidget();
     telemetryGeneration++;
     output.setAttribute('data-spoken', rawTextContent || "");
     output.innerHTML = defaultHtmlOutput;
@@ -5341,6 +5750,18 @@ hubInput?.addEventListener('input', () => {
             "/power",
             "/speed",
             "/network",
+            "/shorten https://example.com",
+            "/expand https://is.gd/shortcode",
+            "/launches",
+            "/spacex",
+            "/color #ff0055",
+            "/hex 7289da",
+            "/subnet 192.168.1.0/24",
+            "/cidr 10.0.0.0/16",
+            "/mc hypixel.net",
+            "/http 404",
+            "/statuscat 500",
+            "/avatar VAiiGuest",
             "/airquality Tokyo",
             "/aqi Los Angeles",
             "/holiday US",
@@ -5540,6 +5961,15 @@ hubInput?.addEventListener('input', () => {
     if ("speed".startsWith(cleanInput) || "network".startsWith(cleanInput)) {
         customSuggestions.push("speed", "network");
     }
+
+    if ("shorten".startsWith(cleanInput)) customSuggestions.push("shorten https://example.com");
+    if ("expand".startsWith(cleanInput)) customSuggestions.push("expand https://is.gd/shortcode");
+    if ("launches".startsWith(cleanInput) || "spacex".startsWith(cleanInput)) customSuggestions.push("launches", "spacex");
+    if ("color".startsWith(cleanInput) || "hex".startsWith(cleanInput)) customSuggestions.push("color #ff0055", "hex 7289da");
+    if ("subnet".startsWith(cleanInput) || "cidr".startsWith(cleanInput)) customSuggestions.push("subnet 192.168.1.0/24", "cidr 10.0.0.0/16");
+    if ("mc".startsWith(cleanInput)) customSuggestions.push("mc hypixel.net");
+    if ("http".startsWith(cleanInput) || "statuscat".startsWith(cleanInput)) customSuggestions.push("http 404", "http 500", "statuscat");
+    if ("avatar".startsWith(cleanInput)) customSuggestions.push("avatar VAiiGuest");
 
     if ("onthisday".startsWith(cleanInput) || "history".startsWith(cleanInput)) {
         customSuggestions.push("onthisday", "history");
@@ -6484,11 +6914,12 @@ function autocorrectCommandQuery(query) {
 
     const typedCommand = match[2].toLowerCase();
     const commandNames = [
-        "age", "anime", "archive", "asciiweather", "asteroid", "barcode", "battery", "book", "bsky", "bluesky",
+        "age", "anime", "archive", "asciiweather", "asteroid", "avatar", "barcode", "battery", "book", "bsky", "bluesky",
         "bored", "call", "cat", "chuck", "college", "country", "convert", "crypto", "define", "dial", "dig", "dns",
+        "cidr", "color",
         "airquality", "aqi", "chat", "draw", "drink", "film", "flight", "food", "github", "history", "holiday", "joke", "movie", "manga",
-        "ghuser", "isbn", "locate", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
-        "network", "onthisday", "postal", "power", "qr", "qrcode", "repo", "snapshot", "sms", "solarwind", "song", "space", "spaceweather", "speed", "stream",
+        "expand", "ghuser", "hex", "http", "isbn", "launches", "locate", "mc", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
+        "network", "onthisday", "postal", "power", "qr", "qrcode", "repo", "shorten", "snapshot", "sms", "solarwind", "song", "space", "spaceweather", "speed", "spacex", "statuscat", "stream", "subnet",
         "school", "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
         "watch", "wayback", "weather", "whereami", "zip", "status", "ebay"
     ];
@@ -6512,7 +6943,7 @@ executeActionBtn?.addEventListener('click', () => {
     const mode = modeEl ? modeEl.value : "native";
     
     if (!query && !activeImageBase64) return;
-    clearTelemetryListeners();
+    clearActiveWidget();
     telemetryGeneration++;
     if (["vaii school", "school", "/school"].includes(query.toLowerCase())) {
         if (hubInput) hubInput.value = "";
@@ -6523,6 +6954,42 @@ executeActionBtn?.addEventListener('click', () => {
     if (mode === "native") {
         query = autocorrectCommandQuery(query);
         const lq = query.trim().toLowerCase();
+
+        if (/^\/?(shorten|expand)(?:\s|$)/i.test(lq)) {
+            const expand = /^\/?expand(?:\s|$)/i.test(lq);
+            handleShortUrlCommand(query.trim().replace(/^\/?(?:shorten|expand)\s*/i, ""), expand);
+            return;
+        }
+
+        if (/^\/?(launches|spacex)$/i.test(lq)) {
+            void handleUpcomingLaunches();
+            return;
+        }
+
+        if (/^\/?(color|hex)(?:\s|$)/i.test(lq)) {
+            handleColorQuery(query.trim().replace(/^\/?(?:color|hex)\s*/i, ""));
+            return;
+        }
+
+        if (/^\/?(subnet|cidr)(?:\s|$)/i.test(lq)) {
+            handleSubnetQuery(query.trim().replace(/^\/?(?:subnet|cidr)\s*/i, ""));
+            return;
+        }
+
+        if (/^\/?mc(?:\s|$)/i.test(lq)) {
+            void handleMinecraftQuery(query.trim().replace(/^\/?mc\s*/i, ""));
+            return;
+        }
+
+        if (/^\/?(http|statuscat)(?:\s|$)/i.test(lq)) {
+            handleHttpCatQuery(query.trim().replace(/^\/?(?:http|statuscat)\s*/i, ""));
+            return;
+        }
+
+        if (/^\/?avatar(?:\s|$)/i.test(lq)) {
+            handleAvatarQuery(query.trim().replace(/^\/?avatar\s*/i, ""));
+            return;
+        }
 
         if (/^\/?ebay(?:\s|$)/i.test(lq)) {
             handleEbayQuery(query.trim().replace(/^\/?ebay\s*/i, ""));

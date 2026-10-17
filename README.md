@@ -18,6 +18,13 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **🛰️ Live ISS Telemetry (Where the ISS at):** Tracks real-time International Space Station orbital parameters, velocity ($km/h$), altitude, and spatial coordinates plotted on Google Maps (e.g., `iss`, `orbit`).
 * **🚀 Astronomy APOD (NASA API):** Retrieves NASA’s Astronomy Picture of the Day with full high-resolution imagery and scientific breakdowns (e.g., `space`, `nasa`).
 * **🌫️ Air Quality (Open-Meteo):** Looks up a city's current US AQI and pollutant readings without an API key (e.g., `airquality Tokyo`, `aqi Los Angeles`).
+* **🔗 URL Shortening & Expansion:** Create is.gd links with `shorten [URL]`, copy them to the clipboard, or inspect a short link's destination with `expand [URL]`.
+* **🚀 Upcoming Rocket Launches:** Shows the next five Launch Library 2 missions with pad details, live countdowns, and available video streams (`launches`, `spacex`).
+* **🎨 Color Palette & Hex Inspector:** Shows RGB/HSL conversions, WCAG contrast ratios, and generated complementary/triadic swatches (`color #ff0055`, `hex 7289da`).
+* **🧮 Subnet & CIDR Calculator:** Calculates IPv4 network and broadcast addresses, subnet mask, host range, and assignable address count locally (`subnet 192.168.1.0/24`, `cidr 10.0.0.0/16`).
+* **⛏️ Minecraft Server Status:** Checks a Java server's online status, MOTD, player count, version, and latency (`mc hypixel.net`).
+* **🐱 HTTP Status Cats:** Displays the http.cat illustration for a status code (`http 404`, `statuscat 500`).
+* **👾 DiceBear Avatars:** Generates seeded Bottts robot avatars with SVG and PNG download links (`avatar [username]`).
 * **🔋 Device Battery Telemetry:** Shows a live battery gauge, charging state, and estimated time remaining with `battery` or `power` where the browser supports the Battery Status API.
 * **📶 Network Connection Information:** Shows browser-reported downlink speed, connection type, and round-trip time with `speed` or `network` where the browser supports the Network Information API.
 * **📅 Upcoming Public Holidays (Nager.Date):** Lists upcoming public holidays by two-letter country code (e.g., `holiday US`, `holiday GB`).

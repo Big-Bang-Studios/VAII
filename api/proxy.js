@@ -13,6 +13,28 @@ function isAllowedOrigin(origin) {
     }
 }
 
+async function fetchJson(url) {
+    const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+    });
+    if (!response.ok) {
+        throw new Error(`Upstream returned ${response.status}`);
+    }
+    return response.json();
+}
+
+function parseWebUrl(value) {
+    if (typeof value !== 'string' || !value.trim() || value.length > 2048) return null;
+    try {
+        const parsed = new URL(value.trim());
+        return ['http:', 'https:'].includes(parsed.protocol) && !parsed.username && !parsed.password
+            ? parsed
+            : null;
+    } catch {
+        return null;
+    }
+}
+
 export default async function handler(req, res) {
     const origin = req.headers.origin;
     const allowedOrigin = typeof origin === 'string' && isAllowedOrigin(origin);
@@ -33,6 +55,91 @@ export default async function handler(req, res) {
     }
 
     const { url, q, limit, channelLimit, action, channelId, channelName, handle } = req.query;
+
+    if (action === 'shorten') {
+        const targetUrl = parseWebUrl(req.query.target);
+        if (!targetUrl) {
+            return res.status(400).json({ error: 'Provide a valid HTTP or HTTPS URL to shorten.' });
+        }
+        try {
+            const shortenUrl = new URL('https://is.gd/create.php');
+            shortenUrl.searchParams.set('format', 'json');
+            shortenUrl.searchParams.set('url', targetUrl.href);
+            const data = await fetchJson(shortenUrl);
+            if (typeof data.shorturl !== 'string' || !parseWebUrl(data.shorturl)) {
+                return res.status(502).json({ error: data.errormessage || 'is.gd did not return a shortened URL.' });
+            }
+            return res.status(200).json({ originalUrl: targetUrl.href, shortUrl: data.shorturl });
+        } catch (err) {
+            return res.status(502).json({ error: 'URL shortening failed', message: err.message });
+        }
+    }
+
+    if (action === 'expand') {
+        const shortUrl = parseWebUrl(req.query.target);
+        if (!shortUrl) {
+            return res.status(400).json({ error: 'Provide a valid HTTP or HTTPS short URL to expand.' });
+        }
+        try {
+            const expandUrl = new URL(`https://unshorten.me/json/${encodeURIComponent(shortUrl.href)}`);
+            const data = await fetchJson(expandUrl);
+            const expandedUrl = parseWebUrl(data.resolved_url);
+            if (!data.success || !expandedUrl) {
+                return res.status(422).json({ error: data.error || 'The short URL could not be expanded.' });
+            }
+            return res.status(200).json({ shortUrl: shortUrl.href, expandedUrl: expandedUrl.href });
+        } catch (err) {
+            return res.status(502).json({ error: 'URL expansion failed', message: err.message });
+        }
+    }
+
+    if (action === 'upcoming_launches') {
+        const resultLimit = Math.min(Math.max(parseInt(limit, 10) || 5, 1), 5);
+        try {
+            const launchesUrl = new URL('https://ll.thespacedevs.com/2.2.0/launch/upcoming/');
+            launchesUrl.searchParams.set('limit', String(resultLimit));
+            const data = await fetchJson(launchesUrl);
+            return res.status(200).json({
+                results: (Array.isArray(data.results) ? data.results : []).slice(0, resultLimit)
+            });
+        } catch (err) {
+            return res.status(502).json({ error: 'Upcoming launch lookup failed', message: err.message });
+        }
+    }
+
+    if (action === 'minecraft_status') {
+        const address = typeof req.query.address === 'string' ? req.query.address.trim() : '';
+        const match = address.match(/^([a-z0-9.-]+)(?::(\d{1,5}))?$/i);
+        if (!match || match[1].startsWith('.') || match[1].endsWith('.') || match[1].includes('..')) {
+            return res.status(400).json({ error: 'Provide a valid Minecraft server hostname, optionally with a port.' });
+        }
+        const port = match[2] ? Number(match[2]) : null;
+        if (port !== null && (port < 1 || port > 65535)) {
+            return res.status(400).json({ error: 'Minecraft server port must be between 1 and 65535.' });
+        }
+        try {
+            const statusUrl = new URL(`https://api.mcstatus.io/v2/status/java/${encodeURIComponent(address)}`);
+            const data = await fetchJson(statusUrl);
+            return res.status(200).json(data);
+        } catch (err) {
+            return res.status(502).json({ error: 'Minecraft server lookup failed', message: err.message });
+        }
+    }
+
+    if (action === 'color_lookup') {
+        const hex = typeof req.query.hex === 'string' ? req.query.hex.replace(/^#/, '') : '';
+        if (!/^(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) {
+            return res.status(400).json({ error: 'Provide a valid 3- or 6-digit hexadecimal color.' });
+        }
+        try {
+            const colorUrl = new URL('https://www.thecolorapi.com/id');
+            colorUrl.searchParams.set('hex', hex.length === 3 ? [...hex].map((digit) => digit + digit).join('') : hex);
+            const data = await fetchJson(colorUrl);
+            return res.status(200).json(data);
+        } catch (err) {
+            return res.status(502).json({ error: 'Color lookup failed', message: err.message });
+        }
+    }
 
     if (action === 'ebay_search') {
         const searchTerm = typeof q === 'string' ? q.trim() : '';
