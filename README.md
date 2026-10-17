@@ -18,6 +18,8 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **🛰️ Live ISS Telemetry (Where the ISS at):** Tracks real-time International Space Station orbital parameters, velocity ($km/h$), altitude, and spatial coordinates plotted on Google Maps (e.g., `iss`, `orbit`).
 * **🚀 Astronomy APOD (NASA API):** Retrieves NASA’s Astronomy Picture of the Day with full high-resolution imagery and scientific breakdowns (e.g., `space`, `nasa`).
 * **🌫️ Air Quality (Open-Meteo):** Looks up a city's current US AQI and pollutant readings without an API key (e.g., `airquality Tokyo`, `aqi Los Angeles`).
+* **🔋 Device Battery Telemetry:** Shows a live battery gauge, charging state, and estimated time remaining with `battery` or `power` where the browser supports the Battery Status API.
+* **📶 Network Connection Information:** Shows browser-reported downlink speed, connection type, and round-trip time with `speed` or `network` where the browser supports the Network Information API.
 * **📅 Upcoming Public Holidays (Nager.Date):** Lists upcoming public holidays by two-letter country code (e.g., `holiday US`, `holiday GB`).
 * **☀️ NOAA Space Weather:** Displays the latest planetary K-index and geomagnetic activity status (e.g., `spaceweather`, `solarwind`).
 * **🏛️ On This Day in History:** Retrieves an event recorded on today's date from public historical archives (e.g., `onthisday`, `history`).

@@ -72,6 +72,161 @@ async function handleSpaceWeatherQuery() {
     }
 }
 
+function clearTelemetryListeners() {
+    if (telemetryCleanup) {
+        telemetryCleanup();
+        telemetryCleanup = null;
+    }
+}
+
+function formatTelemetryNumber(value) {
+    return Number.isFinite(value) ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value) : "Not reported";
+}
+
+function formatTelemetryDuration(seconds) {
+    if (!Number.isFinite(seconds)) return "Not available";
+    if (seconds < 60) return seconds > 0 ? "Less than 1 min" : "0 min";
+
+    const minutes = Math.floor(seconds / 60);
+    const days = Math.floor(minutes / 1440);
+    const hours = Math.floor((minutes % 1440) / 60);
+    const remainingMinutes = minutes % 60;
+    return [
+        days ? `${days}d` : "",
+        hours ? `${hours}h` : "",
+        remainingMinutes ? `${remainingMinutes}m` : ""
+    ].filter(Boolean).join(" ");
+}
+
+function renderBatteryTelemetry(battery) {
+    const level = Number.isFinite(battery.level) ? Math.min(1, Math.max(0, battery.level)) : null;
+    const percentage = level === null ? null : level * 100;
+    const charging = battery.charging === true;
+    const color = charging ? "#39ffb6" : percentage !== null && percentage <= 20 ? "#ff5577" : "#00e5ff";
+    const percentageLabel = percentage === null
+        ? "Not reported"
+        : `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(percentage)}%`;
+    const estimate = charging ? battery.chargingTime : battery.dischargingTime;
+    const estimateLabel = formatTelemetryDuration(estimate);
+
+    return `
+        <div style="background:linear-gradient(145deg,#101820,#090d12);border:1px solid ${color};border-radius:14px;padding:18px;color:#e9ffff;box-shadow:0 0 10px ${color}55,inset 0 0 18px #00e5ff12;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;">
+                <div>
+                    <div style="color:${color};font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;">Device Battery</div>
+                    <div style="font-size:1rem;font-weight:700;margin-top:4px;">${charging ? "⚡ Charging" : "↘ Discharging"}</div>
+                </div>
+                <div style="font-size:1.8rem;font-weight:800;color:${color};text-shadow:0 0 12px ${color}88;">${percentageLabel}</div>
+            </div>
+            <div role="progressbar" aria-label="Battery level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percentage === null ? "" : percentage}" style="height:15px;background:#15232b;border:1px solid #29434d;border-radius:999px;padding:2px;overflow:hidden;margin-bottom:15px;">
+                <div style="height:100%;width:${percentage === null ? 0 : percentage}%;border-radius:999px;background:linear-gradient(90deg,#00a8cc,${color});box-shadow:0 0 12px ${color};transition:width .35s ease;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:12px;color:#a9c1c8;font-size:.8rem;">
+                <span>${charging ? "Time to full" : "Time remaining"}</span>
+                <strong style="color:#e9ffff;">${escapeHtml(estimateLabel)}</strong>
+            </div>
+            <div style="color:#67828b;font-size:.68rem;margin-top:12px;">Live browser battery telemetry</div>
+        </div>
+    `;
+}
+
+async function handleBatteryTelemetry() {
+    handleVaiiDataOutput("Device Battery Telemetry", '<div style="color:#39ffb6;padding:12px;">🔋 Reading device battery status...</div>');
+    const generation = telemetryGeneration;
+
+    if (typeof navigator.getBattery !== "function") {
+        handleVaiiDataOutput("Battery telemetry unavailable.", '<div style="color:#ff9a9a;padding:12px;">This browser does not support the Battery Status API.</div>');
+        return;
+    }
+
+    try {
+        const battery = await navigator.getBattery();
+        if (generation !== telemetryGeneration || !output) return;
+
+        const render = () => {
+            if (generation !== telemetryGeneration || !output) return;
+            output.innerHTML = renderBatteryTelemetry(battery);
+            output.setAttribute("data-spoken", `Battery ${Math.round(battery.level * 100)} percent, ${battery.charging ? "charging" : "discharging"}. ${formatTelemetryDuration(battery.charging ? battery.chargingTime : battery.dischargingTime)} remaining.`);
+        };
+        const events = ["chargingchange", "levelchange", "chargingtimechange", "dischargingtimechange"];
+        events.forEach(eventName => battery.addEventListener(eventName, render));
+        telemetryCleanup = () => events.forEach(eventName => battery.removeEventListener(eventName, render));
+        render();
+    } catch (err) {
+        if (generation !== telemetryGeneration) return;
+        console.error("Battery telemetry failed:", err);
+        handleVaiiDataOutput("Battery telemetry unavailable.", `<div style="color:#ff9a9a;padding:12px;">⚠️ Could not read device battery status: ${escapeHtml(err.message || String(err))}</div>`);
+    }
+}
+
+function renderNetworkTelemetry(connection) {
+    const effectiveType = typeof connection.effectiveType === "string" && connection.effectiveType
+        ? connection.effectiveType.toUpperCase()
+        : null;
+    const linkType = typeof connection.type === "string" && connection.type
+        ? connection.type.toUpperCase()
+        : null;
+    const networkLabel = [effectiveType, linkType].filter(Boolean).join(" · ") || "Not reported";
+    const downlink = Number.isFinite(connection.downlink) ? `${formatTelemetryNumber(connection.downlink)} Mbps` : "Not reported";
+    const rtt = Number.isFinite(connection.rtt) ? `${formatTelemetryNumber(connection.rtt)} ms` : "Not reported";
+    const online = navigator.onLine;
+    const statusColor = online ? "#39ffb6" : "#ff5577";
+
+    return `
+        <div style="background:linear-gradient(145deg,#101820,#090d12);border:1px solid #00e5ff;border-radius:14px;padding:18px;color:#e9ffff;box-shadow:0 0 10px #00e5ff55,inset 0 0 18px #00e5ff12;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;">
+                <div>
+                    <div style="color:#00e5ff;font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;">Network Connection</div>
+                    <div style="font-size:1rem;font-weight:700;margin-top:4px;">📶 ${escapeHtml(networkLabel)}</div>
+                </div>
+                <div style="color:${statusColor};font-size:.72rem;font-weight:800;letter-spacing:.08em;">${online ? "ONLINE" : "OFFLINE"}</div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;">
+                <div style="background:#0d171e;border:1px solid #173540;border-radius:9px;padding:12px;">
+                    <div style="color:#78949e;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;">Effective type / link</div>
+                    <div style="color:#e9ffff;font-size:1.2rem;font-weight:800;margin-top:5px;">${escapeHtml(networkLabel)}</div>
+                </div>
+                <div style="background:#0d171e;border:1px solid #173540;border-radius:9px;padding:12px;">
+                    <div style="color:#78949e;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;">Estimated downlink</div>
+                    <div style="color:#e9ffff;font-size:1.2rem;font-weight:800;margin-top:5px;">${escapeHtml(downlink)}</div>
+                </div>
+                <div style="background:#0d171e;border:1px solid #173540;border-radius:9px;padding:12px;">
+                    <div style="color:#78949e;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;">Round-trip time</div>
+                    <div style="color:#e9ffff;font-size:1.2rem;font-weight:800;margin-top:5px;">${escapeHtml(rtt)}</div>
+                </div>
+            </div>
+            <div style="color:#67828b;font-size:.68rem;margin-top:12px;">Estimated values reported by the browser</div>
+        </div>
+    `;
+}
+
+function handleNetworkTelemetry() {
+    handleVaiiDataOutput("Network Connection Information", '<div style="color:#00e5ff;padding:12px;">📶 Reading browser network information...</div>');
+    const generation = telemetryGeneration;
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+
+    if (!connection) {
+        handleVaiiDataOutput("Network telemetry unavailable.", '<div style="color:#ff9a9a;padding:12px;">This browser does not support the Network Information API.</div>');
+        return;
+    }
+
+    const render = () => {
+        if (generation !== telemetryGeneration || !output) return;
+        output.innerHTML = renderNetworkTelemetry(connection);
+        output.setAttribute("data-spoken", `Network ${connection.effectiveType || connection.type || "unknown"}, estimated downlink ${formatTelemetryNumber(connection.downlink)} Mbps, round-trip time ${formatTelemetryNumber(connection.rtt)} milliseconds. ${navigator.onLine ? "Online." : "Offline."}`);
+    };
+    const handleOnlineChange = render;
+    connection.addEventListener("change", render);
+    window.addEventListener("online", handleOnlineChange);
+    window.addEventListener("offline", handleOnlineChange);
+    telemetryCleanup = () => {
+        connection.removeEventListener("change", render);
+        window.removeEventListener("online", handleOnlineChange);
+        window.removeEventListener("offline", handleOnlineChange);
+    };
+    render();
+}
+
 // 2. Wikipedia Historical Event Time-Machine
 async function handleHistoryQuery() {
     handleVaiiDataOutput("Historical Archives", '<div style="color: #b185ff; padding: 12px;">🏛️ Accessing global historical chronology...</div>');
@@ -1366,12 +1521,18 @@ let currentSessionId = null;
 let activeTimerInterval = null;
 let availableGeminiModels = [];
 let geminiModelRefreshId = 0;
+let telemetryGeneration = 0;
+let telemetryCleanup = null;
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 const welcomeVaiiText = `Welcome to VAII Native! Enter a search query, app routing command, calculation sequence, weather location, translation phrase, crypto ticker, map request, or art prompt to begin...`;
 const welcomeGeminiText = `Welcome to the Gemini Ecosystem! This is a persistent conversational space. Start typing below to begin a continuous chat thread...`;
 
 const defaultAssistantSuggestions = [
+    "battery",
+    "power",
+    "speed",
+    "network",
     "call ",
     "/call",
     "/bored",
@@ -1881,6 +2042,8 @@ function updateDatalist(cities = [], wikiTitles = [], wikitubiaTitles = [], comb
 
 function handleVaiiDataOutput(rawTextContent, defaultHtmlOutput, runMapCallback = null) {
     if (!output) return;
+    clearTelemetryListeners();
+    telemetryGeneration++;
     output.setAttribute('data-spoken', rawTextContent || "");
     output.innerHTML = defaultHtmlOutput;
     
@@ -5174,6 +5337,10 @@ hubInput?.addEventListener('input', () => {
         const slashCommands = [
             "/terminal",
             "/weather Orlando, FL",
+            "/battery",
+            "/power",
+            "/speed",
+            "/network",
             "/airquality Tokyo",
             "/aqi Los Angeles",
             "/holiday US",
@@ -5364,6 +5531,14 @@ hubInput?.addEventListener('input', () => {
 
     if ("spaceweather".startsWith(cleanInput) || "solarwind".startsWith(cleanInput)) {
         customSuggestions.push("spaceweather", "solarwind");
+    }
+
+    if ("battery".startsWith(cleanInput) || "power".startsWith(cleanInput)) {
+        customSuggestions.push("battery", "power");
+    }
+
+    if ("speed".startsWith(cleanInput) || "network".startsWith(cleanInput)) {
+        customSuggestions.push("speed", "network");
     }
 
     if ("onthisday".startsWith(cleanInput) || "history".startsWith(cleanInput)) {
@@ -6309,11 +6484,11 @@ function autocorrectCommandQuery(query) {
 
     const typedCommand = match[2].toLowerCase();
     const commandNames = [
-        "age", "anime", "archive", "asciiweather", "asteroid", "barcode", "book", "bsky", "bluesky",
+        "age", "anime", "archive", "asciiweather", "asteroid", "barcode", "battery", "book", "bsky", "bluesky",
         "bored", "call", "cat", "chuck", "college", "country", "convert", "crypto", "define", "dial", "dig", "dns",
         "airquality", "aqi", "chat", "draw", "drink", "film", "flight", "food", "github", "history", "holiday", "joke", "movie", "manga",
         "ghuser", "isbn", "locate", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
-        "onthisday", "postal", "qr", "qrcode", "repo", "snapshot", "sms", "solarwind", "song", "space", "spaceweather", "stream",
+        "network", "onthisday", "postal", "power", "qr", "qrcode", "repo", "snapshot", "sms", "solarwind", "song", "space", "spaceweather", "speed", "stream",
         "school", "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
         "watch", "wayback", "weather", "whereami", "zip", "status", "ebay"
     ];
@@ -6337,6 +6512,8 @@ executeActionBtn?.addEventListener('click', () => {
     const mode = modeEl ? modeEl.value : "native";
     
     if (!query && !activeImageBase64) return;
+    clearTelemetryListeners();
+    telemetryGeneration++;
     if (["vaii school", "school", "/school"].includes(query.toLowerCase())) {
         if (hubInput) hubInput.value = "";
         openVAiiSchool();
@@ -6399,6 +6576,36 @@ executeActionBtn?.addEventListener('click', () => {
 
         if (/^\/?holiday(?:\s|$)/i.test(lq)) {
             handleHolidayQuery(query.trim().replace(/^\/?holiday\s*/i, ""));
+            return;
+        }
+
+        if (/^\/?(battery|power)(?:\s|$)/i.test(lq)) {
+            if (!/^\/?(battery|power)$/i.test(lq)) {
+                handleVaiiDataOutput("Battery telemetry command", `
+                    <div style="background:#101820;border:1px solid #39ffb6;border-radius:8px;padding:14px;color:#e9ffff;">
+                        <strong style="color:#39ffb6;">🔋 Device Battery Telemetry</strong>
+                        <p style="color:#a9c1c8;font-size:.82rem;margin:8px 0;">This command takes no arguments and reports battery percentage, charging status, and estimated time remaining.</p>
+                        Syntax: <code>battery</code> or <code>power</code>
+                    </div>
+                `);
+                return;
+            }
+            void handleBatteryTelemetry();
+            return;
+        }
+
+        if (/^\/?(speed|network)(?:\s|$)/i.test(lq)) {
+            if (!/^\/?(speed|network)$/i.test(lq)) {
+                handleVaiiDataOutput("Network telemetry command", `
+                    <div style="background:#101820;border:1px solid #00e5ff;border-radius:8px;padding:14px;color:#e9ffff;">
+                        <strong style="color:#00e5ff;">📶 Network Connection Information</strong>
+                        <p style="color:#a9c1c8;font-size:.82rem;margin:8px 0;">This command takes no arguments and reports estimated downlink speed, connection type, and round-trip time.</p>
+                        Syntax: <code>speed</code> or <code>network</code>
+                    </div>
+                `);
+                return;
+            }
+            handleNetworkTelemetry();
             return;
         }
 
