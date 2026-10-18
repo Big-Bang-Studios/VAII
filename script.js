@@ -6458,6 +6458,134 @@ async function handleBarcodeQuery(barcode) {
     }
 }
 
+function isValidIsbn(isbn) {
+    const cleanIsbn = isbn.replace(/[\s-]/g, "").toUpperCase();
+    const isIsbn10 = /^\d{9}[\dX]$/.test(cleanIsbn);
+    const isIsbn13 = /^\d{13}$/.test(cleanIsbn);
+    const validIsbn10 = isIsbn10 && [...cleanIsbn].reduce((sum, digit, index) =>
+        sum + (10 - index) * (digit === "X" ? 10 : Number(digit)), 0) % 11 === 0;
+    const validIsbn13 = isIsbn13 && [...cleanIsbn].reduce((sum, digit, index) =>
+        sum + Number(digit) * (index % 2 === 0 ? 1 : 3), 0) % 10 === 0;
+    return validIsbn10 || validIsbn13;
+}
+
+function getIsbnFromBarcodeValue(value) {
+    const cleanValue = value.replace(/[\s-]/g, "").toUpperCase();
+    const isbn13 = cleanValue.match(/\d{13}/)?.[0];
+    if (isbn13 && isValidIsbn(isbn13)) return isbn13;
+    const isbn10 = cleanValue.match(/\d{9}[\dX]/)?.[0];
+    return isbn10 && isValidIsbn(isbn10) ? isbn10 : null;
+}
+
+async function detectBarcodeInImage(command, imageBase64, mimeType) {
+    const allowedFormats = command === "isbn"
+        ? ["ean_13", "isbn_10", "isbn_13"]
+        : ["ean_13", "ean_8", "upc_a", "upc_e"];
+
+    if (typeof window.BarcodeDetector === "function" && typeof createImageBitmap === "function") {
+        try {
+            const supportedFormats = await window.BarcodeDetector.getSupportedFormats();
+            const formats = allowedFormats.filter(format => supportedFormats.includes(format));
+            if (formats.length) {
+                const bytes = Uint8Array.from(atob(imageBase64), character => character.charCodeAt(0));
+                const bitmap = await createImageBitmap(new Blob([bytes], { type: mimeType || "image/jpeg" }));
+                try {
+                    const detector = new window.BarcodeDetector({ formats });
+                    const detections = await detector.detect(bitmap);
+                    const code = detections.map(detection => detection.rawValue).find(value =>
+                        command === "isbn"
+                            ? getIsbnFromBarcodeValue(value) !== null
+                            : /^\d{8,14}$/.test(value.replace(/\D/g, ""))
+                    );
+                    if (code) {
+                        return command === "isbn"
+                            ? getIsbnFromBarcodeValue(code)
+                            : code.replace(/\D/g, "");
+                    }
+                } finally {
+                    bitmap.close();
+                }
+            }
+        } catch (err) {
+            console.warn("Native barcode detection failed; trying image recognition:", err);
+        }
+    }
+
+    if (blockGeminiDuringAssessment()) return false;
+
+    const prompt = command === "isbn"
+        ? "Read the ISBN barcode in this image. Return only its valid ISBN-10 or ISBN-13 digits (X is allowed as the ISBN-10 check digit). If there is no clearly readable ISBN barcode, return NONE. Do not guess."
+        : "Read the UPC/EAN barcode in this image. Return only the barcode digits (8 to 14 digits). If there is no clearly readable product barcode, return NONE. Do not guess.";
+    const apiKey = getActiveGeminiKey();
+    const deadline = Date.now() + GEMINI_FALLBACK_TIMEOUT_MS;
+    const visionModels = BASELINE_FALLBACK_TREE.filter(model => model.id.startsWith("gemini"));
+    let lastError = null;
+
+    for (const model of visionModels) {
+        try {
+            const response = await requestGeminiModel(model, apiKey, {
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        {
+                            inline_data: {
+                                mime_type: mimeType || "image/jpeg",
+                                data: imageBase64
+                            }
+                        }
+                    ]
+                }]
+            }, deadline);
+            const text = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+            if (command === "isbn") {
+                return getIsbnFromBarcodeValue(text);
+            }
+            return text.match(/\b\d{8,14}\b/)?.[0] || null;
+        } catch (err) {
+            lastError = err;
+            console.warn(`Barcode image recognition failed on ${model.id}:`, err);
+            if (Date.now() >= deadline) break;
+        }
+    }
+
+    throw lastError || new Error("Image barcode recognition could not be completed.");
+}
+
+async function handleBarcodeImageScan(command) {
+    if (!activeImageBase64) return;
+    const imageBase64 = activeImageBase64;
+    const mimeType = activeImageMimeType;
+    handleVaiiDataOutput(
+        command === "isbn" ? "Scanning ISBN Image..." : "Scanning Product Image...",
+        `<div style="color:#4da3ff; padding:12px;">Reading the barcode from the uploaded image...</div>`
+    );
+
+    try {
+        const code = await detectBarcodeInImage(command, imageBase64, mimeType);
+        if (code === false) return;
+        if (!code) {
+            handleVaiiDataOutput("Barcode Not Found", `
+                <div style="background:#181818; border:1px solid #ffb74d; border-radius:8px; padding:14px; color:#ccc;">
+                    No readable ${command === "isbn" ? "ISBN" : "UPC/EAN"} barcode was found in the image. Try a clear, well-lit image with the full barcode visible.
+                </div>
+            `);
+            return;
+        }
+
+        if (activeImageBase64 === imageBase64) clearActiveImage();
+        if (command === "isbn") {
+            await handleOpenLibraryIsbnQuery(code);
+        } else {
+            await handleBarcodeQuery(code);
+        }
+    } catch (err) {
+        console.error("Barcode image scan failed:", err);
+        handleVaiiDataOutput("Barcode Image Scan Failed", `
+            <div style="color:#ff5555; padding:12px;">⚠️ Could not scan the barcode image: ${escapeHtml(err.message)}</div>
+        `);
+    }
+}
+
 async function handleAsciiWeatherQuery(location) {
     const cleanLocation = location.trim();
     if (!cleanLocation) {
@@ -6489,14 +6617,7 @@ async function handleAsciiWeatherQuery(location) {
 
 async function handleOpenLibraryIsbnQuery(isbn) {
     const cleanIsbn = isbn.replace(/[\s-]/g, "").toUpperCase();
-    const isIsbn10 = /^\d{9}[\dX]$/.test(cleanIsbn);
-    const isIsbn13 = /^\d{13}$/.test(cleanIsbn);
-    const validIsbn10 = isIsbn10 && [...cleanIsbn].reduce((sum, digit, index) =>
-        sum + (10 - index) * (digit === "X" ? 10 : Number(digit)), 0) % 11 === 0;
-    const validIsbn13 = isIsbn13 && [...cleanIsbn].reduce((sum, digit, index) =>
-        sum + Number(digit) * (index % 2 === 0 ? 1 : 3), 0) % 10 === 0;
-
-    if (!validIsbn10 && !validIsbn13) {
+    if (!isValidIsbn(cleanIsbn)) {
         handleVaiiDataOutput("ISBN Lookup", `
             <div style="background:#181818; border:1px solid #4da3ff; border-radius:8px; padding:14px; color:#ccc;">
                 Enter a valid ISBN-10 or ISBN-13 barcode. Usage: <code>/isbn [code]</code>.
@@ -7012,7 +7133,12 @@ executeActionBtn?.addEventListener('click', () => {
         }
 
         if (lq === "isbn" || lq === "/isbn" || lq.startsWith("isbn ") || lq.startsWith("/isbn ")) {
-            handleOpenLibraryIsbnQuery(query.trim().replace(/^\/?isbn\s*/i, ""));
+            const isbn = query.trim().replace(/^\/?isbn\s*/i, "");
+            if (!isbn && activeImageBase64) {
+                void handleBarcodeImageScan("isbn");
+                return;
+            }
+            handleOpenLibraryIsbnQuery(isbn);
             return;
         }
 
@@ -7240,6 +7366,10 @@ executeActionBtn?.addEventListener('click', () => {
         // 9. Open Food Facts Barcode Decrypter
         if (lq === "barcode" || lq === "/barcode" || lq === "food" || lq === "/food" || lq.startsWith("barcode ") || lq.startsWith("/barcode ") || lq.startsWith("food ") || lq.startsWith("/food ")) {
             const codeClean = query.trim().replace(/^(\/barcode|barcode|\/food|food)\s*/i, '').trim();
+            if (!codeClean && activeImageBase64) {
+                void handleBarcodeImageScan("food");
+                return;
+            }
             if (!codeClean || !/^\d+$/.test(codeClean)) {
                 handleVaiiDataOutput("Barcode Decrypter", `
                     <div style="background: #181818; border: 1px solid #ff7043; border-radius: 8px; padding: 14px; margin-top: 10px;">

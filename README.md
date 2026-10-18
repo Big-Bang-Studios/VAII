@@ -46,7 +46,8 @@ The primary runtime chassis. This mode intercepts user queries and routes them t
 * **🎵 Music & Audio Previews (iTunes Search API):** Renders 30-second audio previews, album artwork, and Apple Music routing links (e.g., `song Bohemian Rhapsody`).
 * **⛩️ Anime & Manga Metadata (AniList GraphQL):** Fetches synopsis, popularity ratings, genres, authors, and episode counts with high request limits (e.g., `anime Attack on Titan`, `manga Berserk`).
 * **⚡ Pokédex Telemetry (PokéAPI):** Renders official Pokémon sprites, base statistics, typings, heights, and weights (e.g., `pokemon Charizard`).
-* **📚 Book Archives & ISBN Scanner (Open Library):** Searches book metadata (e.g., `book The Hobbit`) or decodes ISBN-10/ISBN-13 barcodes into titles, authors, publishers, and cover art (`isbn [code]`).
+* **📚 Book Archives & ISBN Scanner (Open Library):** Searches book metadata (e.g., `book The Hobbit`) or decodes ISBN-10/ISBN-13 barcodes into titles, authors, publishers, and cover art (`isbn [code]`). Upload a book photo and enter `isbn` to scan its barcode.
+* **🛒 Grocery Barcode Scanner (Open Food Facts):** Looks up grocery ingredients, Nutri-Score, and Palm Oil status by UPC/EAN (`barcode [code]`, `food [code]`); upload a product photo and enter `barcode` or `food` to scan its barcode.
 * **📰 News Aggregator (GNews API):** Pulls live top global headlines or specific topic news (e.g., `top news`, `news about technology`).
 * **🎬 Cinematic Media (OMDb API):** Renders movie posters, plots, and IMDb metrics (e.g., `movie Inception`).
 * **📝 Persistent Notes:** Local storage manager to save and delete personal tasks and memos (e.g., `note: text`, `show notes`).
