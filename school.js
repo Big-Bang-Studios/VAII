@@ -13,6 +13,7 @@ let pendingAssessmentCount = 0;
 let pendingAssessmentHandler = () => {};
 let activeUserId = null;
 let processedInvite = null;
+let processedLeaveLink = null;
 let activeAssessment = null;
 
 export function isAssessmentActive(assessment = activeAssessment) {
@@ -36,13 +37,6 @@ function escapeHtml(value) {
 export function getSchoolDisplayName(user = firebaseAuth?.currentUser, savedName = localStorage.getItem(SCHOOL_NAME_KEY)) {
     const name = savedName || user?.displayName || user?.email?.split("@")[0] || "Student";
     return String(name).trim().slice(0, 30) || "Student";
-}
-
-function getTeacherIds(userId = firebaseAuth?.currentUser?.uid) {
-    if (!userId) return [];
-    const saved = JSON.parse(localStorage.getItem(TEACHERS_KEY) || "{}");
-    const teacherIds = saved[userId];
-    return Array.isArray(teacherIds) ? [...new Set(teacherIds.filter(id => typeof id === "string" && id))] : [];
 }
 
 function saveTeacherId(userId, teacherId) {
@@ -95,7 +89,10 @@ async function getFirestore() {
                 setDoc: module.setDoc,
                 updateDoc: module.updateDoc,
                 arrayUnion: module.arrayUnion,
+                arrayRemove: module.arrayRemove,
                 collection: module.collection,
+                query: module.query,
+                where: module.where,
                 addDoc: module.addDoc,
                 getDocs: module.getDocs,
                 serverTimestamp: module.serverTimestamp
@@ -164,35 +161,57 @@ async function renderHome() {
         const teacherRef = firestore.doc(firestore.db, "vaii_schools", user.uid);
         const teacherSnapshot = await firestore.getDoc(teacherRef);
         const teacherData = teacherSnapshot.exists() ? teacherSnapshot.data() : null;
-        const teacherIds = getTeacherIds(user.uid);
-        let linkedTeachers = [];
+        const linkedTeacherSnapshots = await firestore.getDocs(firestore.query(
+            firestore.collection(firestore.db, "vaii_schools"),
+            firestore.where("students", "array-contains", user.uid)
+        ));
+        const linkedTeachers = linkedTeacherSnapshots.docs.map(snapshot => ({
+            id: snapshot.id,
+            name: snapshot.data().teacherName || snapshot.id
+        }));
+        localStorage.setItem(TEACHERS_KEY, JSON.stringify({
+            ...JSON.parse(localStorage.getItem(TEACHERS_KEY) || "{}"),
+            [user.uid]: linkedTeachers.map(teacher => teacher.id)
+        }));
         let studentTests = [];
 
-        for (const teacherId of teacherIds) {
-            const linkedTeacher = await firestore.getDoc(firestore.doc(firestore.db, "vaii_schools", teacherId));
-            if (!linkedTeacher.exists()) continue;
-            const data = linkedTeacher.data();
-            linkedTeachers.push({ id: teacherId, name: data.teacherName || teacherId });
-            const tests = await firestore.getDocs(firestore.collection(firestore.db, "vaii_schools", teacherId, "assessments"));
-            for (const test of tests.docs) {
-                const submission = await firestore.getDoc(firestore.doc(firestore.db, "vaii_schools", teacherId, "assessments", test.id, "submissions", user.uid));
-                studentTests.push({ id: test.id, teacherId, teacherName: data.teacherName || teacherId, ...test.data(), submitted: submission.exists(), result: submission.exists() ? submission.data() : null });
-            }
-        }
+        const teacherAssignments = await Promise.all(linkedTeachers.map(async teacher => {
+            const tests = await firestore.getDocs(firestore.collection(firestore.db, "vaii_schools", teacher.id, "assessments"));
+            return Promise.all(tests.docs.map(async test => {
+                const submission = await firestore.getDoc(firestore.doc(
+                    firestore.db, "vaii_schools", teacher.id, "assessments", test.id, "submissions", user.uid
+                ));
+                return {
+                    id: test.id,
+                    teacherId: teacher.id,
+                    teacherName: teacher.name,
+                    ...test.data(),
+                    submitted: submission.exists(),
+                    result: submission.exists() ? submission.data() : null
+                };
+            }));
+        }));
+        studentTests = teacherAssignments.flat().sort((left, right) =>
+            left.teacherName.localeCompare(right.teacherName) || left.title.localeCompare(right.title)
+        );
 
         const inviteUrl = teacherData ? buildInviteUrl(user.uid, teacherData.teacherName || getSchoolDisplayName(user)) : "";
+        const leaveUrl = teacherData ? buildLeaveUrl(user.uid) : "";
         const schoolProfile = `<section style="${cardStyle()}"><h2 style="margin:0 0 8px;">School profile</h2><label style="display:block;color:#aab4bf;">Your name in VAII School<input id="vaii-school-display-name" aria-label="Your School name" maxlength="30" required value="${escapeHtml(getSchoolDisplayName(user))}" style="${inputStyle()}display:block;width:100%;margin-top:5px;"></label><button type="button" data-school-action="save-name" style="${buttonStyle("#257a50")}margin-top:10px;">Save School name</button><span id="vaii-school-name-status" role="status" style="margin-left:10px;color:#72d99a;"></span><div id="vaii-school-name-error" role="alert" style="color:#ff8b8b;margin-top:8px;"></div></section>`;
         const teacherSection = teacherData
-            ? `<section style="${cardStyle()}"><h2 style="margin:0 0 8px;">Teacher dashboard</h2><p style="color:#aab4bf;">Share this invite link with students:</p><div style="display:flex;gap:8px;flex-wrap:wrap;"><input readonly value="${escapeHtml(inviteUrl)}" aria-label="Teacher invite link" style="${inputStyle()}flex:1;min-width:220px;"><button type="button" data-school-action="copy-invite" style="${buttonStyle("#257a50")}">Copy invite</button></div><button type="button" data-school-action="builder" style="${buttonStyle("#257a50")}margin-top:14px;">＋ Create assessment</button><div id="vaii-school-teacher-tests" style="margin-top:14px;">Loading assessments…</div></section>`
+            ? `<section style="${cardStyle()}"><h2 style="margin:0 0 8px;">Teacher dashboard</h2><p style="color:#aab4bf;">Share a link with students:</p><div style="display:grid;gap:8px;"><div style="display:flex;gap:8px;flex-wrap:wrap;"><input readonly value="${escapeHtml(inviteUrl)}" aria-label="Teacher invite link" style="${inputStyle()}flex:1;min-width:220px;"><button type="button" data-school-action="copy-invite" style="${buttonStyle("#257a50")}">Copy join link</button></div><div style="display:flex;gap:8px;flex-wrap:wrap;"><input readonly value="${escapeHtml(leaveUrl)}" aria-label="Student leave link" style="${inputStyle()}flex:1;min-width:220px;"><button type="button" data-school-action="copy-leave-link" style="${buttonStyle()}">Copy leave link</button></div></div><button type="button" data-school-action="builder" style="${buttonStyle("#257a50")}margin-top:14px;">＋ Create assessment</button><div id="vaii-school-teacher-tests" style="margin-top:14px;">Loading assessments…</div></section>`
             : `<section style="${cardStyle()}"><h2 style="margin:0 0 8px;">Teach with VAII School</h2><p style="color:#aab4bf;">Create assessments, share an invite link, and review student results.</p><button type="button" data-school-action="become-teacher" style="${buttonStyle("#257a50")}">Become a teacher</button></section>`;
 
+        const assignmentEmptyState = linkedTeachers.length
+            ? `<p style="color:#aab4bf;">No assignments from your teachers yet.</p>`
+            : `<p style="color:#aab4bf;">No teachers linked yet. Ask your teacher to share their VAII School invite link.</p>`;
         content.innerHTML = `
             <div style="display:grid;gap:16px;">
                 ${schoolProfile}
                 ${teacherSection}
                 <section style="${cardStyle()}"><h2 style="margin:0 0 12px;">Assigned assessments</h2>
-                    ${linkedTeachers.length ? `<p style="color:#aab4bf;margin-top:0;">Linked to: ${linkedTeachers.map(teacher => escapeHtml(teacher.name)).join(", ")}</p>` : `<p style="color:#aab4bf;">No teachers linked yet. Ask your teacher to share their VAII School invite link.</p>`}
-                    ${studentTests.length ? studentTests.map(test => renderStudentTestCard(test)).join("") : ""}
+                    ${linkedTeachers.length ? `<p style="color:#aab4bf;margin-top:0;">Linked to: ${linkedTeachers.map(teacher => escapeHtml(teacher.name)).join(", ")}</p>` : ""}
+                    ${studentTests.length ? studentTests.map(test => renderStudentTestCard(test)).join("") : assignmentEmptyState}
                 </section>
             </div>`;
 
@@ -239,6 +258,13 @@ function buildInviteUrl(teacherId, teacherName) {
     url.search = "";
     url.searchParams.set("joinSchool", teacherId);
     url.searchParams.set("teacher", teacherName);
+    return url.href;
+}
+
+function buildLeaveUrl(teacherId) {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("leaveSchool", teacherId);
     return url.href;
 }
 
@@ -454,6 +480,11 @@ async function handleSchoolClick(event) {
             await navigator.clipboard.writeText(input.value);
             button.textContent = "Copied!";
         }
+        if (action === "copy-leave-link") {
+            const input = overlay.querySelector('input[aria-label="Student leave link"]');
+            await navigator.clipboard.writeText(input.value);
+            button.textContent = "Copied!";
+        }
     } catch (error) {
         if (action === "save-name") showFormError(error);
         else openSchoolError(error);
@@ -492,6 +523,29 @@ async function joinFromInvite(user) {
     return true;
 }
 
+async function leaveFromLink(user) {
+    const params = new URLSearchParams(window.location.search);
+    const teacherId = params.get("leaveSchool");
+    if (!teacherId || teacherId === user.uid) return false;
+    const leaveKey = `${user.uid}:${teacherId}`;
+    if (processedLeaveLink === leaveKey) return false;
+    const firestore = await getFirestore();
+    const teacherRef = firestore.doc(firestore.db, "vaii_schools", teacherId);
+    const teacherSnapshot = await firestore.getDoc(teacherRef);
+    if (!teacherSnapshot.exists()) throw new Error("This teacher leave link is invalid or has expired.");
+    if (teacherSnapshot.data().students?.includes(user.uid)) {
+        await firestore.updateDoc(teacherRef, { students: firestore.arrayRemove(user.uid) });
+    }
+    const saved = JSON.parse(localStorage.getItem(TEACHERS_KEY) || "{}");
+    saved[user.uid] = (Array.isArray(saved[user.uid]) ? saved[user.uid] : []).filter(id => id !== teacherId);
+    localStorage.setItem(TEACHERS_KEY, JSON.stringify(saved));
+    processedLeaveLink = leaveKey;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("leaveSchool");
+    window.history.replaceState({}, "", url);
+    return true;
+}
+
 async function refreshPendingAssessments() {
     const user = firebaseAuth?.currentUser;
     if (!user) {
@@ -499,13 +553,15 @@ async function refreshPendingAssessments() {
         return 0;
     }
     const firestore = await getFirestore();
+    const linkedTeacherSnapshots = await firestore.getDocs(firestore.query(
+        firestore.collection(firestore.db, "vaii_schools"),
+        firestore.where("students", "array-contains", user.uid)
+    ));
     let pendingCount = 0;
-    for (const teacherId of getTeacherIds(user.uid)) {
-        const teacherSnapshot = await firestore.getDoc(firestore.doc(firestore.db, "vaii_schools", teacherId));
-        if (!teacherSnapshot.exists()) continue;
-        const assessments = await firestore.getDocs(firestore.collection(firestore.db, "vaii_schools", teacherId, "assessments"));
+    for (const teacher of linkedTeacherSnapshots.docs) {
+        const assessments = await firestore.getDocs(firestore.collection(firestore.db, "vaii_schools", teacher.id, "assessments"));
         for (const assessment of assessments.docs) {
-            const submission = await firestore.getDoc(firestore.doc(firestore.db, "vaii_schools", teacherId, "assessments", assessment.id, "submissions", user.uid));
+            const submission = await firestore.getDoc(firestore.doc(firestore.db, "vaii_schools", teacher.id, "assessments", assessment.id, "submissions", user.uid));
             if (!submission.exists()) pendingCount++;
         }
     }
@@ -527,10 +583,12 @@ export async function handleSchoolAuthState(user) {
         activeUserId = userId;
         activeAssessment = null;
         processedInvite = null;
+        processedLeaveLink = null;
         setPendingAssessmentCount(0);
     }
     if (!user) return;
     await joinFromInvite(user);
+    await leaveFromLink(user);
     await refreshPendingAssessments();
 }
 
