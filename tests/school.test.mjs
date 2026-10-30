@@ -105,3 +105,44 @@ test("assessment scoring auto-grades written math and excludes teacher-review an
         reviewCount: 1
     });
 });
+
+test("active assessment state stored by another tab blocks calculator and Gemini", () => {
+    const stored = new Map();
+    const originalStorage = globalThis.localStorage;
+    globalThis.localStorage = {
+        getItem: key => stored.get(key) ?? null,
+        setItem: (key, value) => stored.set(key, String(value)),
+        removeItem: key => stored.delete(key)
+    };
+    try {
+        const app = {};
+        schoolModule.configureVAiiSchool({ app, auth: { app, currentUser: { uid: "student-1" } } });
+        stored.set("vaii_school_active_assessments_v1", JSON.stringify({
+            "student-1": {
+                userId: "student-1",
+                teacherId: "teacher-1",
+                testId: "test-1",
+                subject: "math"
+            }
+        }));
+
+        assert.equal(isAssessmentActive(), true);
+        assert.equal(isMathAssessmentActive(), true);
+
+        stored.set("vaii_school_active_assessments_v1", JSON.stringify({
+            "student-1": {
+                userId: "student-1",
+                teacherId: "teacher-1",
+                testId: "test-2",
+                subject: "science"
+            }
+        }));
+        assert.equal(isAssessmentActive(), true);
+        assert.equal(isMathAssessmentActive(), false);
+
+        stored.delete("vaii_school_active_assessments_v1");
+        assert.equal(isAssessmentActive(), false);
+    } finally {
+        globalThis.localStorage = originalStorage;
+    }
+});

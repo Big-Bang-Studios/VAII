@@ -2,6 +2,7 @@ const FIREBASE_VERSION = "10.8.0";
 const FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`;
 const TEACHERS_KEY = "vaii_school_teachers_v1";
 const SCHOOL_NAME_KEY = "vaii_school_display_name_v1";
+const ACTIVE_ASSESSMENTS_KEY = "vaii_school_active_assessments_v1";
 const SUBJECTS = ["math", "ela", "science"];
 
 let firebaseApp = null;
@@ -15,13 +16,67 @@ let activeUserId = null;
 let processedInvite = null;
 let processedLeaveLink = null;
 let activeAssessment = null;
+let assessmentStorageListenerRegistered = false;
 
-export function isAssessmentActive(assessment = activeAssessment) {
-    return Boolean(assessment);
+function readSharedAssessments() {
+    if (typeof localStorage === "undefined") return {};
+    return JSON.parse(localStorage.getItem(ACTIVE_ASSESSMENTS_KEY) || "{}");
 }
 
-export function isMathAssessmentActive(assessment = activeAssessment) {
-    return assessment?.subject === "math";
+function getSharedActiveAssessment() {
+    const userId = firebaseAuth?.currentUser?.uid || activeUserId;
+    if (!userId) return null;
+    return readSharedAssessments()[userId] || null;
+}
+
+function isSameAssessment(left, right) {
+    return left?.userId === right?.userId
+        && left?.teacherId === right?.teacherId
+        && left?.testId === right?.testId;
+}
+
+function saveSharedActiveAssessment(userId, assessment) {
+    const assessments = readSharedAssessments();
+    assessments[userId] = {
+        userId,
+        teacherId: assessment.teacherId,
+        testId: assessment.testId,
+        subject: assessment.subject
+    };
+    localStorage.setItem(ACTIVE_ASSESSMENTS_KEY, JSON.stringify(assessments));
+}
+
+function clearSharedActiveAssessment(userId, assessment) {
+    const assessments = readSharedAssessments();
+    if (!isSameAssessment(assessments[userId], { ...assessment, userId })) return;
+    delete assessments[userId];
+    localStorage.setItem(ACTIVE_ASSESSMENTS_KEY, JSON.stringify(assessments));
+}
+
+function getCurrentActiveAssessment() {
+    return getSharedActiveAssessment() || activeAssessment;
+}
+
+export function isAssessmentActive(assessment) {
+    return Boolean(assessment === undefined ? getCurrentActiveAssessment() : assessment);
+}
+
+export function isMathAssessmentActive(assessment) {
+    const current = assessment === undefined ? getCurrentActiveAssessment() : assessment;
+    return current?.subject === "math";
+}
+
+function listenForAssessmentChanges() {
+    if (assessmentStorageListenerRegistered || typeof window === "undefined") return;
+    window.addEventListener("storage", event => {
+        if (event.key !== ACTIVE_ASSESSMENTS_KEY || !activeAssessment) return;
+        const sharedAssessment = getSharedActiveAssessment();
+        const currentUserId = firebaseAuth?.currentUser?.uid || activeUserId;
+        if (!sharedAssessment || !isSameAssessment(sharedAssessment, { ...activeAssessment, userId: currentUserId })) {
+            activeAssessment = null;
+        }
+    });
+    assessmentStorageListenerRegistered = true;
 }
 
 function escapeHtml(value) {
@@ -482,15 +537,23 @@ async function openAssessment(teacherId, testId) {
     renderLoading("Loading assessment…");
     try {
         const user = getUser();
+        const sharedAssessment = getSharedActiveAssessment();
+        if (sharedAssessment && (sharedAssessment.teacherId !== teacherId || sharedAssessment.testId !== testId)) {
+            throw new Error("Finish the assessment already open in another tab before starting a different one.");
+        }
         const firestore = await getFirestore();
         const testRef = firestore.doc(firestore.db, "vaii_schools", teacherId, "assessments", testId);
         const submissionRef = firestore.doc(firestore.db, "vaii_schools", teacherId, "assessments", testId, "submissions", user.uid);
         const [testSnapshot, submissionSnapshot] = await Promise.all([firestore.getDoc(testRef), firestore.getDoc(submissionRef)]);
         if (!testSnapshot.exists()) throw new Error("This assessment is no longer available.");
-        if (submissionSnapshot.exists()) throw new Error("You have already submitted this assessment.");
+        if (submissionSnapshot.exists()) {
+            clearSharedActiveAssessment(user.uid, { teacherId, testId });
+            throw new Error("You have already submitted this assessment.");
+        }
         const assessment = testSnapshot.data();
         const questions = normalizeAssessmentQuestions(assessment.questions, assessment.subject);
-        activeAssessment = { teacherId, testId, title: assessment.title, subject: assessment.subject, questions };
+        saveSharedActiveAssessment(user.uid, { teacherId, testId, subject: assessment.subject });
+        activeAssessment = { userId: user.uid, teacherId, testId, title: assessment.title, subject: assessment.subject, questions };
         content.innerHTML = `
             <section style="${cardStyle()}">
                 <button type="button" data-school-action="home" style="${buttonStyle()}margin-bottom:12px;">← School home</button>
@@ -534,6 +597,7 @@ async function submitAssessment(form) {
         answers,
         submittedAt: firestore.serverTimestamp()
     });
+    clearSharedActiveAssessment(user.uid, assessment);
     activeAssessment = null;
     content.innerHTML = `<section style="${cardStyle()}text-align:center;"><h2 style="color:#72d99a;">Assessment submitted</h2><p>You scored <strong>${score}/${totalQuestions}</strong>.</p><button type="button" data-school-action="home" style="${buttonStyle("#257a50")}">Back to VAII School</button></section>`;
     await refreshPendingAssessments();
@@ -658,11 +722,16 @@ export function configureVAiiSchool({ app, auth, onPendingAssessments = () => {}
     firebaseAuth = auth;
     pendingAssessmentHandler = onPendingAssessments;
     firestorePromise = null;
+    listenForAssessmentChanges();
 }
 
 export async function handleSchoolAuthState(user) {
     const userId = user?.uid || null;
     if (userId !== activeUserId) {
+        if (activeUserId) {
+            const previousAssessment = readSharedAssessments()[activeUserId];
+            if (previousAssessment) clearSharedActiveAssessment(activeUserId, previousAssessment);
+        }
         activeUserId = userId;
         activeAssessment = null;
         processedInvite = null;
