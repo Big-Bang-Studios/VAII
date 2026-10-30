@@ -5,7 +5,7 @@ import test from "node:test";
 
 const schoolSource = await readFile(fileURLToPath(new URL("../school.js", import.meta.url)), "utf8");
 const schoolModule = await import(`data:text/javascript;base64,${Buffer.from(schoolSource).toString("base64")}`);
-const { getSchoolDisplayName, isAssessmentActive, isMathAssessmentActive, normalizeAssessmentQuestions, scoreAssessment } = schoolModule;
+const { getAssessmentState, getSchoolDisplayName, normalizeAssessmentQuestions, scoreAssessment } = schoolModule;
 
 test("School display name is independent from the chat name", () => {
     assert.equal(
@@ -19,15 +19,15 @@ test("School display name is independent from the chat name", () => {
 });
 
 test("calculator is blocked only during an active math assessment", () => {
-    assert.equal(isMathAssessmentActive(), false);
-    assert.equal(isMathAssessmentActive({ subject: "math" }), true);
-    assert.equal(isMathAssessmentActive({ subject: "science" }), false);
+    assert.deepEqual(getAssessmentState(), { active: false, isMath: false });
+    assert.deepEqual(getAssessmentState({ subject: "math" }), { active: true, isMath: true });
+    assert.deepEqual(getAssessmentState({ subject: "science" }), { active: true, isMath: false });
 });
 
 test("Gemini is blocked during any active assessment", () => {
-    assert.equal(isAssessmentActive(), false);
-    assert.equal(isAssessmentActive({ subject: "math" }), true);
-    assert.equal(isAssessmentActive({ subject: "science" }), true);
+    assert.equal(getAssessmentState().active, false);
+    assert.equal(getAssessmentState({ subject: "math" }).active, true);
+    assert.equal(getAssessmentState({ subject: "science" }).active, true);
 });
 
 test("assessment questions accept multiple choice questions with valid answer indexes", () => {
@@ -126,8 +126,7 @@ test("active assessment state stored by another tab blocks calculator and Gemini
             }
         }));
 
-        assert.equal(isAssessmentActive(), true);
-        assert.equal(isMathAssessmentActive(), true);
+        assert.deepEqual(getAssessmentState(), { active: true, isMath: true });
 
         stored.set("vaii_school_active_assessments_v1", JSON.stringify({
             "student-1": {
@@ -137,11 +136,10 @@ test("active assessment state stored by another tab blocks calculator and Gemini
                 subject: "science"
             }
         }));
-        assert.equal(isAssessmentActive(), true);
-        assert.equal(isMathAssessmentActive(), false);
+        assert.deepEqual(getAssessmentState(), { active: true, isMath: false });
 
         stored.delete("vaii_school_active_assessments_v1");
-        assert.equal(isAssessmentActive(), false);
+        assert.deepEqual(getAssessmentState(), { active: false, isMath: false });
     } finally {
         globalThis.localStorage = originalStorage;
     }

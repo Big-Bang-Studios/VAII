@@ -15,7 +15,7 @@ import {
 
 import { launchTerminalSandbox } from "./terminal.js";
 import { configureContactChat, handleContactChatAuthState, initializeContactChat, openContactChat } from "./chat.js";
-import { configureVAiiSchool, handleSchoolAuthState, isAssessmentActive, isMathAssessmentActive, openVAiiSchool } from "./school.js";
+import { configureVAiiSchool, getAssessmentState, handleSchoolAuthState, openVAiiSchool } from "./school.js";
 
 const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : function() {};
 
@@ -4379,7 +4379,7 @@ function launchTargetUrl(url) {
 // GEMINI DIRECT CHAT ENGINE
 // ==========================================
 function blockGeminiDuringAssessment() {
-    if (!isAssessmentActive()) return false;
+    if (!getAssessmentState().active) return false;
     handleVaiiDataOutput("Gemini unavailable", '<div role="alert" style="padding:12px;color:#f0c674;">Gemini is unavailable while you are taking an assessment. Submit the assessment to use it again.</div>');
     return true;
 }
@@ -4767,7 +4767,7 @@ function runInfoExecution(query) {
     // ==========================================
     
     const mathAnswer = evaluateSafeMath(query);
-    if (isMathAssessmentActive() && mathAnswer) {
+    if (getAssessmentState().isMath && mathAnswer) {
         handleVaiiDataOutput("Calculator unavailable", '<div role="status" style="padding:12px;color:#f0c674;">The calculator is unavailable while you are taking a math assessment. Submit the assessment to use it again.</div>');
         return;
     }
@@ -5864,7 +5864,7 @@ hubInput?.addEventListener('input', () => {
 
     // Live math calculation suggestion
     const rawVal = (typeof hubInput !== "undefined" && hubInput ? hubInput.value : cleanInput);
-    const liveMath = isMathAssessmentActive() ? null : evaluateSafeMath(rawVal);
+    const liveMath = getAssessmentState().isMath ? null : evaluateSafeMath(rawVal);
     if (liveMath) {
         customSuggestions.unshift(rawVal.trim() + " = " + liveMath.result);
     }

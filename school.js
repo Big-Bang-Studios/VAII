@@ -57,13 +57,12 @@ function getCurrentActiveAssessment() {
     return getSharedActiveAssessment() || activeAssessment;
 }
 
-export function isAssessmentActive(assessment) {
-    return Boolean(assessment === undefined ? getCurrentActiveAssessment() : assessment);
-}
-
-export function isMathAssessmentActive(assessment) {
+export function getAssessmentState(assessment) {
     const current = assessment === undefined ? getCurrentActiveAssessment() : assessment;
-    return current?.subject === "math";
+    return {
+        active: Boolean(current),
+        isMath: current?.subject === "math"
+    };
 }
 
 function listenForAssessmentChanges() {
