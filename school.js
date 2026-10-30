@@ -47,18 +47,32 @@ function saveTeacherId(userId, teacherId) {
     localStorage.setItem(TEACHERS_KEY, JSON.stringify(saved));
 }
 
-export function normalizeAssessmentQuestions(questions) {
+export function normalizeAssessmentQuestions(questions, subject = "math") {
     if (!Array.isArray(questions) || questions.length < 1 || questions.length > 50) {
         throw new Error("An assessment must have between 1 and 50 questions.");
     }
 
     return questions.map((question, index) => {
         const prompt = String(question?.prompt || "").trim();
+        const type = question?.type || "multiple-choice";
+        if (!prompt || prompt.length > 500) throw new Error(`Question ${index + 1} needs a prompt (maximum 500 characters).`);
+        if (type === "written") {
+            if (!SUBJECTS.includes(subject)) throw new Error("Choose a supported subject.");
+            if (subject === "math") {
+                const correctAnswer = String(question?.correctAnswer ?? "").trim();
+                if (!correctAnswer || correctAnswer.length > 200) {
+                    throw new Error(`Enter a correct answer for question ${index + 1} (maximum 200 characters).`);
+                }
+                return { type, prompt, correctAnswer };
+            }
+            return { type, prompt, requiresReview: true };
+        }
+        if (type !== "multiple-choice") throw new Error(`Question ${index + 1} has an unsupported question type.`);
+
         const options = Array.isArray(question?.options)
             ? question.options.map(option => String(option || "").trim()).filter(Boolean)
             : [];
         const correctAnswer = Number(question?.correctAnswer);
-        if (!prompt || prompt.length > 500) throw new Error(`Question ${index + 1} needs a prompt (maximum 500 characters).`);
         if (options.length < 2 || options.length > 6 || options.some(option => option.length > 200)) {
             throw new Error(`Question ${index + 1} needs 2 to 6 options, each no longer than 200 characters.`);
         }
@@ -73,9 +87,17 @@ export function scoreAssessment(questions, answers) {
     if (!Array.isArray(questions) || !Array.isArray(answers) || questions.length !== answers.length) {
         throw new Error("Answers must match the assessment question count.");
     }
-    const score = questions.reduce((total, question, index) =>
-        total + (Number(answers[index]) === question.correctAnswer ? 1 : 0), 0);
-    return { score, totalQuestions: questions.length };
+    const reviewCount = questions.filter(question => question.requiresReview).length;
+    const score = questions.reduce((total, question, index) => {
+        if (question.requiresReview) return total;
+        if (question.type === "written") {
+            const answer = String(answers[index] ?? "").trim().toLowerCase();
+            const correctAnswer = String(question.correctAnswer ?? "").trim().toLowerCase();
+            return total + (answer && answer === correctAnswer ? 1 : 0);
+        }
+        return total + (Number(answers[index]) === question.correctAnswer ? 1 : 0);
+    }, 0);
+    return { score, totalQuestions: questions.length - reviewCount, reviewCount };
 }
 
 async function getFirestore() {
@@ -234,8 +256,12 @@ function buttonStyle(color = "#2c3745") {
 }
 
 function renderStudentTestCard(test) {
+    const reviewCount = Number(test.result?.reviewCount) || 0;
+    const resultLabel = test.submitted
+        ? ` · ${test.result.totalQuestions ? `Score: ${test.result.score}/${test.result.totalQuestions}` : "Awaiting teacher review"}${reviewCount ? ` · ${reviewCount} to review` : ""}`
+        : "";
     return `<article style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-top:1px solid #303a47;padding:12px 0;">
-        <div><strong>${escapeHtml(test.title)}</strong><div style="color:#9ba6b2;font-size:.82rem;">${escapeHtml(test.subject.toUpperCase())} · ${test.questions?.length || 0} questions · ${escapeHtml(test.teacherName)}${test.submitted ? ` · Score: ${test.result.score}/${test.result.totalQuestions}` : ""}</div></div>
+        <div><strong>${escapeHtml(test.title)}</strong><div style="color:#9ba6b2;font-size:.82rem;">${escapeHtml(test.subject.toUpperCase())} · ${test.questions?.length || 0} questions · ${escapeHtml(test.teacherName)}${resultLabel}</div></div>
         ${test.submitted ? `<span style="color:#72d99a;font-weight:700;">Completed</span>` : `<button type="button" data-school-action="take" data-teacher-id="${escapeHtml(test.teacherId)}" data-test-id="${escapeHtml(test.id)}" style="${buttonStyle("#257a50")}">Take assessment</button>`}
     </article>`;
 }
@@ -320,23 +346,61 @@ function renderBuilder() {
         </section>`;
     const builder = document.getElementById("vaii-school-builder");
     const countInput = builder.elements.count;
-    renderQuestionFields(3);
+    const subjectInput = builder.elements.subject;
+    const questionFields = document.getElementById("vaii-school-question-fields");
+    renderQuestionFields(3, subjectInput.value);
     countInput.addEventListener("input", () => {
         const count = Math.max(1, Math.min(50, Number(countInput.value) || 1));
-        renderQuestionFields(count);
+        renderQuestionFields(count, subjectInput.value);
+    });
+    subjectInput.addEventListener("change", () => updateQuestionFieldVisibility(questionFields, subjectInput.value));
+    questionFields.addEventListener("change", event => {
+        if (event.target.matches('select[name^="type-"]')) {
+            updateQuestionFieldVisibility(event.target.closest("[data-school-question]"), subjectInput.value);
+        }
     });
 }
 
-function renderQuestionFields(count) {
+function updateQuestionFieldVisibility(questionFields, subject) {
+    const questions = questionFields.hasAttribute("data-school-question")
+        ? [questionFields]
+        : questionFields.querySelectorAll("[data-school-question]");
+    for (const question of questions) {
+        const type = question.querySelector('select[name^="type-"]').value;
+        const fields = {
+            "multiple-choice": type === "multiple-choice",
+            "math-answer": type === "written" && subject === "math",
+            "manual-review": type === "written" && subject !== "math"
+        };
+        for (const [fieldName, isVisible] of Object.entries(fields)) {
+            const wrapper = question.querySelector(`[data-question-field="${fieldName}"]`);
+            wrapper.hidden = !isVisible;
+            wrapper.querySelectorAll("input, textarea, select").forEach(control => {
+                control.disabled = !isVisible;
+                control.required = isVisible && control.dataset.required === "true";
+            });
+        }
+    }
+}
+
+function renderQuestionFields(count, subject) {
     const fields = document.getElementById("vaii-school-question-fields");
     if (!fields) return;
     fields.innerHTML = Array.from({ length: count }, (_, index) => `
         <fieldset data-school-question="${index}" style="border:1px solid #384351;border-radius:8px;padding:12px;">
             <legend style="font-weight:700;">Question ${index + 1}</legend>
             <label style="display:block;">Prompt<textarea name="prompt-${index}" maxlength="500" required rows="2" style="${inputStyle()}width:100%;margin-top:5px;"></textarea></label>
-            <label style="display:block;margin-top:8px;">Multiple-choice options (one per line, 2–6)<textarea name="options-${index}" required rows="4" style="${inputStyle()}width:100%;margin-top:5px;" placeholder="Option A&#10;Option B&#10;Option C&#10;Option D"></textarea></label>
-            <label style="display:block;margin-top:8px;">Correct option<select name="answer-${index}" style="${inputStyle()}display:block;margin-top:5px;"><option value="0">Option 1</option><option value="1">Option 2</option><option value="2">Option 3</option><option value="3">Option 4</option><option value="4">Option 5</option><option value="5">Option 6</option></select></label>
+            <label style="display:block;margin-top:8px;">Question type<select name="type-${index}" style="${inputStyle()}display:block;margin-top:5px;"><option value="multiple-choice">Multiple choice</option><option value="written">Type an answer</option></select></label>
+            <div data-question-field="multiple-choice">
+                <label style="display:block;margin-top:8px;">Options (one per line, 2–6)<textarea name="options-${index}" data-required="true" rows="4" style="${inputStyle()}width:100%;margin-top:5px;" placeholder="Option A&#10;Option B&#10;Option C&#10;Option D"></textarea></label>
+                <label style="display:block;margin-top:8px;">Correct option<select name="answer-${index}" data-required="true" style="${inputStyle()}display:block;margin-top:5px;"><option value="0">Option 1</option><option value="1">Option 2</option><option value="2">Option 3</option><option value="3">Option 4</option><option value="4">Option 5</option><option value="5">Option 6</option></select></label>
+            </div>
+            <div data-question-field="math-answer" hidden>
+                <label style="display:block;margin-top:8px;">Correct answer<input name="written-answer-${index}" data-required="true" maxlength="200" style="${inputStyle()}display:block;width:100%;margin-top:5px;"></label>
+            </div>
+            <div data-question-field="manual-review" hidden style="margin-top:8px;color:#ffd27a;">Students will type an answer. Review this response after submission; no correct answer is set.</div>
         </fieldset>`).join("");
+    updateQuestionFieldVisibility(fields, subject);
 }
 
 async function publishAssessment(form) {
@@ -348,11 +412,14 @@ async function publishAssessment(form) {
     if (!SUBJECTS.includes(subject)) throw new Error("Choose a supported subject.");
     if (!Number.isInteger(count) || count < 1 || count > 50) throw new Error("Choose between 1 and 50 questions.");
     const rawQuestions = Array.from({ length: count }, (_, index) => ({
+        type: formData.get(`type-${index}`),
         prompt: formData.get(`prompt-${index}`),
         options: String(formData.get(`options-${index}`) || "").split("\n"),
-        correctAnswer: formData.get(`answer-${index}`)
+        correctAnswer: formData.get(`type-${index}`) === "written"
+            ? formData.get(`written-answer-${index}`)
+            : formData.get(`answer-${index}`)
     }));
-    const questions = normalizeAssessmentQuestions(rawQuestions);
+    const questions = normalizeAssessmentQuestions(rawQuestions, subject);
     const user = getUser();
     const firestore = await getFirestore();
     await firestore.addDoc(firestore.collection(firestore.db, "vaii_schools", user.uid, "assessments"), {
@@ -383,12 +450,25 @@ async function renderAssessmentResults(testId) {
                     const result = snapshot.data();
                     const answers = Array.isArray(result.answers) ? result.answers : [];
                     return `<article style="border-top:1px solid #303a47;padding:12px 0;">
-                        <strong>${escapeHtml(result.studentName || snapshot.id)}</strong> — ${escapeHtml(result.score)}/${escapeHtml(result.totalQuestions)}
+                        <strong>${escapeHtml(result.studentName || snapshot.id)}</strong> — ${result.totalQuestions ? `${escapeHtml(result.score)}/${escapeHtml(result.totalQuestions)} auto-graded` : "Awaiting review"}${result.reviewCount ? ` · ${escapeHtml(result.reviewCount)} to review` : ""}
                         <ol style="color:#b7c0ca;padding-left:24px;">${assessment.questions.map((question, index) => {
-                            const selected = Number(answers[index]);
-                            const answerLabel = question.options?.[selected] || "No answer";
-                            const correctLabel = question.options?.[question.correctAnswer] || "Unavailable";
-                            return `<li>${escapeHtml(question.prompt)}<br><span style="color:${selected === question.correctAnswer ? "#72d99a" : "#ff9b9b"};">Student: ${escapeHtml(answerLabel)}</span> · Correct: ${escapeHtml(correctLabel)}</li>`;
+                            if (question.requiresReview) {
+                                return `<li>${escapeHtml(question.prompt)}<br><span style="color:#ffd27a;white-space:pre-wrap;">Student: ${escapeHtml(answers[index] || "No answer")} · Teacher review required</span></li>`;
+                            }
+                            const answerIsWritten = question.type === "written";
+                            const selected = answerIsWritten
+                                ? String(answers[index] ?? "").trim().toLowerCase()
+                                : Number(answers[index]);
+                            const answerLabel = answerIsWritten
+                                ? String(answers[index] || "No answer")
+                                : question.options?.[selected] || "No answer";
+                            const correctLabel = answerIsWritten
+                                ? question.correctAnswer || "Unavailable"
+                                : question.options?.[question.correctAnswer] || "Unavailable";
+                            const isCorrect = answerIsWritten
+                                ? selected === String(question.correctAnswer ?? "").trim().toLowerCase()
+                                : selected === question.correctAnswer;
+                            return `<li>${escapeHtml(question.prompt)}<br><span style="color:${isCorrect ? "#72d99a" : "#ff9b9b"};white-space:pre-wrap;">Student: ${escapeHtml(answerLabel)}</span> · Correct: ${escapeHtml(correctLabel)}</li>`;
                         }).join("")}</ol>
                     </article>`;
                 }).join("")}
@@ -409,7 +489,7 @@ async function openAssessment(teacherId, testId) {
         if (!testSnapshot.exists()) throw new Error("This assessment is no longer available.");
         if (submissionSnapshot.exists()) throw new Error("You have already submitted this assessment.");
         const assessment = testSnapshot.data();
-        const questions = normalizeAssessmentQuestions(assessment.questions);
+        const questions = normalizeAssessmentQuestions(assessment.questions, assessment.subject);
         activeAssessment = { teacherId, testId, title: assessment.title, subject: assessment.subject, questions };
         content.innerHTML = `
             <section style="${cardStyle()}">
@@ -419,7 +499,9 @@ async function openAssessment(teacherId, testId) {
                 <form id="vaii-school-test-form">
                     ${questions.map((question, index) => `<fieldset style="border:1px solid #384351;border-radius:8px;padding:12px;margin:12px 0;">
                         <legend style="font-weight:700;">${index + 1}. ${escapeHtml(question.prompt)}</legend>
-                        ${question.options.map((option, optionIndex) => `<label style="display:flex;gap:8px;padding:6px;cursor:pointer;"><input type="radio" name="answer-${index}" value="${optionIndex}" required><span>${escapeHtml(option)}</span></label>`).join("")}
+                        ${question.type === "written"
+                            ? `<textarea name="answer-${index}" maxlength="2000" rows="3" required aria-label="Answer question ${index + 1}" placeholder="Type your answer" style="${inputStyle()}width:100%;margin-top:5px;"></textarea>`
+                            : question.options.map((option, optionIndex) => `<label style="display:flex;gap:8px;padding:6px;cursor:pointer;"><input type="radio" name="answer-${index}" value="${optionIndex}" required><span>${escapeHtml(option)}</span></label>`).join("")}
                     </fieldset>`).join("")}
                     <div id="vaii-school-form-error" role="alert" style="color:#ff8b8b;margin-bottom:10px;"></div>
                     <button type="submit" style="${buttonStyle("#257a50")}">Submit assessment</button>
@@ -434,12 +516,12 @@ async function submitAssessment(form) {
     const assessment = activeAssessment;
     if (!assessment) throw new Error("No assessment is open.");
     const formData = new FormData(form);
-    const answers = assessment.questions.map((_, index) => {
+    const answers = assessment.questions.map((question, index) => {
         const answer = formData.get(`answer-${index}`);
-        if (answer === null) throw new Error(`Answer question ${index + 1} before submitting.`);
-        return Number(answer);
+        if (answer === null || !String(answer).trim()) throw new Error(`Answer question ${index + 1} before submitting.`);
+        return question.type === "written" ? String(answer).trim() : Number(answer);
     });
-    const { score, totalQuestions } = scoreAssessment(assessment.questions, answers);
+    const { score, totalQuestions, reviewCount } = scoreAssessment(assessment.questions, answers);
     const user = getUser();
     const firestore = await getFirestore();
     const submissionRef = firestore.doc(firestore.db, "vaii_schools", assessment.teacherId, "assessments", assessment.testId, "submissions", user.uid);
@@ -448,6 +530,7 @@ async function submitAssessment(form) {
         studentName: getSchoolDisplayName(user),
         score,
         totalQuestions,
+        reviewCount,
         answers,
         submittedAt: firestore.serverTimestamp()
     });

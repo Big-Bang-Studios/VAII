@@ -49,11 +49,59 @@ test("assessment question validation rejects missing prompts, invalid options, a
     assert.throws(() => normalizeAssessmentQuestions([{ prompt: "Pick", options: ["A", "B"], correctAnswer: 2 }]), /valid correct answer/);
 });
 
+test("written math questions save a correct answer while ELA and science questions require teacher review", () => {
+    assert.deepEqual(normalizeAssessmentQuestions([{
+        type: "written",
+        prompt: "What is 2 + 2?",
+        correctAnswer: " 4 "
+    }], "math"), [{
+        type: "written",
+        prompt: "What is 2 + 2?",
+        correctAnswer: "4"
+    }]);
+    for (const subject of ["ela", "science"]) {
+        assert.deepEqual(normalizeAssessmentQuestions([{
+            type: "written",
+            prompt: "Explain your answer."
+        }], subject), [{
+            type: "written",
+            prompt: "Explain your answer.",
+            requiresReview: true
+        }]);
+    }
+});
+
+test("written math questions require a valid correct answer", () => {
+    assert.throws(() => normalizeAssessmentQuestions([{
+        type: "written",
+        prompt: "What is 2 + 2?",
+        correctAnswer: ""
+    }], "math"), /Enter a correct answer/);
+});
+
 test("assessment scoring counts only matching correct answer indexes", () => {
     const questions = [
         { prompt: "Q1", options: ["A", "B"], correctAnswer: 1 },
         { prompt: "Q2", options: ["A", "B", "C"], correctAnswer: 2 }
     ];
-    assert.deepEqual(scoreAssessment(questions, [1, 0]), { score: 1, totalQuestions: 2 });
+    assert.deepEqual(scoreAssessment(questions, [1, 0]), { score: 1, totalQuestions: 2, reviewCount: 0 });
     assert.throws(() => scoreAssessment(questions, [1]), /match the assessment question count/);
+});
+
+test("assessment scoring auto-grades written math and excludes teacher-review answers", () => {
+    const questions = [
+        { prompt: "Choice", options: ["A", "B"], correctAnswer: 1 },
+        { type: "written", prompt: "Math", correctAnswer: "4" },
+        { type: "written", prompt: "Explain", requiresReview: true }
+    ];
+    assert.deepEqual(scoreAssessment(questions, [1, " 4 ", "A detailed response"]), {
+        score: 2,
+        totalQuestions: 2,
+        reviewCount: 1
+    });
+    assert.deepEqual(scoreAssessment([questions[2]], ["response"]), {
+        score: 0,
+        totalQuestions: 0,
+        reviewCount: 1
+    });
 });
