@@ -106,7 +106,7 @@ test("assessment scoring auto-grades written math and excludes teacher-review an
     });
 });
 
-test("active assessment state stored by another tab blocks calculator and Gemini", () => {
+test("shared assessment state ignores editable subject fields and fails closed for calculator", () => {
     const stored = new Map();
     const originalStorage = globalThis.localStorage;
     globalThis.localStorage = {
@@ -133,10 +133,10 @@ test("active assessment state stored by another tab blocks calculator and Gemini
                 userId: "student-1",
                 teacherId: "teacher-1",
                 testId: "test-2",
-                subject: "science"
+                subject: "ela"
             }
         }));
-        assert.deepEqual(getAssessmentState(), { active: true, isMath: false });
+        assert.deepEqual(getAssessmentState(), { active: true, isMath: true });
 
         stored.delete("vaii_school_active_assessments_v1");
         assert.deepEqual(getAssessmentState(), { active: false, isMath: false });

@@ -26,7 +26,13 @@ function readSharedAssessments() {
 function getSharedActiveAssessment() {
     const userId = firebaseAuth?.currentUser?.uid || activeUserId;
     if (!userId) return null;
-    return readSharedAssessments()[userId] || null;
+    const sharedAssessment = readSharedAssessments()[userId];
+    if (!sharedAssessment || typeof sharedAssessment !== "object") return null;
+    return {
+        userId,
+        teacherId: sharedAssessment.teacherId,
+        testId: sharedAssessment.testId
+    };
 }
 
 function isSameAssessment(left, right) {
@@ -40,8 +46,7 @@ function saveSharedActiveAssessment(userId, assessment) {
     assessments[userId] = {
         userId,
         teacherId: assessment.teacherId,
-        testId: assessment.testId,
-        subject: assessment.subject
+        testId: assessment.testId
     };
     localStorage.setItem(ACTIVE_ASSESSMENTS_KEY, JSON.stringify(assessments));
 }
@@ -54,7 +59,10 @@ function clearSharedActiveAssessment(userId, assessment) {
 }
 
 function getCurrentActiveAssessment() {
-    return getSharedActiveAssessment() || activeAssessment;
+    const sharedAssessment = getSharedActiveAssessment();
+    if (!sharedAssessment) return activeAssessment;
+    if (activeAssessment && isSameAssessment(sharedAssessment, activeAssessment)) return activeAssessment;
+    return { ...sharedAssessment, subject: "math" };
 }
 
 export function getAssessmentState(assessment) {
