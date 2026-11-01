@@ -12,6 +12,8 @@ The architecture is divided into two distinct processing engines: **VAII Native*
 ### 1. VAII Native (Integration Mode)
 The primary runtime chassis. This mode intercepts user queries and routes them to specific external APIs to render interactive HTML widgets directly in the DOM.
 
+Native commands accept common aliases (for example, `fx`/`currency`, `calc`/`calculator`, and `forecast`/`weather`) and slash-prefixed forms. Start typing a command to see matching aliases; when required arguments are missing or a no-argument command gets extra text, VAII displays the correct syntax and examples. Invalid values also receive command-specific guidance.
+
 * **🎤 Speech Recognition & Voice Playback:** Uses the native browser Web Speech API for voice input dictation and clean text-to-speech (TTS) audio playback without markdown tags or emojis.
 * **💱 Live Forex & Currency Converter (Frankfurter & Open Exchange):** Converts real-time exchange rates across global currencies (e.g., `convert 100 USD to EUR`, `50 GBP to JPY`) backed by European Central Bank datasets.
 * **📱 Dynamic QR Code Generator (QRServer):** Generates scannable QR code cards (e.g., `qr https://vaii-two.vercel.app`) with direct PNG download support.

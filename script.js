@@ -16,6 +16,7 @@ import {
 import { launchTerminalSandbox } from "./terminal.js";
 import { configureContactChat, handleContactChatAuthState, initializeContactChat, openContactChat } from "./chat.js";
 import { configureVAiiSchool, getAssessmentState, handleSchoolAuthState, openVAiiSchool } from "./school.js";
+import { getNativeCommandSuggestions, getNativeCommandSyntaxIssue, normalizeNativeCommand } from "./nativeCommands.js";
 
 const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : function() {};
 
@@ -5787,10 +5788,15 @@ hubInput?.addEventListener('input', () => {
             "/ebay headphones",
             "/note Check server deployments"
         ];
-        customSuggestions = slashCommands.filter(c => c.toLowerCase().startsWith(cleanInput));
+        customSuggestions = [
+            ...slashCommands.filter(c => c.toLowerCase().startsWith(cleanInput)),
+            ...getNativeCommandSuggestions(cleanInput.slice(1)).map(command => `/${command}`)
+        ];
         updateDatalist([], [], [], customSuggestions);
         return;
     }
+
+    customSuggestions.push(...getNativeCommandSuggestions(cleanInput));
 
     // Dynamic triggers for new integrations
     if ("quakes".startsWith(cleanInput) || "earthquakes".startsWith(cleanInput) || "seismic".startsWith(cleanInput)) {
@@ -7058,6 +7064,19 @@ function autocorrectCommandQuery(query) {
     return `${match[1]}${bestMatches[0].name}${match[3]}`;
 }
 
+function showNativeCommandSyntax(command) {
+    const examples = command.examples.map(example => `<code>${escapeHtml(example)}</code>`).join(" or ");
+    const aliases = command.aliases.map(alias => `<code>${escapeHtml(alias)}</code>`).join(" · ");
+    handleVaiiDataOutput("Command syntax help", `
+        <div style="background:#181818;border:1px solid #ffb74d;border-radius:8px;padding:14px;color:#eee;">
+            <strong style="color:#ffb74d;">⚠️ Syntax not recognized</strong>
+            <p style="color:#aaa;font-size:.84rem;margin:8px 0;">Use <code>${escapeHtml(command.syntax)}</code>.</p>
+            <div style="color:#888;font-size:.8rem;">Try: ${examples}</div>
+            <div style="color:#888;font-size:.8rem;margin-top:8px;">Aliases: ${aliases}</div>
+        </div>
+    `);
+}
+
 executeActionBtn?.addEventListener('click', () => {
     let query = (hubInput?.value || "").trim();
     const modeEl = document.querySelector('input[name="vaii-mode"]:checked');
@@ -7074,7 +7093,17 @@ executeActionBtn?.addEventListener('click', () => {
 
     if (mode === "native") {
         query = autocorrectCommandQuery(query);
+        const syntaxIssue = getNativeCommandSyntaxIssue(query);
+        if (syntaxIssue) {
+            showNativeCommandSyntax(syntaxIssue);
+            return;
+        }
+        query = normalizeNativeCommand(query);
         const lq = query.trim().toLowerCase();
+        if (lq === "school" || lq === "vaii school") {
+            openVAiiSchool();
+            return;
+        }
 
         if (/^\/?(shorten|expand)(?:\s|$)/i.test(lq)) {
             const expand = /^\/?expand(?:\s|$)/i.test(lq);
