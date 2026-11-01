@@ -16,7 +16,7 @@ import {
 import { launchTerminalSandbox } from "./terminal.js";
 import { configureContactChat, handleContactChatAuthState, initializeContactChat, openContactChat } from "./chat.js";
 import { configureVAiiSchool, getAssessmentState, handleSchoolAuthState, openVAiiSchool } from "./school.js";
-import { getNativeCommandSuggestions, getNativeCommandSyntaxIssue, normalizeNativeCommand } from "./nativeCommands.js";
+import { autocorrectNativeCommandQuery, getNativeCommandSuggestions, getNativeCommandSyntaxIssue, normalizeNativeCommand } from "./nativeCommands.js";
 
 const handleSpaceQuery = typeof handleAstronautQuery !== "undefined" ? handleAstronautQuery : function() {};
 
@@ -6936,42 +6936,6 @@ function handleReverseGeocodeQuery(showWeather = false) {
     }, { timeout: 10000, enableHighAccuracy: false });
 }
 
-function getSingleCommandTypoDistance(input, candidate) {
-    if (input === candidate || Math.abs(input.length - candidate.length) > 1) return null;
-
-    if (input.length === candidate.length) {
-        const differences = [];
-        for (let i = 0; i < input.length; i++) {
-            if (input[i] !== candidate[i]) differences.push(i);
-        }
-        if (differences.length === 1) return { distance: 1, transposition: false };
-        if (differences.length === 2 && differences[1] === differences[0] + 1 &&
-            input[differences[0]] === candidate[differences[1]] &&
-            input[differences[1]] === candidate[differences[0]]) {
-            return { distance: 1, transposition: true };
-        }
-        return null;
-    }
-
-    const shorter = input.length < candidate.length ? input : candidate;
-    const longer = input.length < candidate.length ? candidate : input;
-    let shortIndex = 0;
-    let longIndex = 0;
-    let skipped = false;
-    while (shortIndex < shorter.length && longIndex < longer.length) {
-        if (shorter[shortIndex] === longer[longIndex]) {
-            shortIndex++;
-            longIndex++;
-        } else if (skipped) {
-            return null;
-        } else {
-            skipped = true;
-            longIndex++;
-        }
-    }
-    return { distance: 1, transposition: false };
-}
-
 async function handleEbayQuery(searchTerm) {
     const cleanSearchTerm = searchTerm.trim();
     if (!cleanSearchTerm) {
@@ -7035,33 +6999,7 @@ async function handleEbayQuery(searchTerm) {
 
 function autocorrectCommandQuery(query) {
     if (localStorage.getItem("vaii_autocorrect") !== "true") return query;
-
-    const match = query.match(/^(\s*\/?)([a-z-]+)([\s\S]*)$/i);
-    if (!match) return query;
-
-    const typedCommand = match[2].toLowerCase();
-    const commandNames = [
-        "age", "anime", "archive", "asciiweather", "asteroid", "avatar", "barcode", "battery", "book", "bsky", "bluesky",
-        "bored", "call", "cat", "chuck", "college", "country", "convert", "crypto", "define", "dial", "dig", "dns",
-        "cidr", "color",
-        "airquality", "aqi", "chat", "draw", "drink", "film", "flight", "food", "github", "history", "holiday", "joke", "movie", "manga",
-        "expand", "ghuser", "hex", "http", "isbn", "launches", "locate", "mc", "msg", "music", "neo", "news", "npm", "nslookup", "open", "play", "pokemon",
-        "network", "onthisday", "postal", "power", "qr", "qrcode", "repo", "shorten", "snapshot", "sms", "solarwind", "song", "space", "spaceweather", "speed", "spacex", "statuscat", "stream", "subnet",
-        "school", "stopwatch", "text", "ticket", "tickets", "timer", "track", "trivia", "university",
-        "watch", "wayback", "weather", "whereami", "zip", "status", "ebay"
-    ];
-    const candidates = commandNames
-        .map(name => ({ name, match: getSingleCommandTypoDistance(typedCommand, name) }))
-        .filter(candidate => candidate.match &&
-            (candidate.match.transposition || typedCommand.slice(0, 2) === candidate.name.slice(0, 2)))
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-    if (!candidates.length) return query;
-    const bestDistance = candidates[0].match.distance;
-    const bestMatches = candidates.filter(candidate => candidate.match.distance === bestDistance);
-    if (bestMatches.length !== 1) return query;
-
-    return `${match[1]}${bestMatches[0].name}${match[3]}`;
+    return autocorrectNativeCommandQuery(query);
 }
 
 function showNativeCommandSyntax(command) {

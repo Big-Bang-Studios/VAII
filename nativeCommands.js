@@ -5,8 +5,8 @@ const COMMANDS = [
     { aliases: ["stopwatch", "sw"], syntax: "stopwatch", examples: ["stopwatch"], mode: "none" },
     { aliases: ["repo", "github", "repository"], syntax: "repo [owner/repository]", examples: ["repo facebook/react", "github vercel/next.js"], mode: "argument" },
     { aliases: ["movie", "film", "ticket", "tickets", "stream", "watch"], syntax: "[movie|film|tickets|stream|watch] [title]", examples: ["movie Inception", "watch The Matrix"], mode: "argument" },
-    { aliases: ["define", "dictionary", "meaning", "meaning of", "definition of", "what is the meaning of", "what's the meaning of", "what does", "define the word"], syntax: "define [word]", examples: ["define serendipity", "meaning of ephemeral", "what does ephemeral mean"], mode: "argument" },
-    { aliases: ["country", "flag of", "flag"], syntax: "country [country-name]", examples: ["country Japan", "flag of Brazil"], mode: "argument" },
+    { aliases: ["define", "dictionary", "meaning", "meaning of", "definition of", "definition for", "what is the meaning of", "what's the meaning of", "what does", "define the word"], syntax: "define [word]", examples: ["define serendipity", "meaning of ephemeral", "what does ephemeral mean"], mode: "argument" },
+    { aliases: ["country", "flag of", "flag for", "flag", "tell me about country"], syntax: "country [country-name]", examples: ["country Japan", "flag of Brazil"], mode: "argument" },
     { aliases: ["drink", "cocktail", "recipe"], syntax: "drink [cocktail-name]", examples: ["drink Margarita", "random drink"], mode: "argument" },
     { aliases: ["random drink", "random cocktail"], syntax: "random drink", examples: ["random drink", "random cocktail"], mode: "none" },
     { aliases: ["song", "music", "track", "play"], syntax: "[song|music|track|play] [title or artist]", examples: ["song Bohemian Rhapsody", "play Daft Punk"], mode: "argument" },
@@ -62,19 +62,19 @@ const COMMANDS = [
     { aliases: ["ip", "my ip", "ip lookup", "what is my ip"], syntax: "my ip", examples: ["my ip", "ip lookup"], mode: "none" },
     { aliases: ["trivia", "quiz"], syntax: "trivia", examples: ["trivia", "quiz"], mode: "none" },
     { aliases: ["free games", "free game", "deals", "giveaways"], syntax: "free games", examples: ["free games", "deals"], mode: "none" },
-    { aliases: ["joke", "tell me a joke", "tell me a random joke", "random joke", "make me laugh", "dadjoke"], syntax: "joke", examples: ["joke", "tell me a joke"], mode: "none" },
+    { aliases: ["joke", "tell me a joke", "tell me a random joke", "tell me something funny", "random joke", "make me laugh", "dadjoke"], syntax: "joke", examples: ["joke", "tell me a joke"], mode: "none" },
     { aliases: ["pokemon", "pokedex"], syntax: "pokemon [name or number]", examples: ["pokemon Charizard"], mode: "argument" },
-    { aliases: ["news", "top news"], syntax: "news [optional: about topic]", examples: ["news", "news about technology"], mode: "optional" },
+    { aliases: ["news", "top news", "latest news about"], syntax: "news [optional: about topic]", examples: ["news", "news about technology"], mode: "optional" },
     { aliases: ["note", "remember", "add note"], syntax: "note: [text]", examples: ["note: Check server deployments", "remember to call mom"], mode: "argument" },
     { aliases: ["show notes", "my notes", "notes"], syntax: "show notes", examples: ["show notes", "my notes"], mode: "none" },
     { aliases: ["draw", "art"], syntax: "draw [image description]", examples: ["draw a cyberpunk city"], mode: "argument" },
     { aliases: ["call", "dial"], syntax: "call [phone number]", examples: ["call 555-0199"], mode: "argument" },
     { aliases: ["text", "sms", "msg"], syntax: "text [phone number] [optional message]", examples: ["text 555-0199 on my way"], mode: "argument" },
     { aliases: ["reserve", "reservation", "order", "find"], syntax: "[reserve|order|find] [food or restaurant] [city]", examples: ["reserve sushi New York", "order pizza Orlando"], mode: "argument" },
-    { aliases: ["weather", "forecast", "weather report", "weather in", "weather for", "forecast for", "what is the weather in", "what's the weather in"], syntax: "weather [optional city]", examples: ["weather", "weather in London", "what's the weather in Tokyo"], mode: "optional" },
+    { aliases: ["weather", "forecast", "weather report", "weather in", "weather for", "forecast for", "temperature in", "current weather in", "weather like in", "what is the weather in", "what's the weather in", "what's the temperature in"], syntax: "weather [optional city]", examples: ["weather", "weather in London", "what's the weather in Tokyo"], mode: "optional" },
     { aliases: ["school", "vaii school", "classroom"], syntax: "school", examples: ["school", "vaii school"], mode: "none" },
-    { aliases: ["map", "map of", "show map"], syntax: "map of [place]", examples: ["map of Tokyo", "show map of Paris"], mode: "argument" },
-    { aliases: ["time in", "clock", "what time is it in"], syntax: "time in [city]", examples: ["time in London", "what time is it in Tokyo"], mode: "argument" },
+    { aliases: ["map", "map of", "show map", "show me a map of"], syntax: "map of [place]", examples: ["map of Tokyo", "show me a map of Paris"], mode: "argument" },
+    { aliases: ["time in", "clock", "current time in", "what time is it in"], syntax: "time in [city]", examples: ["time in London", "what time is it in Tokyo"], mode: "argument" },
     { aliases: ["sunrise", "sunset"], syntax: "[sunrise|sunset] [optional city]", examples: ["sunrise", "sunset in Tokyo"], mode: "optional" }
 ];
 
@@ -98,9 +98,9 @@ for (const alias of ["html", "editor", "htmleditor"]) COMMAND_REWRITES.set(alias
 const COMMAND_REWRITES_OVERRIDES = new Map([
     ["currency", "convert"], ["exchange", "convert"], ["fx", "convert"],
     ["repository", "repo"], ["dictionary", "define"], ["meaning", "define"], ["meaning of", "define"],
-    ["definition of", "define"], ["what is the meaning of", "define"], ["what's the meaning of", "define"],
+    ["definition of", "define"], ["definition for", "define"], ["what is the meaning of", "define"], ["what's the meaning of", "define"],
     ["what does", "define"], ["define the word", "define"],
-    ["flag", "country"], ["flag of", "country"], ["cocktail", "drink"], ["recipe", "drink"],
+    ["flag", "country"], ["flag of", "country"], ["flag for", "country"], ["tell me about country", "country"], ["cocktail", "drink"], ["recipe", "drink"],
     ["browse", "open"], ["visit", "open"], ["shorturl", "shorten"], ["unshorten", "expand"],
     ["colour", "color"], ["minecraft", "mc"], ["server", "mc"],
     ["profile picture", "avatar"], ["shop", "ebay"], ["random activity", "bored"], ["activity", "bored"],
@@ -108,19 +108,21 @@ const COMMAND_REWRITES_OVERRIDES = new Map([
     ["bookisbn", "isbn"], ["my location", "whereami"], ["chucknorris", "chuck"],
     ["coin", "crypto"], ["token", "crypto"], ["servicestatus", "status"],
     ["air quality", "airquality"], ["holidays", "holiday"], ["connection", "speed"],
-    ["rocket launches", "launches"], ["space station", "iss"], ["dadjoke", "joke"],
+    ["rocket launches", "launches"], ["space station", "iss"], ["dadjoke", "joke"], ["tell me something funny", "joke"],
     ["product", "barcode"], ["art", "draw"], ["forecast", "weather"], ["notes", "show notes"],
-    ["classroom", "school"], ["map", "map of"],     ["clock", "time in"], ["what time is it in", "time in"],
+    ["classroom", "school"], ["map", "map of"], ["show me a map of", "map of"], ["clock", "time in"],
+    ["current time in", "time in"], ["what time is it in", "time in"],
     ["animation", "anime"], ["comic", "manga"], ["predict age", "age"],
     ["remember", "note:"], ["add note", "note:"], ["random cocktail", "random drink"],
     ["open", "open"], ["news", "news"], ["note", "note:"]
 ]);
 
 for (const [alias, replacement] of COMMAND_REWRITES_OVERRIDES) COMMAND_REWRITES.set(alias, replacement);
-for (const alias of ["weather in", "weather for", "forecast for", "what is the weather in", "what's the weather in"]) {
+for (const alias of ["weather in", "weather for", "forecast for", "temperature in", "current weather in", "weather like in", "what is the weather in", "what's the weather in", "what's the temperature in"]) {
     COMMAND_REWRITES.set(alias, "weather");
 }
 for (const alias of ["tell me a random joke", "random joke"]) COMMAND_REWRITES.set(alias, "joke");
+COMMAND_REWRITES.set("latest news about", "news about");
 
 function matchCommand(query) {
     const trimmed = String(query || "").trim();
@@ -183,4 +185,62 @@ export function getNativeCommandDefinitions() {
         aliases: [...command.aliases],
         mode: command.mode
     }));
+}
+
+function getSingleCommandTypoDistance(input, candidate) {
+    if (input === candidate || Math.abs(input.length - candidate.length) > 1) return null;
+
+    if (input.length === candidate.length) {
+        const differences = [];
+        for (let i = 0; i < input.length; i++) {
+            if (input[i] !== candidate[i]) differences.push(i);
+        }
+        if (differences.length === 1) return { distance: 1, transposition: false };
+        if (differences.length === 2 && differences[1] === differences[0] + 1 &&
+            input[differences[0]] === candidate[differences[1]] &&
+            input[differences[1]] === candidate[differences[0]]) {
+            return { distance: 1, transposition: true };
+        }
+        return null;
+    }
+
+    const shorter = input.length < candidate.length ? input : candidate;
+    const longer = input.length < candidate.length ? candidate : input;
+    let shortIndex = 0;
+    let longIndex = 0;
+    let skipped = false;
+    while (shortIndex < shorter.length && longIndex < longer.length) {
+        if (shorter[shortIndex] === longer[longIndex]) {
+            shortIndex++;
+            longIndex++;
+        } else if (skipped) {
+            return null;
+        } else {
+            skipped = true;
+            longIndex++;
+        }
+    }
+    return { distance: 1, transposition: false };
+}
+
+export function autocorrectNativeCommandQuery(query) {
+    const match = String(query || "").match(/^(\s*\/?)([a-z'-]+)([\s\S]*)$/i);
+    if (!match) return query;
+
+    const typedCommand = match[2].toLowerCase();
+    const commandNames = [...new Set(COMMANDS.flatMap(({ aliases }) =>
+        aliases.map(alias => alias.split(/\s+/)[0].toLowerCase())
+    ))];
+    const candidates = commandNames
+        .map(name => ({ name, match: getSingleCommandTypoDistance(typedCommand, name) }))
+        .filter(candidate => candidate.match &&
+            (candidate.match.transposition || typedCommand.slice(0, 2) === candidate.name.slice(0, 2)))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (!candidates.length) return query;
+    const bestDistance = candidates[0].match.distance;
+    const bestMatches = candidates.filter(candidate => candidate.match.distance === bestDistance);
+    if (bestMatches.length !== 1) return query;
+
+    return `${match[1]}${bestMatches[0].name}${match[3]}`;
 }

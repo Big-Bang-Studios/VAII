@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+    autocorrectNativeCommandQuery,
     getNativeCommandDefinitions,
     getNativeCommandSuggestions,
     getNativeCommandSyntaxIssue,
@@ -44,8 +45,25 @@ test("natural-language aliases execute the matching dictionary, weather, time, a
     assert.equal(normalizeNativeCommand("forecast for Toronto"), "weather Toronto");
     assert.equal(normalizeNativeCommand("what's the weather in Paris"), "weather Paris");
     assert.equal(normalizeNativeCommand("what time is it in Tokyo"), "time in Tokyo");
+    assert.equal(normalizeNativeCommand("show me a map of Paris"), "map of Paris");
+    assert.equal(normalizeNativeCommand("current time in Tokyo"), "time in Tokyo");
+    assert.equal(normalizeNativeCommand("what's the temperature in Paris"), "weather Paris");
+    assert.equal(normalizeNativeCommand("tell me about country Japan"), "country Japan");
+    assert.equal(normalizeNativeCommand("flag for Canada"), "country Canada");
+    assert.equal(normalizeNativeCommand("tell me something funny"), "joke");
+    assert.equal(normalizeNativeCommand("latest news about science"), "news about science");
     assert.equal(normalizeNativeCommand("random joke"), "joke");
     assert.equal(getNativeCommandSyntaxIssue("meaning of"), getNativeCommandSyntaxIssue("define"));
+});
+
+test("autocorrect uses all command aliases from the registry", () => {
+    assert.equal(autocorrectNativeCommandQuery("cocktial Margarita"), "cocktail Margarita");
+    assert.equal(normalizeNativeCommand(autocorrectNativeCommandQuery("cocktial Margarita")), "drink Margarita");
+    assert.equal(autocorrectNativeCommandQuery("defintion of lucid"), "definition of lucid");
+    assert.equal(normalizeNativeCommand(autocorrectNativeCommandQuery("defintion of lucid")), "define lucid");
+    assert.equal(autocorrectNativeCommandQuery("weaher in London"), "weather in London");
+    assert.equal(normalizeNativeCommand(autocorrectNativeCommandQuery("weaher in London")), "weather London");
+    assert.equal(autocorrectNativeCommandQuery("shwo me a map of Paris"), "show me a map of Paris");
 });
 
 test("slash-prefixed forms work for registered commands", () => {
