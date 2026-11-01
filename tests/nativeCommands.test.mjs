@@ -66,6 +66,25 @@ test("autocorrect uses all command aliases from the registry", () => {
     assert.equal(autocorrectNativeCommandQuery("shwo me a map of Paris"), "show me a map of Paris");
 });
 
+test("autocorrect recognizes misspelled commands inside natural-language requests", () => {
+    const cases = [
+        ["Please tell me what's the weaher in London?", "weather London"],
+        ["Can you show a map of Tokyo?", "map of Tokyo"],
+        ["Could you tell me a joke?", "joke"],
+        ["Hey, can you please define the word serendipity?", "define serendipity"],
+        ["Please find the weather in Paris", "weather Paris"],
+        ["I want to know the current time in London", "time in London"]
+    ];
+
+    for (const [request, expected] of cases) {
+        assert.equal(normalizeNativeCommand(autocorrectNativeCommandQuery(request)), expected, request);
+    }
+    assert.equal(
+        autocorrectNativeCommandQuery("Can you help me with this sentence?"),
+        "Can you help me with this sentence?"
+    );
+});
+
 test("slash-prefixed forms work for registered commands", () => {
     assert.equal(normalizeNativeCommand("/dns example.com"), "dns example.com");
     assert.equal(normalizeNativeCommand("/weather London"), "weather London");
@@ -96,6 +115,7 @@ test("autocomplete suggests registered aliases", () => {
 
 test("every registered command alias normalizes without falling into the syntax error path", () => {
     for (const command of getNativeCommandDefinitions()) {
+        assert.ok(command.aliases.length >= 3, `${command.aliases[0]} should have at least three aliases`);
         for (const alias of command.aliases) {
             const query = command.mode === "argument" ? `${alias} example` : alias;
             assert.equal(getNativeCommandSyntaxIssue(query), null, `${alias} should not show syntax help`);
