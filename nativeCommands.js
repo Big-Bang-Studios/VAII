@@ -82,24 +82,39 @@ const aliasEntries = COMMANDS.flatMap(command =>
     command.aliases.map(alias => ({ alias, command }))
 ).sort((left, right) => right.alias.length - left.alias.length);
 
-const COMMAND_REWRITES = new Map([
-    ["calculator", ""], ["calc", ""],
+const COMMAND_REWRITES = new Map(COMMANDS.flatMap(command =>
+    command.aliases.map(alias => [alias, command.aliases[0]])
+));
+
+for (const alias of ["calculator", "calc"]) COMMAND_REWRITES.set(alias, "");
+for (const alias of ["space", "whoisinspace", "astronauts"]) COMMAND_REWRITES.set(alias, alias);
+for (const alias of ["movie", "film", "ticket", "tickets", "stream", "watch", "play"]) COMMAND_REWRITES.set(alias, alias);
+for (const alias of ["song", "music", "track"]) COMMAND_REWRITES.set(alias, alias === "song" ? "song" : "song");
+for (const alias of ["sunrise", "sunset", "time in", "map of", "show map", "where is the iss", "random drink", "top news", "show notes", "my notes"]) {
+    COMMAND_REWRITES.set(alias, alias);
+}
+for (const alias of ["html", "editor", "htmleditor"]) COMMAND_REWRITES.set(alias, alias);
+
+const COMMAND_REWRITES_OVERRIDES = new Map([
     ["currency", "convert"], ["exchange", "convert"], ["fx", "convert"],
     ["repository", "repo"], ["dictionary", "define"], ["meaning", "define"],
-    ["flag", "country"], ["cocktail", "drink"], ["recipe", "drink"],
+    ["flag", "country"], ["flag of", "country"], ["cocktail", "drink"], ["recipe", "drink"],
     ["browse", "open"], ["visit", "open"], ["shorturl", "shorten"], ["unshorten", "expand"],
     ["colour", "color"], ["minecraft", "mc"], ["server", "mc"],
-    ["profile picture", "avatar"], ["shop", "ebay"], ["random activity", "bored"],
+    ["profile picture", "avatar"], ["shop", "ebay"], ["random activity", "bored"], ["activity", "bored"],
     ["githubuser", "ghuser"], ["github user", "ghuser"], ["weather report", "asciiweather"],
     ["bookisbn", "isbn"], ["my location", "whereami"], ["chucknorris", "chuck"],
     ["coin", "crypto"], ["token", "crypto"], ["servicestatus", "status"],
     ["air quality", "airquality"], ["holidays", "holiday"], ["connection", "speed"],
     ["rocket launches", "launches"], ["space station", "iss"], ["dadjoke", "joke"],
-    ["activity", "bored"], ["product", "barcode"], ["art", "draw"], ["forecast", "weather"], ["notes", "show notes"],
+    ["product", "barcode"], ["art", "draw"], ["forecast", "weather"], ["notes", "show notes"],
     ["classroom", "school"], ["map", "map of"], ["clock", "time in"],
     ["animation", "anime"], ["comic", "manga"], ["predict age", "age"],
-    ["remember", "note:"], ["add note", "note:"], ["random cocktail", "random drink"]
+    ["remember", "note:"], ["add note", "note:"], ["random cocktail", "random drink"],
+    ["open", "open"], ["news", "news"], ["note", "note:"]
 ]);
+
+for (const [alias, replacement] of COMMAND_REWRITES_OVERRIDES) COMMAND_REWRITES.set(alias, replacement);
 
 function matchCommand(query) {
     const trimmed = String(query || "").trim();
@@ -117,6 +132,7 @@ export function normalizeNativeCommand(query) {
     const withoutSlash = trimmed.replace(/^\//, "");
     const argument = withoutSlash.slice(match.alias.length).trim();
     const replacement = COMMAND_REWRITES.get(match.alias);
+    if (match.alias === "stream" && /^song(?:\s|$)/i.test(argument)) return withoutSlash;
     if (replacement === "") return argument;
     if (replacement) return `${replacement}${argument ? ` ${argument}` : ""}`;
     return withoutSlash;
