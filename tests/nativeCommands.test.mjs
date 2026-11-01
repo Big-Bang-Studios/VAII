@@ -1,15 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getNativeCommandSuggestions, getNativeCommandSyntaxIssue, normalizeNativeCommand } from "../nativeCommands.js";
+import {
+    getNativeCommandDefinitions,
+    getNativeCommandSuggestions,
+    getNativeCommandSyntaxIssue,
+    normalizeNativeCommand
+} from "../nativeCommands.js";
 
 test("native command aliases normalize to supported command syntax", () => {
     assert.equal(normalizeNativeCommand("fx 50 GBP to JPY"), "convert 50 GBP to JPY");
     assert.equal(normalizeNativeCommand("calculator 25 * 4"), "25 * 4");
     assert.equal(normalizeNativeCommand("flag Japan"), "country Japan");
     assert.equal(normalizeNativeCommand("forecast Tokyo"), "weather Tokyo");
+    assert.equal(normalizeNativeCommand("weather report Tokyo"), "weather Tokyo");
     assert.equal(normalizeNativeCommand("random activity"), "bored");
     assert.equal(normalizeNativeCommand("classroom"), "school");
     assert.equal(normalizeNativeCommand("map Tokyo"), "map of Tokyo");
+    assert.equal(normalizeNativeCommand("show map of Paris"), "show map Paris");
     assert.equal(normalizeNativeCommand("notes"), "show notes");
     assert.equal(normalizeNativeCommand("animation Naruto"), "anime Naruto");
     assert.equal(normalizeNativeCommand("comic Berserk"), "manga Berserk");
@@ -51,4 +58,14 @@ test("autocomplete suggests registered aliases", () => {
     assert.ok(suggestions.includes("mc "));
     assert.ok(suggestions.includes("minecraft "));
     assert.ok(getNativeCommandSuggestions("w").includes("weather"));
+});
+
+test("every registered command alias normalizes without falling into the syntax error path", () => {
+    for (const command of getNativeCommandDefinitions()) {
+        for (const alias of command.aliases) {
+            const query = command.mode === "argument" ? `${alias} example` : alias;
+            assert.equal(getNativeCommandSyntaxIssue(query), null, `${alias} should not show syntax help`);
+            assert.ok(normalizeNativeCommand(query).trim(), `${alias} should produce an executable query`);
+        }
+    }
 });

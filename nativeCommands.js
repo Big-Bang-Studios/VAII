@@ -26,7 +26,7 @@ const COMMANDS = [
     { aliases: ["ebay", "shop"], syntax: "ebay [product search]", examples: ["ebay noise cancelling headphones"], mode: "argument" },
     { aliases: ["bored", "activity", "random activity"], syntax: "bored", examples: ["bored", "random activity"], mode: "none" },
     { aliases: ["ghuser", "githubuser", "github user"], syntax: "ghuser [username]", examples: ["ghuser torvalds"], mode: "argument" },
-    { aliases: ["asciiweather", "weather report"], syntax: "asciiweather [city]", examples: ["asciiweather London"], mode: "argument" },
+    { aliases: ["asciiweather"], syntax: "asciiweather [city]", examples: ["asciiweather London"], mode: "argument" },
     { aliases: ["isbn", "bookisbn"], syntax: "isbn [ISBN-10 or ISBN-13]", examples: ["isbn 9780140328721"], mode: "optional" },
     { aliases: ["whereami", "locate", "my location"], syntax: "whereami", examples: ["whereami", "locate"], mode: "none" },
     { aliases: ["chuck", "chucknorris"], syntax: "chuck", examples: ["chuck"], mode: "none" },
@@ -71,7 +71,7 @@ const COMMANDS = [
     { aliases: ["call", "dial"], syntax: "call [phone number]", examples: ["call 555-0199"], mode: "argument" },
     { aliases: ["text", "sms", "msg"], syntax: "text [phone number] [optional message]", examples: ["text 555-0199 on my way"], mode: "argument" },
     { aliases: ["reserve", "reservation", "order", "find"], syntax: "[reserve|order|find] [food or restaurant] [city]", examples: ["reserve sushi New York", "order pizza Orlando"], mode: "argument" },
-    { aliases: ["weather", "forecast"], syntax: "weather [optional city]", examples: ["weather", "weather Orlando"], mode: "optional" },
+    { aliases: ["weather", "forecast", "weather report"], syntax: "weather [optional city]", examples: ["weather", "weather report London"], mode: "optional" },
     { aliases: ["school", "vaii school", "classroom"], syntax: "school", examples: ["school", "vaii school"], mode: "none" },
     { aliases: ["map", "map of", "show map"], syntax: "map of [place]", examples: ["map of Tokyo", "show map of Paris"], mode: "argument" },
     { aliases: ["time in", "clock"], syntax: "time in [city]", examples: ["time in London", "clock New York"], mode: "argument" },
@@ -102,7 +102,7 @@ const COMMAND_REWRITES_OVERRIDES = new Map([
     ["browse", "open"], ["visit", "open"], ["shorturl", "shorten"], ["unshorten", "expand"],
     ["colour", "color"], ["minecraft", "mc"], ["server", "mc"],
     ["profile picture", "avatar"], ["shop", "ebay"], ["random activity", "bored"], ["activity", "bored"],
-    ["githubuser", "ghuser"], ["github user", "ghuser"], ["weather report", "asciiweather"],
+    ["githubuser", "ghuser"], ["github user", "ghuser"], ["weather report", "weather"],
     ["bookisbn", "isbn"], ["my location", "whereami"], ["chucknorris", "chuck"],
     ["coin", "crypto"], ["token", "crypto"], ["servicestatus", "status"],
     ["air quality", "airquality"], ["holidays", "holiday"], ["connection", "speed"],
@@ -130,8 +130,9 @@ export function normalizeNativeCommand(query) {
     const match = matchCommand(trimmed);
     if (!match) return query;
     const withoutSlash = trimmed.replace(/^\//, "");
-    const argument = withoutSlash.slice(match.alias.length).trim();
+    let argument = withoutSlash.slice(match.alias.length).trim();
     const replacement = COMMAND_REWRITES.get(match.alias);
+    if (match.alias === "show map") argument = argument.replace(/^of\s+/i, "");
     if (match.alias === "stream" && /^song(?:\s|$)/i.test(argument)) return withoutSlash;
     if (replacement === "") return argument;
     if (replacement) return `${replacement}${argument ? ` ${argument}` : ""}`;
@@ -162,4 +163,11 @@ export function getNativeCommandSuggestions(input) {
             return command?.mode === "argument" ? `${alias} ` : alias;
         }))]
         .slice(0, 12);
+}
+
+export function getNativeCommandDefinitions() {
+    return COMMANDS.map(command => ({
+        aliases: [...command.aliases],
+        mode: command.mode
+    }));
 }
