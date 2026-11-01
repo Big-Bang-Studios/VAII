@@ -34,6 +34,20 @@ test("native command aliases normalize to supported command syntax", () => {
     assert.equal(normalizeNativeCommand("where is the iss"), "where is the iss");
 });
 
+test("natural-language aliases execute the matching dictionary, weather, time, and joke commands", () => {
+    assert.equal(normalizeNativeCommand("meaning of ephemeral"), "define ephemeral");
+    assert.equal(normalizeNativeCommand("definition of serendipity"), "define serendipity");
+    assert.equal(normalizeNativeCommand("what is the meaning of concise"), "define concise");
+    assert.equal(normalizeNativeCommand("what does concise mean?"), "define concise");
+    assert.equal(normalizeNativeCommand("define the word lucid"), "define lucid");
+    assert.equal(normalizeNativeCommand("weather in London"), "weather London");
+    assert.equal(normalizeNativeCommand("forecast for Toronto"), "weather Toronto");
+    assert.equal(normalizeNativeCommand("what's the weather in Paris"), "weather Paris");
+    assert.equal(normalizeNativeCommand("what time is it in Tokyo"), "time in Tokyo");
+    assert.equal(normalizeNativeCommand("random joke"), "joke");
+    assert.equal(getNativeCommandSyntaxIssue("meaning of"), getNativeCommandSyntaxIssue("define"));
+});
+
 test("slash-prefixed forms work for registered commands", () => {
     assert.equal(normalizeNativeCommand("/dns example.com"), "dns example.com");
     assert.equal(normalizeNativeCommand("/weather London"), "weather London");

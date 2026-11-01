@@ -36,7 +36,7 @@ Native commands accept common aliases (for example, `fx`/`currency`, `calc`/`cal
 * **🐙 GitHub Profile Lookup:** Displays public GitHub profile metrics and lets you inspect the user's latest public repository (e.g., `/ghuser torvalds`).
 * **💡 Inscriptional Advice Slip:** Provides quick random pieces of wisdom and thought-provoking quotes (e.g., `advice`).
 * **📊 Demographic Age Predictor (Agify.io):** Calculates statistical age predictions and sample population counts for given first names (e.g., `age Logan`, `age Alex`).
-* **📖 Dictionary & Phonetics (Free Dictionary API):** Pulls parts of speech, lexical definitions, example sentences, and playable `.mp3` voice pronunciations (e.g., `define serendipity`).
+* **📖 Dictionary & Phonetics (Free Dictionary API):** Pulls parts of speech, lexical definitions, example sentences, and playable `.mp3` voice pronunciations (e.g., `define serendipity`, `meaning of serendipity`, or `what does serendipity mean`).
 * **🐶 Random Cute Pets (Dog CEO & CATAAS):** Renders instant dog and cat photography cards (e.g., `dog`, `cat`).
 * **🏳️ Country & Flag Cards (REST Countries & World Bank):** Fetches high-res SVG flags, capitals, official names, currencies, and live demographic population metrics via the **World Bank API** (e.g., `country Japan`, `country Canada`).
 * **🍸 Drink & Cocktail Recipes (TheCocktailDB):** Pulls ingredients, measurements, glass types, and preparation instructions for classic mixed drinks (e.g., `drink Margarita`, `random drink`).

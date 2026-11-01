@@ -5,7 +5,7 @@ const COMMANDS = [
     { aliases: ["stopwatch", "sw"], syntax: "stopwatch", examples: ["stopwatch"], mode: "none" },
     { aliases: ["repo", "github", "repository"], syntax: "repo [owner/repository]", examples: ["repo facebook/react", "github vercel/next.js"], mode: "argument" },
     { aliases: ["movie", "film", "ticket", "tickets", "stream", "watch"], syntax: "[movie|film|tickets|stream|watch] [title]", examples: ["movie Inception", "watch The Matrix"], mode: "argument" },
-    { aliases: ["define", "dictionary", "meaning"], syntax: "define [word]", examples: ["define serendipity", "meaning ephemeral"], mode: "argument" },
+    { aliases: ["define", "dictionary", "meaning", "meaning of", "definition of", "what is the meaning of", "what's the meaning of", "what does", "define the word"], syntax: "define [word]", examples: ["define serendipity", "meaning of ephemeral", "what does ephemeral mean"], mode: "argument" },
     { aliases: ["country", "flag of", "flag"], syntax: "country [country-name]", examples: ["country Japan", "flag of Brazil"], mode: "argument" },
     { aliases: ["drink", "cocktail", "recipe"], syntax: "drink [cocktail-name]", examples: ["drink Margarita", "random drink"], mode: "argument" },
     { aliases: ["random drink", "random cocktail"], syntax: "random drink", examples: ["random drink", "random cocktail"], mode: "none" },
@@ -62,7 +62,7 @@ const COMMANDS = [
     { aliases: ["ip", "my ip", "ip lookup", "what is my ip"], syntax: "my ip", examples: ["my ip", "ip lookup"], mode: "none" },
     { aliases: ["trivia", "quiz"], syntax: "trivia", examples: ["trivia", "quiz"], mode: "none" },
     { aliases: ["free games", "free game", "deals", "giveaways"], syntax: "free games", examples: ["free games", "deals"], mode: "none" },
-    { aliases: ["joke", "tell me a joke", "make me laugh", "dadjoke"], syntax: "joke", examples: ["joke", "tell me a joke"], mode: "none" },
+    { aliases: ["joke", "tell me a joke", "tell me a random joke", "random joke", "make me laugh", "dadjoke"], syntax: "joke", examples: ["joke", "tell me a joke"], mode: "none" },
     { aliases: ["pokemon", "pokedex"], syntax: "pokemon [name or number]", examples: ["pokemon Charizard"], mode: "argument" },
     { aliases: ["news", "top news"], syntax: "news [optional: about topic]", examples: ["news", "news about technology"], mode: "optional" },
     { aliases: ["note", "remember", "add note"], syntax: "note: [text]", examples: ["note: Check server deployments", "remember to call mom"], mode: "argument" },
@@ -71,10 +71,10 @@ const COMMANDS = [
     { aliases: ["call", "dial"], syntax: "call [phone number]", examples: ["call 555-0199"], mode: "argument" },
     { aliases: ["text", "sms", "msg"], syntax: "text [phone number] [optional message]", examples: ["text 555-0199 on my way"], mode: "argument" },
     { aliases: ["reserve", "reservation", "order", "find"], syntax: "[reserve|order|find] [food or restaurant] [city]", examples: ["reserve sushi New York", "order pizza Orlando"], mode: "argument" },
-    { aliases: ["weather", "forecast", "weather report"], syntax: "weather [optional city]", examples: ["weather", "weather report London"], mode: "optional" },
+    { aliases: ["weather", "forecast", "weather report", "weather in", "weather for", "forecast for", "what is the weather in", "what's the weather in"], syntax: "weather [optional city]", examples: ["weather", "weather in London", "what's the weather in Tokyo"], mode: "optional" },
     { aliases: ["school", "vaii school", "classroom"], syntax: "school", examples: ["school", "vaii school"], mode: "none" },
     { aliases: ["map", "map of", "show map"], syntax: "map of [place]", examples: ["map of Tokyo", "show map of Paris"], mode: "argument" },
-    { aliases: ["time in", "clock"], syntax: "time in [city]", examples: ["time in London", "clock New York"], mode: "argument" },
+    { aliases: ["time in", "clock", "what time is it in"], syntax: "time in [city]", examples: ["time in London", "what time is it in Tokyo"], mode: "argument" },
     { aliases: ["sunrise", "sunset"], syntax: "[sunrise|sunset] [optional city]", examples: ["sunrise", "sunset in Tokyo"], mode: "optional" }
 ];
 
@@ -97,7 +97,9 @@ for (const alias of ["html", "editor", "htmleditor"]) COMMAND_REWRITES.set(alias
 
 const COMMAND_REWRITES_OVERRIDES = new Map([
     ["currency", "convert"], ["exchange", "convert"], ["fx", "convert"],
-    ["repository", "repo"], ["dictionary", "define"], ["meaning", "define"],
+    ["repository", "repo"], ["dictionary", "define"], ["meaning", "define"], ["meaning of", "define"],
+    ["definition of", "define"], ["what is the meaning of", "define"], ["what's the meaning of", "define"],
+    ["what does", "define"], ["define the word", "define"],
     ["flag", "country"], ["flag of", "country"], ["cocktail", "drink"], ["recipe", "drink"],
     ["browse", "open"], ["visit", "open"], ["shorturl", "shorten"], ["unshorten", "expand"],
     ["colour", "color"], ["minecraft", "mc"], ["server", "mc"],
@@ -108,13 +110,17 @@ const COMMAND_REWRITES_OVERRIDES = new Map([
     ["air quality", "airquality"], ["holidays", "holiday"], ["connection", "speed"],
     ["rocket launches", "launches"], ["space station", "iss"], ["dadjoke", "joke"],
     ["product", "barcode"], ["art", "draw"], ["forecast", "weather"], ["notes", "show notes"],
-    ["classroom", "school"], ["map", "map of"], ["clock", "time in"],
+    ["classroom", "school"], ["map", "map of"],     ["clock", "time in"], ["what time is it in", "time in"],
     ["animation", "anime"], ["comic", "manga"], ["predict age", "age"],
     ["remember", "note:"], ["add note", "note:"], ["random cocktail", "random drink"],
     ["open", "open"], ["news", "news"], ["note", "note:"]
 ]);
 
 for (const [alias, replacement] of COMMAND_REWRITES_OVERRIDES) COMMAND_REWRITES.set(alias, replacement);
+for (const alias of ["weather in", "weather for", "forecast for", "what is the weather in", "what's the weather in"]) {
+    COMMAND_REWRITES.set(alias, "weather");
+}
+for (const alias of ["tell me a random joke", "random joke"]) COMMAND_REWRITES.set(alias, "joke");
 
 function matchCommand(query) {
     const trimmed = String(query || "").trim();
@@ -132,6 +138,7 @@ export function normalizeNativeCommand(query) {
     const withoutSlash = trimmed.replace(/^\//, "");
     let argument = withoutSlash.slice(match.alias.length).trim();
     const replacement = COMMAND_REWRITES.get(match.alias);
+    if (match.alias === "what does") argument = argument.replace(/\s+mean\??$/i, "").trim();
     if (match.alias === "show map") argument = argument.replace(/^of\s+/i, "");
     if (match.alias === "stream" && /^song(?:\s|$)/i.test(argument)) return withoutSlash;
     if (replacement === "") return argument;
@@ -156,7 +163,13 @@ export function getNativeCommandSuggestions(input) {
     const exactCommand = aliasEntries.find(({ alias }) => alias === prefix)?.command;
     const matchingAliases = exactCommand
         ? exactCommand.aliases
-        : aliasEntries.filter(({ alias }) => alias.startsWith(prefix)).map(({ alias }) => alias);
+        : aliasEntries
+            .filter(({ alias }) => alias.startsWith(prefix))
+            .sort((left, right) =>
+                Number(right.alias === right.command.aliases[0]) - Number(left.alias === left.command.aliases[0])
+                || right.alias.length - left.alias.length
+            )
+            .map(({ alias }) => alias);
     return [...new Set(matchingAliases
         .map(alias => {
             const command = aliasEntries.find(entry => entry.alias === alias)?.command;
