@@ -81,11 +81,13 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Provide a valid HTTP or HTTPS short URL to expand.' });
         }
         try {
-            const expandUrl = new URL(`https://unshorten.me/json/${encodeURIComponent(shortUrl.href)}`);
+            const expandUrl = new URL('https://api.microlink.io/');
+            expandUrl.searchParams.set('url', shortUrl.href);
+            expandUrl.searchParams.set('meta', 'false');
             const data = await fetchJson(expandUrl);
-            const expandedUrl = parseWebUrl(data.resolved_url);
-            if (!data.success || !expandedUrl) {
-                return res.status(422).json({ error: data.error || 'The short URL could not be expanded.' });
+            const expandedUrl = parseWebUrl(data.data?.url);
+            if (data.status !== 'success' || !expandedUrl) {
+                return res.status(422).json({ error: data.message || 'The short URL could not be expanded.' });
             }
             return res.status(200).json({ shortUrl: shortUrl.href, expandedUrl: expandedUrl.href });
         } catch (err) {

@@ -24,6 +24,7 @@ test("native command aliases normalize to supported command syntax", () => {
     assert.equal(normalizeNativeCommand("remember to call mom"), "note: to call mom");
     assert.equal(normalizeNativeCommand("random cocktail"), "random drink");
     assert.equal(normalizeNativeCommand("shorturl https://example.com"), "shorten https://example.com");
+    assert.equal(normalizeNativeCommand("unshorten https://is.gd/example"), "expand https://is.gd/example");
     assert.equal(normalizeNativeCommand("countdown 5m"), "timer 5m");
     assert.equal(normalizeNativeCommand("contact"), "chat");
     assert.equal(normalizeNativeCommand("aircraft UAL420"), "flight UAL420");
@@ -37,6 +38,7 @@ test("slash-prefixed forms work for registered commands", () => {
     assert.equal(normalizeNativeCommand("/dns example.com"), "dns example.com");
     assert.equal(normalizeNativeCommand("/weather London"), "weather London");
     assert.equal(normalizeNativeCommand("/spacex"), "launches");
+    assert.equal(normalizeNativeCommand("/unshorten https://is.gd/example"), "expand https://is.gd/example");
 });
 
 test("syntax help identifies missing arguments and unexpected arguments", () => {

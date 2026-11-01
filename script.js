@@ -7098,6 +7098,12 @@ executeActionBtn?.addEventListener('click', () => {
             showNativeCommandSyntax(syntaxIssue);
             return;
         }
+        const shortUrlCommand = query.match(/^(?:\/)?(shorten|shorturl|expand|unshorten)\s+([\s\S]+)$/i);
+        if (shortUrlCommand) {
+            const command = shortUrlCommand[1].toLowerCase();
+            handleShortUrlCommand(shortUrlCommand[2].trim(), command === "expand" || command === "unshorten");
+            return;
+        }
         query = normalizeNativeCommand(query);
         const lq = query.trim().toLowerCase();
         if (lq === "school" || lq === "vaii school") {
