@@ -5,6 +5,8 @@ const COMMANDS = [
     { aliases: ["stopwatch", "sw", "start stopwatch"], syntax: "stopwatch", examples: ["stopwatch"], mode: "none" },
     { aliases: ["repo", "github", "repository"], syntax: "repo [owner/repository]", examples: ["repo facebook/react", "github vercel/next.js"], mode: "argument" },
     { aliases: ["movie", "film", "ticket", "tickets", "stream", "watch"], syntax: "[movie|film|tickets|stream|watch] [title]", examples: ["movie Inception", "watch The Matrix"], mode: "argument" },
+    { aliases: ["youtube", "yt", "video", "search youtube"], syntax: "youtube [search terms]", examples: ["youtube lo-fi music", "yt cooking tutorials", "search youtube space documentaries"], mode: "argument" },
+    { aliases: ["hn", "hackernews", "hacker news"], syntax: "hn [optional topic]", examples: ["hn", "hn ai"], mode: "optional" },
     { aliases: ["define", "dictionary", "meaning", "meaning of", "definition of", "definition for", "what is the meaning of", "what's the meaning of", "what does", "define the word"], syntax: "define [word]", examples: ["define serendipity", "meaning of ephemeral", "what does ephemeral mean"], mode: "argument" },
     { aliases: ["country", "flag of", "flag for", "flag", "tell me about country"], syntax: "country [country-name]", examples: ["country Japan", "flag of Brazil"], mode: "argument" },
     { aliases: ["drink", "cocktail", "recipe"], syntax: "drink [cocktail-name]", examples: ["drink Margarita", "random drink"], mode: "argument" },
@@ -118,6 +120,8 @@ const COMMAND_REWRITES_OVERRIDES = new Map([
 ]);
 
 for (const [alias, replacement] of COMMAND_REWRITES_OVERRIDES) COMMAND_REWRITES.set(alias, replacement);
+for (const alias of ["youtube", "yt", "video", "search youtube"]) COMMAND_REWRITES.set(alias, "youtube");
+for (const alias of ["hn", "hackernews", "hacker news"]) COMMAND_REWRITES.set(alias, "hn");
 for (const alias of ["weather in", "weather for", "forecast for", "temperature in", "current weather in", "weather like in", "the weather in", "find the weather in", "what is the weather in", "what's the weather in", "whats the weather in", "what's the temperature in"]) {
     COMMAND_REWRITES.set(alias, "weather");
 }

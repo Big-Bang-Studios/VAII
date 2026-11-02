@@ -4490,12 +4490,73 @@ async function executeGeminiDirectChat(promptText) {
 // ==========================================
 // 8. MASTER ROUTING PIPELINE (VAII NATIVE)
 // ==========================================
+async function handleHackerNewsCommand(topic = "") {
+    const cleanTopic = topic.trim();
+    const search = new URLSearchParams({
+        tags: cleanTopic ? "story" : "front_page",
+        hitsPerPage: "20"
+    });
+    if (cleanTopic) search.set("query", cleanTopic);
+
+    const title = cleanTopic ? `Hacker News: ${cleanTopic}` : "Hacker News Top Stories";
+    handleVaiiDataOutput(title, '<div class="generation-status"><div class="loader-spinner"></div> Loading Hacker News stories...</div>');
+
+    try {
+        const response = await fetch(`https://hn.algolia.com/api/v1/search?${search}`);
+        if (!response.ok) throw new Error(`Hacker News search returned ${response.status}.`);
+        const data = await response.json();
+        if (!Array.isArray(data.hits)) throw new Error("Hacker News returned an invalid stories response.");
+
+        const stories = data.hits.filter(story =>
+            story && typeof story.objectID === "string" && typeof story.title === "string"
+        );
+        window._vaiiHNHits = stories;
+        const storyCards = stories.map((story, index) => {
+            let domain = "news.ycombinator.com";
+            try {
+                if (story.url) domain = new URL(story.url).hostname.replace(/^www\./, "");
+            } catch {}
+            const points = Number.isFinite(Number(story.points)) ? Number(story.points) : 0;
+            const comments = Number.isFinite(Number(story.num_comments)) ? Number(story.num_comments) : 0;
+            return `
+                <button type="button" onclick="const item = window._vaiiHNHits?.[${index}]; if (item) window.openVAIIHackerNewsView(item.objectID, item.title, item.url, item.points, item.author);" style="display:block;width:100%;text-align:left;background:#202020;border:1px solid #333;border-radius:7px;padding:12px;color:#eee;cursor:pointer;">
+                    <div style="font-size:.92rem;font-weight:600;line-height:1.4;margin-bottom:7px;">${escapeHtml(story.title)}</div>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:.74rem;color:#999;">
+                        <span style="color:#ff9944;font-weight:700;">▲ ${points} points</span>
+                        <span>💬 ${comments} comments</span>
+                        <span>${escapeHtml(domain)}</span>
+                        <span>by ${escapeHtml(story.author || "hn")}</span>
+                    </div>
+                </button>
+            `;
+        }).join("");
+
+        handleVaiiDataOutput(title, `
+            <section style="background:#181818;border:1px solid #ff6600;border-radius:10px;padding:14px;color:#eee;">
+                <strong style="display:block;color:#ff6600;margin-bottom:12px;">🟠 ${escapeHtml(title)}</strong>
+                <div style="display:grid;gap:8px;max-height:560px;overflow-y:auto;">
+                    ${storyCards || '<div style="color:#aaa;padding:12px 0;">No Hacker News stories found.</div>'}
+                </div>
+            </section>
+        `);
+    } catch (error) {
+        console.error("Hacker News lookup failed:", error);
+        handleVaiiDataOutput(title, `<div style="color:#ff9a9a;padding:12px;">⚠️ Could not load Hacker News stories: ${escapeHtml(error.message || String(error))}</div>`);
+    }
+}
+
 function runInfoExecution(query) {
 
     // ==========================================
     // HTML VIEWER & LIVE SANDBOX ROUTER
     // ==========================================
     const trimmedQ = query.trim();
+    const hackerNewsCommand = trimmedQ.match(/^(?:\/)?hn(?:\s+([\s\S]*))?$/i);
+    if (hackerNewsCommand) {
+        void handleHackerNewsCommand(hackerNewsCommand[1] || "");
+        return;
+    }
+
     const argumentCommand = trimmedQ.match(/^(?:\/)?(convert|timer|repo|github|movie|film|tickets?|stream|watch|define|country|flag\s+of|drink|song|music|track|play|anime|book|novel|open)(?:\s+([\s\S]*))?$/i);
     if (argumentCommand) {
         const command = argumentCommand[1].toLowerCase().replace(/\s+/g, " ");
@@ -4879,7 +4940,7 @@ function runInfoExecution(query) {
     }
 
     // DEDICATED YOUTUBE HUB (3 channels, double shelf of videos)
-    const ytMatch = query.trim().match(/^(?:yt|youtube)\s+(.+)$/i);
+    const ytMatch = query.trim().match(/^(?:yt|youtube|video|search\s+youtube)\s+(.+)$/i);
     if (ytMatch) {
         const ytSearchTerm = ytMatch[1].trim();
         if (typeof handleVaiiDataOutput === "function") {

@@ -56,6 +56,21 @@ test("natural-language aliases execute the matching dictionary, weather, time, a
     assert.equal(getNativeCommandSyntaxIssue("meaning of"), getNativeCommandSyntaxIssue("define"));
 });
 
+test("YouTube and Hacker News aliases normalize to their executable commands", () => {
+    for (const alias of ["youtube", "yt", "video", "search youtube"]) {
+        assert.equal(normalizeNativeCommand(`${alias} ai tools`), "youtube ai tools");
+        assert.equal(getNativeCommandSyntaxIssue(alias)?.syntax, "youtube [search terms]");
+    }
+
+    for (const alias of ["hn", "hackernews", "hacker news"]) {
+        assert.equal(normalizeNativeCommand(`${alias} ai`), "hn ai");
+        assert.equal(normalizeNativeCommand(alias), "hn");
+        assert.equal(getNativeCommandSyntaxIssue(alias), null);
+    }
+    assert.ok(getNativeCommandSuggestions("youtube").includes("search youtube "));
+    assert.ok(getNativeCommandSuggestions("hn").includes("hacker news"));
+});
+
 test("autocorrect uses all command aliases from the registry", () => {
     assert.equal(autocorrectNativeCommandQuery("cocktial Margarita"), "cocktail Margarita");
     assert.equal(normalizeNativeCommand(autocorrectNativeCommandQuery("cocktial Margarita")), "drink Margarita");
@@ -64,6 +79,8 @@ test("autocorrect uses all command aliases from the registry", () => {
     assert.equal(autocorrectNativeCommandQuery("weaher in London"), "weather in London");
     assert.equal(normalizeNativeCommand(autocorrectNativeCommandQuery("weaher in London")), "weather London");
     assert.equal(autocorrectNativeCommandQuery("shwo me a map of Paris"), "show me a map of Paris");
+    assert.equal(normalizeNativeCommand(autocorrectNativeCommandQuery("youtub videos cats")), "youtube videos cats");
+    assert.equal(normalizeNativeCommand(autocorrectNativeCommandQuery("hacker new ai")), "hn ai");
 });
 
 test("autocorrect recognizes misspelled commands inside natural-language requests", () => {
