@@ -126,7 +126,7 @@ test("MCP accepts requests from remote AI servers without browser origins or ses
     assert.equal(response.headers["Access-Control-Allow-Origin"], "*");
 });
 
-test("country lookup handles an API error object without crashing", async () => {
+test("country lookup reports an unexpected dataset response without crashing", async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () => ({
         ok: true,
@@ -144,27 +144,39 @@ test("country lookup handles an API error object without crashing", async () => 
 
         assert.equal(response.statusCode, 200);
         assert.equal(response.body.result.isError, true);
-        assert.match(response.body.result.content[0].text, /Country service returned an unexpected response/);
-        assert.match(response.body.result.content[0].text, /Not Found/);
+        assert.match(response.body.result.content[0].text, /Country dataset returned an unexpected response/);
     } finally {
         globalThis.fetch = originalFetch;
     }
 });
 
-test("country lookup returns normalized records from an array response", async () => {
+test("country lookup returns normalized records from the existing VAII country dataset", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = async () => ({
-        ok: true,
-        json: async () => [{
-            name: { common: "Testland", official: "Republic of Testland" },
-            cca2: "TT",
-            capital: ["Test City"],
-            region: "Test Region",
-            population: 12345,
-            currencies: { TST: { name: "Test dollar", symbol: "$" } },
-            languages: { eng: "English" }
-        }]
-    });
+    let requestedUrl;
+    globalThis.fetch = async url => {
+        requestedUrl = new URL(url);
+        return {
+            ok: true,
+            json: async () => [
+                {
+                    name: { common: "Testland", official: "Republic of Testland" },
+                    cca2: "TT",
+                    capital: ["Test City"],
+                    region: "Test Region",
+                    population: 12345,
+                    currencies: { TST: { name: "Test dollar", symbol: "$" } },
+                    languages: { eng: "English" },
+                    altSpellings: ["TL"]
+                },
+                {
+                    name: { common: "Testland Islands", official: "Testland Islands" },
+                    cca2: "TI",
+                    capital: [],
+                    altSpellings: "unexpected"
+                }
+            ]
+        };
+    };
 
     try {
         const response = createResponse();
@@ -175,6 +187,8 @@ test("country lookup returns normalized records from an array response", async (
             params: { name: "vaii_lookup_country", arguments: { country: "Testland" } }
         }), response);
 
+        assert.equal(requestedUrl.hostname, "raw.githubusercontent.com");
+        assert.equal(requestedUrl.pathname, "/mledoze/countries/master/countries.json");
         assert.equal(response.body.result.isError, undefined);
         assert.deepEqual(JSON.parse(response.body.result.content[0].text), [{
             name: "Testland",
@@ -184,7 +198,8 @@ test("country lookup returns normalized records from an array response", async (
             region: "Test Region",
             population: 12345,
             currencies: { TST: { name: "Test dollar", symbol: "$" } },
-            languages: { eng: "English" }
+            languages: { eng: "English" },
+            source: "Mledoze Countries dataset"
         }]);
     } finally {
         globalThis.fetch = originalFetch;

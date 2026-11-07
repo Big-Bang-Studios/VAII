@@ -193,26 +193,35 @@ async function defineWord(args) {
 
 async function lookupCountry(args) {
     const country = validateText(args.country, "country");
-    const url = new URL(`https://restcountries.com/v3.1/name/${encodeURIComponent(country)}`);
-    url.searchParams.set("fields", "name,capital,region,subregion,population,currencies,languages,cca2");
+    const url = "https://raw.githubusercontent.com/mledoze/countries/master/countries.json";
     const countries = await fetchJson(url);
     if (!Array.isArray(countries)) {
-        const detail = typeof countries?.message === "string" ? ` ${countries.message}` : "";
-        throw new Error(`Country service returned an unexpected response.${detail}`);
+        throw new Error("Country dataset returned an unexpected response (expected a JSON array).");
     }
-    return countries.filter(item => item && typeof item === "object" && item.name && typeof item.name === "object")
+    const query = country.toLocaleLowerCase();
+    const validCountries = countries.filter(item => item && typeof item === "object" && item.name && typeof item.name === "object");
+    const exactMatches = validCountries.filter(item => {
+        const aliases = Array.isArray(item.altSpellings) ? item.altSpellings : [];
+        const names = [item.name.common, item.name.official, item.cca2, item.cca3, ...aliases];
+        return names.some(name => typeof name === "string" && name.toLocaleLowerCase() === query);
+    });
+    const matches = exactMatches.length ? exactMatches : validCountries.filter(item =>
+        typeof item.name.common === "string" && item.name.common.toLocaleLowerCase().includes(query)
+    );
+    return matches
         .slice(0, 5)
         .map(item => ({
-        name: item.name?.common,
-        officialName: item.name?.official,
-        countryCode: item.cca2,
-        capital: item.capital || [],
-        region: item.region,
-        subregion: item.subregion,
-        population: item.population,
-        currencies: item.currencies,
-        languages: item.languages
-    }));
+            name: item.name.common,
+            officialName: item.name.official,
+            countryCode: item.cca2,
+            capital: Array.isArray(item.capital) ? item.capital : [],
+            region: item.region,
+            subregion: item.subregion,
+            population: item.population,
+            currencies: item.currencies,
+            languages: item.languages,
+            source: "Mledoze Countries dataset"
+        }));
 }
 
 async function callTool(name, args) {
