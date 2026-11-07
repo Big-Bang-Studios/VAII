@@ -1894,6 +1894,9 @@ const newChatBtn = document.getElementById('new-chat-btn');
 const prefsToggleBtn = document.getElementById('prefs-toggle-btn');
 const prefsDrawer = document.getElementById('prefs-drawer');
 const prefsCloseBtn = document.getElementById('prefs-close-btn');
+const mcpServerUrlInput = document.getElementById('mcp-server-url');
+const mcpCopyUrlBtn = document.getElementById('mcp-copy-url-btn');
+const mcpCopyStatus = document.getElementById('mcp-copy-status');
 const prefsInstructionsInput = document.getElementById('prefs-instructions-input');
 const prefsApiKeyInput = document.getElementById('prefs-api-key-input');
 const prefsThemeSelect = document.getElementById('prefs-theme-select');
@@ -5650,11 +5653,24 @@ prefsToggleBtn?.addEventListener('click', (e) => {
     closeAllDrawers();
     if (!isVisible) {
         prefsDrawer.style.display = "block";
+        if (mcpServerUrlInput) mcpServerUrlInput.value = new URL("/api/mcp", window.location.origin).href;
         if (prefsInstructionsInput) prefsInstructionsInput.value = localStorage.getItem('vaii_gemini_instructions') || '';
         if (prefsApiKeyInput) prefsApiKeyInput.value = localStorage.getItem('vaii_custom_api_key') || '';
         if (prefsThemeSelect) prefsThemeSelect.value = localStorage.getItem("vaii_theme") === "light" ? "light" : "dark";
         if (prefsAutocorrectToggle) prefsAutocorrectToggle.checked = localStorage.getItem("vaii_autocorrect") === "true";
         updateApiKeyNoteVisibility();
+    }
+});
+
+mcpCopyUrlBtn?.addEventListener('click', async () => {
+    if (!mcpServerUrlInput || !mcpCopyStatus) return;
+    try {
+        await navigator.clipboard.writeText(mcpServerUrlInput.value);
+        mcpCopyStatus.textContent = "MCP URL copied.";
+        mcpCopyStatus.style.color = "#7de39b";
+    } catch (error) {
+        mcpCopyStatus.textContent = `Could not copy the MCP URL: ${error.message || "clipboard access is unavailable."}`;
+        mcpCopyStatus.style.color = "#ff8888";
     }
 });
 

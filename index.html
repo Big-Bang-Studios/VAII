@@ -864,6 +864,16 @@
                             <span id="prefs-close-btn" style="cursor: pointer; color: #dc3545; font-weight: bold; font-size: 0.85rem;">✕</span>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                            <div style="border: 1px solid #3d3d3d; border-radius: 6px; padding: 9px; display: flex; flex-direction: column; gap: 6px;">
+                                <strong style="font-size: 0.78rem; color: #ddd;">Developer Settings · MCP Server</strong>
+                                <span style="font-size: 0.72rem; color: #aaa; line-height: 1.4;">Connect VAII integrations to an MCP-compatible AI, such as Claude. School guidance tells the AI not to give answers to assessments or graded work. Contact Chat is not included; open VAII to use it.</span>
+                                <label for="mcp-server-url" style="font-size: 0.72rem; color: #aaa; font-weight: bold;">MCP server URL:</label>
+                                <div style="display: flex; gap: 6px;">
+                                    <input id="mcp-server-url" type="url" readonly style="min-width: 0; flex: 1; background: #111; color: #ddd; border: 1px solid #3d3d3d; border-radius: 4px; padding: 7px; font-size: 0.72rem;">
+                                    <button id="mcp-copy-url-btn" type="button" style="background: #333; color: white; border: 1px solid #555; padding: 6px 9px; border-radius: 4px; font-size: 0.72rem; cursor: pointer;">Copy</button>
+                                </div>
+                                <div id="mcp-copy-status" role="status" aria-live="polite" style="min-height: 1em; color: #aaa; font-size: 0.68rem;"></div>
+                            </div>
                             <label for="prefs-theme-select" style="font-size: 0.75rem; color: #aaa; font-weight: bold;">Theme:</label>
                             <select id="prefs-theme-select" style="width: 100%; background: #1a1a1a; color: #fff; border: 1px solid #3d3d3d; border-radius: 6px; padding: 8px; font-size: 0.82rem;">
                                 <option value="dark">Dark (default)</option>

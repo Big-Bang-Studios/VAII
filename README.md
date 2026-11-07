@@ -101,6 +101,11 @@ Configure client-side API keys within `script.js`, and server-side credentials i
 ### Proxy Origin Access
 The `/api/proxy` endpoint accepts browser requests from `https://vaii-two.vercel.app` and localhost origins. Same-origin browser requests without an `Origin` header are accepted only when the browser marks them as `same-origin`. This protects browser users from cross-origin sites reading proxy results; origin headers are not authentication and can be forged by non-browser clients.
 
+### MCP Server
+VAII provides a remote, read-only MCP server at `/api/mcp` for MCP-compatible clients such as Claude. In VAII, open **System Preferences → Developer Settings** to view and copy the full MCP URL. The server exposes weather, currency conversion, dictionary lookup, country lookup, and VAII School learning guidance.
+
+The School tool and MCP server instructions tell connected AIs never to agree to provide answers or answer keys for assessments or graded work; they should teach with explanations, hints, and guiding questions instead. The MCP server does not expose School student records, assessments, submissions, or answer keys. Contact Chat is not integrated into MCP and remains available only by opening VAII.
+
 ---
 
 ## 📁 File Structure
@@ -110,5 +115,6 @@ The `/api/proxy` endpoint accepts browser requests from `https://vaii-two.vercel
 * `firebaseConfig.js`: Shared Firebase project configuration for Auth and Firestore.
 * `chat.js`: Fullscreen terminal contact chat and Firestore message listeners.
 * `school.js`: VAII School teacher/student linking, assessment creation, test-taking, scoring, and results.
+* `api/mcp.js`: Remote MCP endpoint for read-only public integrations and VAII School learning-integrity guidance.
 * `firestore.rules`: Firestore authorization and schema validation for E2EE chat and VAII School.
 * `privacy.html`: Local data storage and API telemetry policies.
