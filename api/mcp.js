@@ -96,10 +96,15 @@ function validateText(value, label, maximumLength = 100) {
 
 async function fetchJson(url) {
     const response = await fetch(url, {
-        headers: { Accept: "application/json" },
+        headers: {
+            Accept: "application/json",
+            "User-Agent": "VAII-MCP/1.0 (https://vaii-two.vercel.app)"
+        },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
-    if (!response.ok) throw new Error(`Integration request failed with status ${response.status}.`);
+    if (!response.ok) {
+        throw new Error(`${new URL(url).hostname} returned HTTP ${response.status}.`);
+    }
     return response.json();
 }
 
@@ -147,18 +152,43 @@ async function convertCurrency(args) {
 async function defineWord(args) {
     const word = validateText(args.word, "word", 80);
     if (!/^[\p{L}' -]+$/u.test(word)) throw new Error("word may only contain letters, spaces, apostrophes, and hyphens.");
-    const data = await fetchJson(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
-    return data.slice(0, 3).map(entry => ({
-        word: entry.word,
-        phonetic: entry.phonetic || "",
-        meanings: (entry.meanings || []).slice(0, 5).map(meaning => ({
-            partOfSpeech: meaning.partOfSpeech,
-            definitions: (meaning.definitions || []).slice(0, 3).map(definition => ({
-                definition: definition.definition,
-                ...(definition.example ? { example: definition.example } : {})
+    try {
+        const data = await fetchJson(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+        if (!Array.isArray(data)) throw new Error("dictionaryapi.dev returned an unexpected response.");
+        return data.slice(0, 3).map(entry => ({
+            word: entry.word,
+            phonetic: entry.phonetic || "",
+            meanings: (entry.meanings || []).slice(0, 5).map(meaning => ({
+                partOfSpeech: meaning.partOfSpeech,
+                definitions: (meaning.definitions || []).slice(0, 3).map(definition => ({
+                    definition: definition.definition,
+                    ...(definition.example ? { example: definition.example } : {})
+                }))
             }))
-        }))
-    }));
+        }));
+    } catch (primaryError) {
+        const url = `https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word.toLowerCase())}`;
+        try {
+            const data = await fetchJson(url);
+            const meanings = Object.entries(data)
+                .slice(0, 5)
+                .map(([partOfSpeech, entries]) => ({
+                    partOfSpeech,
+                    definitions: (Array.isArray(entries) ? entries : [])
+                        .flatMap(entry => entry.definitions || [])
+                        .slice(0, 3)
+                        .map(definition => ({
+                            definition: definition.definition,
+                            ...(definition.example ? { example: definition.example } : {})
+                        }))
+                }))
+                .filter(meaning => meaning.definitions.length);
+            if (!meanings.length) throw new Error("Wiktionary returned no definitions.");
+            return [{ word, phonetic: "", meanings, source: "Wiktionary" }];
+        } catch (fallbackError) {
+            throw new Error(`Dictionary lookup failed: ${primaryError.message} Wiktionary fallback failed: ${fallbackError.message}`);
+        }
+    }
 }
 
 async function lookupCountry(args) {

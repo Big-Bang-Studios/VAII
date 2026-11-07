@@ -75,6 +75,57 @@ test("School guidance refuses assessment answers and guides the AI to teach inst
     assert.equal(result.subject, "math");
 });
 
+test("word lookup falls back to Wiktionary when dictionaryapi.dev rejects the server request", async () => {
+    const originalFetch = globalThis.fetch;
+    const requestedUrls = [];
+    globalThis.fetch = async (url, options) => {
+        requestedUrls.push(new URL(url));
+        assert.match(options.headers["User-Agent"], /^VAII-MCP\//);
+        if (requestedUrls.length === 1) {
+            return { ok: false, status: 403 };
+        }
+        return {
+            ok: true,
+            json: async () => ({
+                noun: [{
+                    definitions: [{ definition: "A test definition." }]
+                }]
+            })
+        };
+    };
+
+    try {
+        const response = createResponse();
+        await mcpHandler(createRequest({
+            jsonrpc: "2.0",
+            id: 4,
+            method: "tools/call",
+            params: { name: "vaii_define_word", arguments: { word: "example" } }
+        }), response);
+
+        assert.equal(response.body.result.isError, undefined);
+        assert.equal(requestedUrls[0].hostname, "api.dictionaryapi.dev");
+        assert.equal(requestedUrls[1].hostname, "en.wiktionary.org");
+        const result = JSON.parse(response.body.result.content[0].text);
+        assert.equal(result[0].source, "Wiktionary");
+        assert.equal(result[0].meanings[0].definitions[0].definition, "A test definition.");
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test("MCP accepts requests from remote AI servers without browser origins or session cookies", async () => {
+    const response = createResponse();
+    await mcpHandler(createRequest(
+        { jsonrpc: "2.0", id: 6, method: "tools/list" },
+        { accept: "application/json, text/event-stream", origin: "https://ai-backend.example" }
+    ), response);
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.result.tools.length, 5);
+    assert.equal(response.headers["Access-Control-Allow-Origin"], "*");
+});
+
 test("currency integration validates arguments and returns a converted rate", async () => {
     const originalFetch = globalThis.fetch;
     let requestedUrl;
