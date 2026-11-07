@@ -126,6 +126,71 @@ test("MCP accepts requests from remote AI servers without browser origins or ses
     assert.equal(response.headers["Access-Control-Allow-Origin"], "*");
 });
 
+test("country lookup handles an API error object without crashing", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+        ok: true,
+        json: async () => ({ status: 404, message: "Not Found" })
+    });
+
+    try {
+        const response = createResponse();
+        await mcpHandler(createRequest({
+            jsonrpc: "2.0",
+            id: 7,
+            method: "tools/call",
+            params: { name: "vaii_lookup_country", arguments: { country: "unknown" } }
+        }), response);
+
+        assert.equal(response.statusCode, 200);
+        assert.equal(response.body.result.isError, true);
+        assert.match(response.body.result.content[0].text, /Country service returned an unexpected response/);
+        assert.match(response.body.result.content[0].text, /Not Found/);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test("country lookup returns normalized records from an array response", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+        ok: true,
+        json: async () => [{
+            name: { common: "Testland", official: "Republic of Testland" },
+            cca2: "TT",
+            capital: ["Test City"],
+            region: "Test Region",
+            population: 12345,
+            currencies: { TST: { name: "Test dollar", symbol: "$" } },
+            languages: { eng: "English" }
+        }]
+    });
+
+    try {
+        const response = createResponse();
+        await mcpHandler(createRequest({
+            jsonrpc: "2.0",
+            id: 8,
+            method: "tools/call",
+            params: { name: "vaii_lookup_country", arguments: { country: "Testland" } }
+        }), response);
+
+        assert.equal(response.body.result.isError, undefined);
+        assert.deepEqual(JSON.parse(response.body.result.content[0].text), [{
+            name: "Testland",
+            officialName: "Republic of Testland",
+            countryCode: "TT",
+            capital: ["Test City"],
+            region: "Test Region",
+            population: 12345,
+            currencies: { TST: { name: "Test dollar", symbol: "$" } },
+            languages: { eng: "English" }
+        }]);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
 test("currency integration validates arguments and returns a converted rate", async () => {
     const originalFetch = globalThis.fetch;
     let requestedUrl;

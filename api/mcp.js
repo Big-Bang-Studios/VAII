@@ -196,7 +196,13 @@ async function lookupCountry(args) {
     const url = new URL(`https://restcountries.com/v3.1/name/${encodeURIComponent(country)}`);
     url.searchParams.set("fields", "name,capital,region,subregion,population,currencies,languages,cca2");
     const countries = await fetchJson(url);
-    return countries.slice(0, 5).map(item => ({
+    if (!Array.isArray(countries)) {
+        const detail = typeof countries?.message === "string" ? ` ${countries.message}` : "";
+        throw new Error(`Country service returned an unexpected response.${detail}`);
+    }
+    return countries.filter(item => item && typeof item === "object" && item.name && typeof item.name === "object")
+        .slice(0, 5)
+        .map(item => ({
         name: item.name?.common,
         officialName: item.name?.official,
         countryCode: item.cca2,
